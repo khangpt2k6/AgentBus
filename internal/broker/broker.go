@@ -142,6 +142,18 @@ func (b *Broker) TopicPartitionInfo(name string, partition int) (head, tail int6
 	return t.Head(), t.Tail(), nil
 }
 
+func (b *Broker) Fetch(topicName string, offset int64, maxCount int) []Message {
+	return b.FetchPartition(topicName, 0, offset, maxCount)
+}
+
+func (b *Broker) FetchPartition(topicName string, partition int, offset int64, maxCount int) []Message {
+	set := b.getOrCreate(topicName)
+	if partition < 0 || partition >= len(set.partitions) {
+		return nil
+	}
+	return set.partitions[partition].Fetch(offset, maxCount)
+}
+
 // Topics returns a snapshot of all topic names.
 func (b *Broker) Topics() []string {
 	b.mu.RLock()

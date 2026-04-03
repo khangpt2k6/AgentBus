@@ -93,6 +93,16 @@ func (s *TCPServer) handleConn(conn net.Conn) {
 				log.Printf("publish error: %v", err)
 				return
 			}
+		case protocol.OpBatchPublish:
+			if err := s.handleBatchPublish(conn, frame); err != nil {
+				log.Printf("batch publish error: %v", err)
+				return
+			}
+		case protocol.OpFetch:
+			if err := s.handleFetch(conn, frame); err != nil {
+				log.Printf("fetch error: %v", err)
+				return
+			}
 		case protocol.OpSubscribe:
 			if err := s.handleSubscribe(conn, frame); err != nil && !errors.Is(err, io.EOF) {
 				log.Printf("subscribe error: %v", err)
@@ -102,6 +112,84 @@ func (s *TCPServer) handleConn(conn net.Conn) {
 			_ = protocol.Encode(conn, &protocol.Frame{Op: protocol.OpError, Topic: frame.Topic, Payload: []byte("unsupported operation")})
 		}
 	}
+}
+
+func (s *TCPServer) handleBatchPublish(conn net.Conn, frame *protocol.Frame) error {
+	start := time.Now()
+	payloads, err := protocol.DecodeBatchPayload(frame.Payload)
+	if err != nil {
+		return protocol.Encode(conn, &protocol.Frame{
+			Op:      protocol.OpError,
+			Topic:   frame.Topic,
+			Payload: []byte("invalid batch payload"),
+		})
+	}
+	if len(payloads) == 0 {
+		return protocol.Encode(conn, &protocol.Frame{
+			Op:      protocol.OpError,
+			Topic:   frame.Topic,
+			Payload: []byte("empty batch"),
+		})
+	}
+
+	var (
+		firstOffset int64 = -1
+		lastOffset  int64
+	)
+	for _, p := range payloads {
+		if s.wal != nil {
+			if err := s.wal.Append(frame.Topic, p); err != nil {
+				return err
+			}
+		}
+		offset := s.broker.Publish(frame.Topic, p)
+		if firstOffset < 0 {
+			firstOffset = offset
+		}
+		lastOffset = offset
+	}
+
+	if s.metrics != nil {
+		s.metrics.PublishedTotal.Add(float64(len(payloads)))
+		s.metrics.ObservePublishLatency(start)
+	}
+
+	return protocol.Encode(conn, &protocol.Frame{
+		Op:      protocol.OpBatchAck,
+		Topic:   frame.Topic,
+		Payload: protocol.EncodeBatchAck(firstOffset, lastOffset, len(payloads)),
+	})
+}
+
+func (s *TCPServer) handleFetch(conn net.Conn, frame *protocol.Frame) error {
+	offset, maxCount, err := protocol.DecodeFetchRequest(frame.Payload)
+	if err != nil {
+		return protocol.Encode(conn, &protocol.Frame{
+			Op:      protocol.OpError,
+			Topic:   frame.Topic,
+			Payload: []byte("invalid fetch payload"),
+		})
+	}
+	if maxCount <= 0 {
+		maxCount = 1
+	}
+	if maxCount > 4096 {
+		maxCount = 4096
+	}
+
+	msgs := s.broker.Fetch(frame.Topic, offset, maxCount)
+	out := make([]protocol.BatchMessage, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, protocol.BatchMessage{
+			Offset:  m.Offset,
+			Payload: m.Payload,
+		})
+	}
+	return protocol.Encode(conn, &protocol.Frame{
+		Op:      protocol.OpFetch,
+		Topic:   frame.Topic,
+		Payload: protocol.EncodeFetchResponse(out),
+	})
 }
 
 func (s *TCPServer) handlePublish(conn net.Conn, frame *protocol.Frame) error {
