@@ -220,6 +220,48 @@ func BenchmarkTCPPublishParallel(b *testing.B) {
 	})
 }
 
+func BenchmarkTCPBatchPublish64(b *testing.B) {
+	srv, addr := startTestServer(b)
+	defer srv.Shutdown()
+
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer conn.Close()
+
+	const batchSize = 64
+	payload := make([]byte, 256)
+	batch := make([][]byte, batchSize)
+	for i := range batchSize {
+		batch[i] = payload
+	}
+
+	b.SetBytes(int64(batchSize * len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for b.Loop() {
+		if err := protocol.Encode(conn, &protocol.Frame{
+			Op:      protocol.OpBatchPublish,
+			Topic:   "tcp-batch",
+			Payload: protocol.EncodeBatchPayload(batch),
+		}); err != nil {
+			b.Fatal(err)
+		}
+		resp, err := protocol.Decode(conn)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if resp.Op == protocol.OpError {
+			b.Fatalf("broker error: %s", string(resp.Payload))
+		}
+		if _, _, _, err := protocol.DecodeBatchAck(resp.Payload); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // --- WAL append raw ---
 
 func BenchmarkWALAppend(b *testing.B) {
