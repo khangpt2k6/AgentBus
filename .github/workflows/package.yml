@@ -1,0 +1,95 @@
+name: Package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-packages:
+    name: Build Binary Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+            archive: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Build binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          mkdir -p dist/pkg
+          go build -trimpath -ldflags "-s -w" -o "dist/pkg/broker${EXT}" ./cmd/broker
+          go build -trimpath -ldflags "-s -w" -o "dist/pkg/goqueue${EXT}" ./cmd/goqueue
+
+      - name: Package artifacts (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          PKG="goqueue-${GOOS}-${GOARCH}.tar.gz"
+          tar -C dist/pkg -czf "dist/${PKG}" broker goqueue
+          sha256sum "dist/${PKG}" > "dist/${PKG}.sha256"
+
+      - name: Package artifacts (zip)
+        if: matrix.archive == 'zip'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          PKG="goqueue-${GOOS}-${GOARCH}.zip"
+          cd dist/pkg
+          zip -q "../${PKG}" broker.exe goqueue.exe
+          cd ../..
+          sha256sum "dist/${PKG}" > "dist/${PKG}.sha256"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/goqueue-${{ matrix.goos }}-${{ matrix.goarch }}.*
+          retention-days: 14
