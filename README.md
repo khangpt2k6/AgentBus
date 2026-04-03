@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="assets/goqueue-modern-logo.png" alt="GoQueue logo" width="420" />
+  <img width="1376" height="768" alt="image" src="https://github.com/user-attachments/assets/e436248a-81d9-4dcd-9755-437b7212a4e8" />
+
 </p>
 
 <h1 align="center">GoQueue</h1>
