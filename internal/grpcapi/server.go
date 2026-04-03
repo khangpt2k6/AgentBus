@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -132,7 +133,7 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 			span.SetStatus(otelcodes.Error, "consume loop failed")
 			return err
 		}
-		span.AddEvent("consume.batch", attribute.Int("batch_size", len(msgs)))
+		span.AddEvent("consume.batch", trace.WithAttributes(attribute.Int("batch_size", len(msgs))))
 		for _, msg := range msgs {
 			out := &goqueuev1.ConsumeMessage{
 				Offset:            msg.Offset,
