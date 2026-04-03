@@ -10,6 +10,9 @@ import (
 	"github.com/2006t/goqueue/internal/metrics"
 	"github.com/2006t/goqueue/internal/wal"
 	goqueuev1 "github.com/2006t/goqueue/proto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,12 +32,24 @@ func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal
 }
 
 func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
+	ctx, span := otel.Tracer("goqueue.grpcapi").Start(ctx, "BrokerService.Publish")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("topic", req.Topic),
+		attribute.String("key", req.Key),
+		attribute.Int("payload_bytes", len(req.Payload)),
+		attribute.Int64("requested_partition", int64(req.Partition)),
+	)
+
 	if req.Topic == "" {
+		span.SetStatus(otelcodes.Error, "topic required")
 		return nil, status.Error(codes.InvalidArgument, "topic is required")
 	}
 	start := time.Now()
 	if s.wal != nil {
 		if err := s.wal.Append(req.Topic, req.Payload); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "wal append failed")
 			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
 		}
 	}
@@ -47,11 +62,15 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 		partition = int(req.Partition)
 		offset, err = s.broker.PublishToPartition(req.Topic, partition, req.Payload)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "invalid partition")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid partition: %v", err)
 		}
 	} else {
 		partition, offset, err = s.broker.PublishWithKey(req.Topic, req.Key, req.Payload)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "publish failed")
 			return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
 		}
 	}
@@ -59,11 +78,26 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
 	}
+	span.SetAttributes(
+		attribute.Int("partition", partition),
+		attribute.Int64("offset", offset),
+	)
+	span.SetStatus(otelcodes.Ok, "ok")
 	return &goqueuev1.PublishResponse{Offset: offset, Partition: int32(partition)}, nil
 }
 
 func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStreamingServer[goqueuev1.ConsumeMessage]) error {
+	ctx := stream.Context()
+	ctx, span := otel.Tracer("goqueue.grpcapi").Start(ctx, "BrokerService.Consume")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("topic", req.Topic),
+		attribute.String("group", req.Group),
+		attribute.Int64("requested_partition", int64(req.Partition)),
+	)
+
 	if req.Topic == "" {
+		span.SetStatus(otelcodes.Error, "topic required")
 		return status.Error(codes.InvalidArgument, "topic is required")
 	}
 	group := req.Group
@@ -91,10 +125,14 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 		msgs, err := sub.Next(stream.Context(), 128)
 		if err != nil {
 			if err == context.Canceled || err == io.EOF {
+				span.SetStatus(otelcodes.Ok, "client closed stream")
 				return nil
 			}
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "consume loop failed")
 			return err
 		}
+		span.AddEvent("consume.batch", attribute.Int("batch_size", len(msgs)))
 		for _, msg := range msgs {
 			out := &goqueuev1.ConsumeMessage{
 				Offset:            msg.Offset,
@@ -103,6 +141,8 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 				Partition:         int32(sub.Partition()),
 			}
 			if err := stream.Send(out); err != nil {
+				span.RecordError(err)
+				span.SetStatus(otelcodes.Error, "stream send failed")
 				return err
 			}
 		}
@@ -120,6 +160,7 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 				s.metrics.ConsumerLag.WithLabelValues(req.Topic, group).Set(float64(lag))
 			}
 		}
+		span.SetAttributes(attribute.Int("partition", sub.Partition()))
 	}
 }
 
