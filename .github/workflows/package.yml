@@ -2,12 +2,18 @@ name: Package
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version label (example: v1.0.0 or dev)"
+        required: false
+        default: dev
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: package-${{ github.ref }}
+  group: package-${{ github.ref }}-${{ inputs.version }}
   cancel-in-progress: true
 
 jobs:
@@ -15,30 +21,8 @@ jobs:
     name: Build Binary Packages
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            ext: ""
-            archive: tar.gz
-          - goos: linux
-            goarch: arm64
-            ext: ""
-            archive: tar.gz
-          - goos: darwin
-            goarch: amd64
-            ext: ""
-            archive: tar.gz
-          - goos: darwin
-            goarch: arm64
-            ext: ""
-            archive: tar.gz
-          - goos: windows
-            goarch: amd64
-            ext: ".exe"
-            archive: zip
+    env:
+      VERSION: ${{ inputs.version }}
 
     steps:
       - name: Checkout
@@ -47,45 +31,73 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.x"
+          go-version-file: go.mod
           cache: true
 
-      - name: Build binaries
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          EXT: ${{ matrix.ext }}
-        run: |
-          mkdir -p dist/pkg
-          go build -trimpath -ldflags "-s -w" -o "dist/pkg/broker${EXT}" ./cmd/broker
-          go build -trimpath -ldflags "-s -w" -o "dist/pkg/goqueue${EXT}" ./cmd/goqueue
+      - name: Validate workspace
+        run: go test ./...
 
-      - name: Package artifacts (tar.gz)
-        if: matrix.archive == 'tar.gz'
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+      - name: Build package archives
         run: |
-          PKG="goqueue-${GOOS}-${GOARCH}.tar.gz"
-          tar -C dist/pkg -czf "dist/${PKG}" broker goqueue
-          sha256sum "dist/${PKG}" > "dist/${PKG}.sha256"
+          mkdir -p dist
+          TARGETS=(
+            "linux amd64"
+            "linux arm64"
+            "darwin amd64"
+            "darwin arm64"
+            "windows amd64"
+          )
 
-      - name: Package artifacts (zip)
-        if: matrix.archive == 'zip'
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          for target in "${TARGETS[@]}"; do
+            read -r GOOS GOARCH <<<"${target}"
+            EXT=""
+            ARCHIVE_EXT="tar.gz"
+            if [[ "${GOOS}" == "windows" ]]; then
+              EXT=".exe"
+              ARCHIVE_EXT="zip"
+            fi
+
+            PKG_DIR="goqueue_${VERSION}_${GOOS}_${GOARCH}"
+            mkdir -p "dist/${PKG_DIR}"
+
+            GOOS="${GOOS}" GOARCH="${GOARCH}" go build -trimpath -ldflags "-s -w" -o "dist/${PKG_DIR}/broker${EXT}" ./cmd/broker
+            GOOS="${GOOS}" GOARCH="${GOARCH}" go build -trimpath -ldflags "-s -w" -o "dist/${PKG_DIR}/goqueue${EXT}" ./cmd/goqueue
+            if [[ -f README.md ]]; then cp README.md "dist/${PKG_DIR}/"; fi
+            if [[ -f LICENSE ]]; then cp LICENSE "dist/${PKG_DIR}/"; fi
+
+            if [[ "${ARCHIVE_EXT}" == "zip" ]]; then
+              (cd dist && zip -qr "${PKG_DIR}.zip" "${PKG_DIR}")
+            else
+              tar -C dist -czf "dist/${PKG_DIR}.tar.gz" "${PKG_DIR}"
+            fi
+            rm -rf "dist/${PKG_DIR}"
+          done
+
+      - name: Create package checksums and summary
         run: |
-          PKG="goqueue-${GOOS}-${GOARCH}.zip"
-          cd dist/pkg
-          zip -q "../${PKG}" broker.exe goqueue.exe
-          cd ../..
-          sha256sum "dist/${PKG}" > "dist/${PKG}.sha256"
+          cd dist
+          sha256sum goqueue_* > checksums.txt
+          cat > PACKAGES.md <<EOF
+          # GoQueue Packages (${VERSION})
 
-      - name: Upload package artifact
+          Included:
+          - linux amd64, arm64
+          - darwin amd64, arm64
+          - windows amd64
+
+          Verify:
+          \`\`\`bash
+          sha256sum -c checksums.txt
+          \`\`\`
+          EOF
+
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: packages-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: goqueue-packages-${{ inputs.version }}
           path: |
-            dist/goqueue-${{ matrix.goos }}-${{ matrix.goarch }}.*
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+            dist/PACKAGES.md
           retention-days: 14
