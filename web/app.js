@@ -2,7 +2,7 @@ const releaseStatus = document.getElementById("release-status");
 
 async function loadLatestRelease() {
   try {
-    const response = await fetch("https://api.github.com/repos/2006t/goqueue/releases/latest", {
+    const response = await fetch("https://api.github.com/repos/khangpt2k6/GoQueue/releases/latest", {
       headers: { Accept: "application/vnd.github+json" },
     });
 
