@@ -1,0 +1,116 @@
+:root {
+  --bg: #0f1115;
+  --surface: #151922;
+  --text: #e7eaf0;
+  --muted: #9aa3b2;
+  --line: #2a313e;
+  --accent: #c9d3e1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.container {
+  width: min(960px, 92vw);
+  margin: 0 auto;
+}
+
+header {
+  padding: 56px 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  color: var(--muted);
+  margin: 0 0 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(34px, 5vw, 52px);
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin-top: 12px;
+  max-width: 74ch;
+  color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.actions a {
+  border: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.actions a:hover {
+  border-color: #435067;
+}
+
+main {
+  padding: 26px 0 40px;
+  display: grid;
+  gap: 14px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.panel h2,
+.panel h3 {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+pre {
+  margin: 0;
+  overflow-x: auto;
+  background: #11141b;
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+footer {
+  padding: 0 0 32px;
+  color: var(--muted);
+}

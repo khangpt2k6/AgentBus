@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoQueue - Distributed Message Broker</title>
+  <meta name="description" content="GoQueue is a distributed message broker built from scratch in Go with TCP, gRPC, WAL, partitions, and observability.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="container">
+    <p class="eyebrow">Distributed Systems Project</p>
+    <h1>GoQueue</h1>
+    <p class="lead">
+      A high-throughput message broker in Go. Built from scratch for scale experiments:
+      TCP and gRPC transport, partitioned topics, WAL durability, and observability with Prometheus + Grafana + OpenTelemetry.
+    </p>
+    <div class="actions">
+      <a href="https://github.com/2006t/goqueue" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="https://github.com/2006t/goqueue/releases" target="_blank" rel="noreferrer">Releases</a>
+      <a href="http://localhost:3000" target="_blank" rel="noreferrer">Grafana</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <h2>Core Capabilities</h2>
+      <ul>
+        <li>Custom binary TCP protocol and typed gRPC API</li>
+        <li>Partitioned topics with key-based routing</li>
+        <li>Write-ahead log for replay and recovery</li>
+        <li>Consumer groups with partition-aware offsets</li>
+        <li>Batch publish/fetch for higher throughput</li>
+      </ul>
+    </section>
+
+    <section class="panel grid">
+      <article>
+        <h3>Local Stack</h3>
+        <p>Docker Compose starts a 3-node cluster with observability.</p>
+        <pre><code>docker compose up --build</code></pre>
+      </article>
+      <article>
+        <h3>Broker</h3>
+        <p>Run a broker manually for fast local development.</p>
+        <pre><code>go run ./cmd/broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112</code></pre>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Status</h2>
+      <p id="release-status">Loading latest release...</p>
+      <p class="muted">Data source: public GitHub Releases API.</p>
+    </section>
+  </main>
+
+  <footer class="container">
+    <p>GoQueue by 2006t</p>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
