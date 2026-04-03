@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/broker-linux-amd64 ./cmd/broker
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/goqueue-linux-amd64 ./cmd/goqueue
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/broker-windows-amd64.exe ./cmd/broker
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/goqueue-windows-amd64.exe ./cmd/goqueue
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/broker-darwin-arm64 ./cmd/broker
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/goqueue-darwin-arm64 ./cmd/goqueue
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=sha
+
+      - name: Build and push broker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/broker.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
