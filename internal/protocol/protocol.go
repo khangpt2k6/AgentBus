@@ -19,12 +19,12 @@ import (
 const (
 	Magic uint16 = 0x474B // "GK"
 
-	OpPublish   byte = 0x01
-	OpSubscribe byte = 0x02
-	OpAck       byte = 0x03
-	OpFetch     byte = 0x04
-	OpError     byte = 0x05
-	OpMessage   byte = 0x06 // server → client delivery
+	OpPublish      byte = 0x01
+	OpSubscribe    byte = 0x02
+	OpAck          byte = 0x03
+	OpFetch        byte = 0x04
+	OpError        byte = 0x05
+	OpMessage      byte = 0x06 // server → client delivery
 	OpBatchPublish byte = 0x07
 	OpBatchAck     byte = 0x08
 )

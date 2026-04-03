@@ -58,6 +58,47 @@ func TestEmptyPayload(t *testing.T) {
 	}
 }
 
+func TestBatchPayloadRoundTrip(t *testing.T) {
+	in := [][]byte{
+		[]byte("a"),
+		[]byte("hello"),
+		[]byte("world"),
+	}
+	enc := EncodeBatchPayload(in)
+	out, err := DecodeBatchPayload(enc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != len(in) {
+		t.Fatalf("batch len: got %d want %d", len(out), len(in))
+	}
+	for i := range in {
+		if !bytes.Equal(in[i], out[i]) {
+			t.Fatalf("batch[%d]: got %q want %q", i, out[i], in[i])
+		}
+	}
+}
+
+func TestFetchResponseRoundTrip(t *testing.T) {
+	in := []BatchMessage{
+		{Offset: 10, Payload: []byte("foo")},
+		{Offset: 11, Payload: []byte("bar")},
+	}
+	enc := EncodeFetchResponse(in)
+	out, err := DecodeFetchResponse(enc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != len(in) {
+		t.Fatalf("len: got %d want %d", len(out), len(in))
+	}
+	for i := range in {
+		if out[i].Offset != in[i].Offset || !bytes.Equal(out[i].Payload, in[i].Payload) {
+			t.Fatalf("msg[%d] mismatch", i)
+		}
+	}
+}
+
 func BenchmarkEncodeDecode(b *testing.B) {
 	frame := Frame{Op: OpPublish, Topic: "bench-topic", Payload: make([]byte, 256)}
 	var buf bytes.Buffer
