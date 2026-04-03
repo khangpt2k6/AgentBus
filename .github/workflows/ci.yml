@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24.x"
+  COVERAGE_MIN: "55.0"
+
+jobs:
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1.50.0
+
+      - name: Verify protobuf generation is up to date
+        run: |
+          go run github.com/bufbuild/buf/cmd/buf@latest generate
+          git diff --exit-code
+
+      - name: Verify go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code
+
+      - name: Build all packages
+        run: go build ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Unit tests
+        run: go test ./... -count=1
+
+      - name: Race tests
+        run: go test -race ./... -count=1
+
+      - name: Coverage
+        run: |
+          go test ./... -covermode=atomic -coverprofile=coverage.out -count=1
+          go tool cover -func=coverage.out | tee coverage.txt
+          TOTAL=$(awk '/^total:/{print substr($3, 1, length($3)-1)}' coverage.txt)
+          echo "Total coverage: ${TOTAL}%"
+          awk -v got="$TOTAL" -v min="${COVERAGE_MIN}" 'BEGIN { if (got+0 < min+0) { exit 1 } }'
+
+      - name: Validate Docker Compose
+        run: docker compose config > /dev/null
+
+      - name: Build broker container image
+        run: docker build -f docker/broker.Dockerfile .
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.txt
+
+  workflow-lint:
+    name: Workflow Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.7
