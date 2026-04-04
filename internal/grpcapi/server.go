@@ -47,13 +47,6 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 		return nil, status.Error(codes.InvalidArgument, "topic is required")
 	}
 	start := time.Now()
-	if s.wal != nil {
-		if err := s.wal.Append(req.Topic, req.Payload); err != nil {
-			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, "wal append failed")
-			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
-		}
-	}
 	var (
 		partition int
 		offset    int64
@@ -73,6 +66,19 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "publish failed")
 			return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
+		}
+	}
+	if s.wal != nil {
+		if err := s.wal.AppendRecord(wal.Record{
+			Timestamp: time.Now().UnixNano(),
+			Topic:     req.Topic,
+			Key:       req.Key,
+			Partition: int32(partition),
+			Payload:   req.Payload,
+		}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "wal append failed")
+			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
 		}
 	}
 	if s.metrics != nil {

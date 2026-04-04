@@ -50,6 +50,9 @@ func (s *TCPServer) ListenAndServe() error {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
 			return err
 		}
 		s.activeConns.Add(1)
@@ -137,12 +140,20 @@ func (s *TCPServer) handleBatchPublish(conn net.Conn, frame *protocol.Frame) err
 		lastOffset  int64
 	)
 	for _, p := range payloads {
+		offset, err := s.broker.PublishToPartition(frame.Topic, 0, p)
+		if err != nil {
+			return err
+		}
 		if s.wal != nil {
-			if err := s.wal.Append(frame.Topic, p); err != nil {
+			if err := s.wal.AppendRecord(wal.Record{
+				Timestamp: time.Now().UnixNano(),
+				Topic:     frame.Topic,
+				Partition: 0,
+				Payload:   p,
+			}); err != nil {
 				return err
 			}
 		}
-		offset := s.broker.Publish(frame.Topic, p)
 		if firstOffset < 0 {
 			firstOffset = offset
 		}
@@ -194,12 +205,20 @@ func (s *TCPServer) handleFetch(conn net.Conn, frame *protocol.Frame) error {
 
 func (s *TCPServer) handlePublish(conn net.Conn, frame *protocol.Frame) error {
 	start := time.Now()
+	offset, err := s.broker.PublishToPartition(frame.Topic, 0, frame.Payload)
+	if err != nil {
+		return err
+	}
 	if s.wal != nil {
-		if err := s.wal.Append(frame.Topic, frame.Payload); err != nil {
+		if err := s.wal.AppendRecord(wal.Record{
+			Timestamp: time.Now().UnixNano(),
+			Topic:     frame.Topic,
+			Partition: 0,
+			Payload:   frame.Payload,
+		}); err != nil {
 			return err
 		}
 	}
-	offset := s.broker.Publish(frame.Topic, frame.Payload)
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)

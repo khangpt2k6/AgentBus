@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GoQueue - Distributed Message Broker</title>
-  <meta name="description" content="GoQueue is a distributed message broker built from scratch in Go with TCP, gRPC, WAL, partitions, and observability.">
+  <title>GoQueue - Partitioned Message Broker</title>
+  <meta name="description" content="GoQueue is a partitioned message broker built in Go with TCP, gRPC, WAL replay, and local observability.">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <header class="container">
-    <p class="eyebrow">Distributed Systems Project</p>
+    <p class="eyebrow">Systems Engineering Project</p>
     <h1>GoQueue</h1>
     <p class="lead">
-      A high-throughput message broker in Go. Built from scratch for scale experiments:
+      A high-throughput message broker in Go. Built from scratch for local scale experiments:
       TCP and gRPC transport, partitioned topics, WAL durability, and observability with Prometheus + Grafana + OpenTelemetry.
     </p>
     <div class="actions">
@@ -37,7 +37,7 @@
     <section class="panel grid">
       <article>
         <h3>Local Stack</h3>
-        <p>Docker Compose starts a 3-node cluster with observability.</p>
+        <p>Docker Compose starts 3 independent broker nodes with shared observability.</p>
         <pre><code>docker compose up --build</code></pre>
       </article>
       <article>

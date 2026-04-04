@@ -8,14 +8,23 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
+	"github.com/2006t/goqueue/internal/grpcapi"
+	"github.com/2006t/goqueue/internal/metrics"
 	"github.com/2006t/goqueue/internal/protocol"
+	"github.com/2006t/goqueue/internal/telemetry"
 	"github.com/2006t/goqueue/internal/wal"
+	goqueuev1 "github.com/2006t/goqueue/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // --- In-memory publish throughput ---
@@ -435,6 +444,128 @@ func TestTCPThroughputReport(t *testing.T) {
 	}
 
 	t.Logf("TCP E2E: %d publishes in %v → %.0f msgs/sec (last offset: %d)", n, elapsed, rate, lastOffset)
+}
+
+func BenchmarkGRPCPublish(b *testing.B) {
+	addr, stop := startTestGRPCServer(b)
+	defer stop()
+
+	conn, err := grpc.NewClient(
+		addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer conn.Close()
+
+	client := goqueuev1.NewBrokerServiceClient(conn)
+	payload := make([]byte, 256)
+	b.SetBytes(256)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for b.Loop() {
+		if _, err := client.Publish(context.Background(), &goqueuev1.PublishRequest{
+			Topic:   "grpc-bench",
+			Payload: payload,
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestLatencyReport(t *testing.T) {
+	if os.Getenv("GOQUEUE_BENCH") == "" {
+		t.Skip("set GOQUEUE_BENCH=1 to run latency report")
+	}
+
+	srv, addr := startTestServer(t)
+	defer srv.Shutdown()
+
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	n := 5000
+	samples := make([]time.Duration, 0, n)
+	payload := make([]byte, 256)
+	for range n {
+		start := time.Now()
+		if err := protocol.Encode(conn, &protocol.Frame{
+			Op:      protocol.OpPublish,
+			Topic:   "latency-report",
+			Payload: payload,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		resp, err := protocol.Decode(conn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.Op == protocol.OpError {
+			t.Fatalf("broker error: %s", string(resp.Payload))
+		}
+		samples = append(samples, time.Since(start))
+	}
+
+	sort.Slice(samples, func(i, j int) bool {
+		return samples[i] < samples[j]
+	})
+	t.Logf("TCP publish latency (localhost, 256B, n=%d): p50=%s p95=%s p99=%s",
+		n,
+		quantile(samples, 0.50),
+		quantile(samples, 0.95),
+		quantile(samples, 0.99),
+	)
+}
+
+func startTestGRPCServer(tb testing.TB) (string, func()) {
+	tb.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		tb.Fatal(err)
+	}
+	addr := ln.Addr().String()
+
+	bk := broker.New()
+	groups := consumer.NewManager()
+	reg := prometheus.NewRegistry()
+	m := metrics.New(reg)
+
+	traceShutdown, err := telemetry.SetupTracing(context.Background(), "goqueue-bench-grpc")
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	grpcSrv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
+	grpcapi.Register(grpcSrv, grpcapi.NewServer(bk, groups, m, nil))
+	go func() {
+		_ = grpcSrv.Serve(ln)
+	}()
+
+	stop := func() {
+		grpcSrv.Stop()
+		_ = traceShutdown(context.Background())
+	}
+	return addr, stop
+}
+
+func quantile(samples []time.Duration, q float64) time.Duration {
+	if len(samples) == 0 {
+		return 0
+	}
+	if q <= 0 {
+		return samples[0]
+	}
+	if q >= 1 {
+		return samples[len(samples)-1]
+	}
+	idx := int(q * float64(len(samples)-1))
+	return samples[idx]
 }
 
 // placeholder to avoid "unused import" if fmt gets stripped
