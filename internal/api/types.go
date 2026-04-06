@@ -19,17 +19,39 @@ type BrokerStats struct {
 type TopicStat struct {
 	Name       string          `json:"name"`
 	Partitions []PartitionStat `json:"partitions"`
-	Total      int64           `json:"total"` // sum of all partition sizes
+	Total      int64           `json:"total"`
 }
 
 type PartitionStat struct {
 	Index int   `json:"index"`
 	Head  int64 `json:"head"`
 	Tail  int64 `json:"tail"`
-	Size  int64 `json:"size"` // tail - head = messages in ring
+	Size  int64 `json:"size"`
 }
 
 type WALInfo struct {
 	Path     string `json:"path"`
 	SyncMode string `json:"sync_mode"`
+}
+
+// PublishRequest is the body for POST /api/publish.
+type PublishRequest struct {
+	Topic     string `json:"topic"`
+	Key       string `json:"key,omitempty"`
+	Partition int    `json:"partition,omitempty"` // -1 or 0 = auto
+	Payload   string `json:"payload"`
+}
+
+// PublishResponse is returned after a successful publish.
+type PublishResponse struct {
+	Topic     string `json:"topic"`
+	Partition int    `json:"partition"`
+	Offset    int64  `json:"offset"`
+}
+
+// FetchedMessage is one message returned by GET /api/fetch.
+type FetchedMessage struct {
+	Offset    int64  `json:"offset"`
+	Timestamp string `json:"timestamp"` // RFC3339Nano
+	Payload   string `json:"payload"`
 }
