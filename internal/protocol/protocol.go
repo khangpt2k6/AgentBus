@@ -8,6 +8,10 @@
 //
 // Magic: 0x474B ("GK")
 // Op:    PUBLISH=0x01, SUBSCRIBE=0x02, ACK=0x03, FETCH=0x04, ERROR=0x05
+//
+// OpPublishWithKey payload layout:
+//
+//	keyLen(2) + key + message_payload
 package protocol
 
 import (
