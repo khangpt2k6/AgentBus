@@ -23,10 +23,13 @@ type TopicStat struct {
 }
 
 type PartitionStat struct {
-	Index int   `json:"index"`
-	Head  int64 `json:"head"`
-	Tail  int64 `json:"tail"`
-	Size  int64 `json:"size"`
+	Index     int     `json:"index"`
+	Head      int64   `json:"head"`
+	Tail      int64   `json:"tail"`
+	Size      int64   `json:"size"`
+	Capacity  int64   `json:"capacity"`
+	FillPct   float64 `json:"fill_pct"`
+	Evictions int64   `json:"evictions"`
 }
 
 type WALInfo struct {

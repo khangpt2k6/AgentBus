@@ -19,21 +19,21 @@ func init() {
 	app.Route("/*", func() app.Composer { return &Dashboard{} })
 }
 
-// ── palette (minimal — one accent, rest is white/alpha) ──────────────────────
+// ── palette (GitHub light-mode inspired) ─────────────────────────────────────
 
 const (
-	bg          = "#060c18"
-	glass       = "rgba(255,255,255,0.05)"
-	glassBorder = "rgba(255,255,255,0.09)"
-	glassHover  = "rgba(255,255,255,0.08)"
-	txt         = "#e6edf3"
-	muted       = "rgba(255,255,255,0.38)"
-	accent      = "#58a6ff"
-	accentDim   = "rgba(88,166,255,0.18)"
-	accentBdr   = "rgba(88,166,255,0.35)"
-	danger      = "#f85149"
-	dangerDim   = "rgba(248,81,73,0.15)"
-	ok          = "rgba(63,185,80,0.85)"
+	bg          = "#f6f8fa"
+	glass       = "rgba(255,255,255,0.85)"
+	glassBorder = "rgba(0,0,0,0.10)"
+	glassHover  = "rgba(0,0,0,0.06)"
+	txt         = "#0d1117"
+	muted       = "rgba(87,96,106,0.85)"
+	accent      = "#0969da"
+	accentDim   = "rgba(9,105,218,0.10)"
+	accentBdr   = "rgba(9,105,218,0.30)"
+	danger      = "#cf222e"
+	dangerDim   = "rgba(207,34,46,0.10)"
+	ok          = "rgba(26,127,55,0.90)"
 	fontMono    = "'JetBrains Mono','Fira Code','Cascadia Code',monospace"
 )
 
@@ -176,6 +176,7 @@ func (d *Dashboard) renderConnErr() app.UI {
 // ── stat row ─────────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderStatRow() app.UI {
+	backlog := max(d.stats.TotalPublished-d.stats.TotalConsumed, 0)
 	return app.Div().
 		Style("display", "grid").
 		Style("grid-template-columns", "repeat(auto-fit,minmax(130px,1fr))").
@@ -185,14 +186,17 @@ func (d *Dashboard) renderStatRow() app.UI {
 			d.stat("CONSUMED", fmtN(d.stats.TotalConsumed)),
 			d.stat("PUB/s", fmtN(d.pubRate)),
 			d.stat("CON/s", fmtN(d.conRate)),
+			d.stat("BACKLOG", fmtN(backlog)),
 			d.stat("TOPICS", strconv.Itoa(len(d.stats.Topics))),
 			d.stat("TCP CONN", strconv.FormatInt(d.stats.TCPConnections, 10)),
+			d.stat("WAL SYNC", or(d.stats.WAL.SyncMode, "—")),
 		)
 }
 
 func (d *Dashboard) stat(label, value string) app.UI {
 	return app.Div().Class("glass fade-in").
 		Style("padding", "14px 16px").
+		Style("border-left", "3px solid "+accentBdr).
 		Body(
 			app.P().Style("color", muted).Style("font-size", "9px").Style("letter-spacing", "1.2px").
 				Style("margin-bottom", "7px").Text(label),
@@ -279,16 +283,22 @@ func (d *Dashboard) partBadges(t api.TopicStat) []app.UI {
 	out := make([]app.UI, 0, len(t.Partitions))
 	for _, p := range t.Partitions {
 		col := muted
+		bg2 := "rgba(0,0,0,0.04)"
 		if p.Size > 0 {
 			col = accent
+			bg2 = accentDim
+		}
+		label := fmt.Sprintf("p%d", p.Index)
+		if p.Size > 0 {
+			label = fmt.Sprintf("p%d·%s", p.Index, fmtN(p.Size))
 		}
 		out = append(out,
 			app.Span().
 				Style("font-size", "9px").Style("color", col).
-				Style("background", "rgba(255,255,255,0.05)").
+				Style("background", bg2).
 				Style("border", "1px solid "+glassBorder).
-				Style("border-radius", "3px").Style("padding", "1px 5px").
-				Text(fmt.Sprintf("p%d", p.Index)),
+				Style("border-radius", "3px").Style("padding", "1px 6px").
+				Text(label),
 		)
 	}
 	return out

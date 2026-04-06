@@ -54,8 +54,8 @@ func main() {
 	mux.Handle("/", &app.Handler{
 		Name:            "GoQueue Dashboard",
 		Description:     "Real-time GoQueue message broker dashboard — built in Go → WASM",
-		BackgroundColor: "#0d1117",
-		ThemeColor:      "#0d1117",
+		BackgroundColor: "#f6f8fa",
+		ThemeColor:      "#0969da",
 		Icon: app.Icon{
 			Default: "https://go.dev/images/favicon-gopher.png",
 		},
@@ -66,17 +66,18 @@ func main() {
 			`<style>
 				*{box-sizing:border-box;margin:0;padding:0}
 				html,body{
-					background:linear-gradient(135deg,#060c18 0%,#0a0f1e 60%,#060c18 100%);
+					background:linear-gradient(135deg,#f6f8fa 0%,#eef1f5 60%,#f6f8fa 100%);
 					background-attachment:fixed;
 					min-height:100%;
 				}
 				/* glassmorphism utility */
 				.glass{
-					background:rgba(255,255,255,0.05);
-					backdrop-filter:blur(14px) saturate(1.5);
-					-webkit-backdrop-filter:blur(14px) saturate(1.5);
-					border:1px solid rgba(255,255,255,0.09);
+					background:rgba(255,255,255,0.85);
+					backdrop-filter:blur(14px) saturate(1.4);
+					-webkit-backdrop-filter:blur(14px) saturate(1.4);
+					border:1px solid rgba(0,0,0,0.10);
 					border-radius:10px;
+					box-shadow:0 1px 4px rgba(0,0,0,0.06);
 				}
 				/* animations */
 				@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
@@ -86,23 +87,23 @@ func main() {
 				/* form inputs */
 				input,textarea,select{
 					width:100%;
-					background:rgba(255,255,255,0.04);
-					border:1px solid rgba(255,255,255,0.1);
+					background:#ffffff;
+					border:1px solid rgba(0,0,0,0.18);
 					border-radius:6px;
-					color:#e6edf3;
+					color:#0d1117;
 					font-family:'JetBrains Mono','Fira Code',monospace;
 					font-size:12px;
 					outline:none;
 					padding:7px 10px;
 					transition:border-color .15s;
 				}
-				input:focus,textarea:focus{border-color:rgba(88,166,255,0.5)}
-				input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.2)}
-				button:hover{filter:brightness(1.15)}
+				input:focus,textarea:focus{border-color:rgba(9,105,218,0.50)}
+				input::placeholder,textarea::placeholder{color:rgba(0,0,0,0.28)}
+				button:hover{filter:brightness(0.93)}
 				/* scrollbar */
 				::-webkit-scrollbar{width:4px}
 				::-webkit-scrollbar-track{background:transparent}
-				::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+				::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:2px}
 			</style>`,
 		},
 	})
