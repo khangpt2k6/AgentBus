@@ -18,63 +18,51 @@ func init() {
 	app.Route("/*", func() app.Composer { return &Dashboard{} })
 }
 
-// ── colours ──────────────────────────────────────────────────────────────────
+// ── colours ───────────────────────────────────────────────────────────────────
 
 const (
-	colBg       = "#0d1117"
-	colSurface  = "#161b22"
-	colBorder   = "#30363d"
-	colText     = "#e6edf3"
-	colMuted    = "#8b949e"
-	colGreen    = "#3fb950"
-	colBlue     = "#58a6ff"
-	colPurple   = "#d2a8ff"
-	colOrange   = "#f0883e"
-	colRed      = "#f85149"
-	colCyan     = "#39c5cf"
-	fontMono    = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
+	colBg      = "#0d1117"
+	colSurface = "#161b22"
+	colBorder  = "#30363d"
+	colText    = "#e6edf3"
+	colMuted   = "#8b949e"
+	colGreen   = "#3fb950"
+	colBlue    = "#58a6ff"
+	colPurple  = "#d2a8ff"
+	colOrange  = "#f0883e"
+	colRed     = "#f85149"
+	colCyan    = "#39c5cf"
+	fontMono   = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
 )
 
 // ── Dashboard (root component) ────────────────────────────────────────────────
 
-// Dashboard is the root component. It polls /api/stats every second and
-// propagates the data down to child components via struct fields.
 type Dashboard struct {
 	app.Compo
 
 	stats   api.BrokerStats
 	pubRate int64
 	conRate int64
-	loading bool
 	errMsg  string
-	ticks   int // increments each second, used to drive the live dot blink
 }
 
 func (d *Dashboard) OnMount(ctx app.Context) {
-	d.loading = true
 	ctx.Async(func() {
-		d.poll(ctx)
+		for {
+			s, err := fetchStats()
+			ctx.Dispatch(func(ctx app.Context) {
+				if err != nil {
+					d.errMsg = err.Error()
+					return
+				}
+				d.pubRate = s.TotalPublished - d.stats.TotalPublished
+				d.conRate = s.TotalConsumed - d.stats.TotalConsumed
+				d.stats = s
+				d.errMsg = ""
+			})
+			time.Sleep(time.Second)
+		}
 	})
-}
-
-func (d *Dashboard) poll(ctx app.Context) {
-	for {
-		stats, err := fetchStats()
-		ctx.Dispatch(func(ctx app.Context) {
-			if err != nil {
-				d.errMsg = err.Error()
-				d.loading = false
-				return
-			}
-			d.pubRate = stats.TotalPublished - d.stats.TotalPublished
-			d.conRate = stats.TotalConsumed - d.stats.TotalConsumed
-			d.stats = stats
-			d.loading = false
-			d.errMsg = ""
-			d.ticks++
-		})
-		time.Sleep(time.Second)
-	}
 }
 
 func fetchStats() (api.BrokerStats, error) {
@@ -97,9 +85,7 @@ func (d *Dashboard) Render() app.UI {
 		Style("font-family", fontMono).
 		Style("color", colText).
 		Style("padding", "28px 32px").
-		Style("box-sizing", "border-box").
 		Body(
-			d.renderGlobalStyle(),
 			d.renderHeader(),
 			d.renderErrorBanner(),
 			d.renderStatCards(),
@@ -108,47 +94,38 @@ func (d *Dashboard) Render() app.UI {
 		)
 }
 
-// inject @keyframes and base reset via a raw <style> tag
-func (d *Dashboard) renderGlobalStyle() app.UI {
-	return app.Raw(`<style>
-		*{box-sizing:border-box;margin:0;padding:0}
-		body{background:#0d1117}
-		@keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
-		@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-		.card{animation:fadeIn .3s ease}
-		.live-dot{animation:blink 1.4s infinite}
-		::-webkit-scrollbar{width:6px}
-		::-webkit-scrollbar-track{background:#161b22}
-		::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
-	</style>`)
-}
-
 // ── Header ────────────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderHeader() app.UI {
-	roleColor := map[string]string{
+	roleColors := map[string]string{
 		"leader":     colGreen,
 		"follower":   colBlue,
 		"candidate":  colOrange,
 		"standalone": colPurple,
 	}
 	rc := colMuted
-	if c, ok := roleColor[d.stats.Role]; ok {
+	if c, ok := roleColors[d.stats.Role]; ok {
 		rc = c
 	}
 
-	dotColor := colGreen
+	dotColor, statusText := colGreen, "LIVE"
 	if d.errMsg != "" {
-		dotColor = colRed
-	} else if d.loading {
-		dotColor = colOrange
+		dotColor, statusText = colRed, "ERROR"
+	} else if d.stats.NodeID == "" {
+		dotColor, statusText = colOrange, "CONNECTING"
 	}
 
-	statusText := "LIVE"
-	if d.loading {
-		statusText = "CONNECTING"
-	} else if d.errMsg != "" {
-		statusText = "ERROR"
+	nodeID := d.stats.NodeID
+	if nodeID == "" {
+		nodeID = "—"
+	}
+	role := d.stats.Role
+	if role == "" {
+		role = "—"
+	}
+	uptime := d.stats.Uptime
+	if uptime == "" {
+		uptime = "—"
 	}
 
 	return app.Div().
@@ -159,7 +136,6 @@ func (d *Dashboard) renderHeader() app.UI {
 		Style("padding-bottom", "20px").
 		Style("margin-bottom", "28px").
 		Body(
-			// left: logo + node info
 			app.Div().
 				Style("display", "flex").
 				Style("align-items", "center").
@@ -169,14 +145,13 @@ func (d *Dashboard) renderHeader() app.UI {
 						Style("color", colCyan).
 						Style("font-size", "22px").
 						Style("font-weight", "700").
-						Style("letter-spacing", "-0.5px").
 						Text("GoQueue"),
-					d.separator(),
+					app.Span().Style("color", colBorder).Text("│"),
 					app.Span().
 						Style("color", colText).
 						Style("font-size", "14px").
-						Text(d.stats.NodeID),
-					d.separator(),
+						Text(nodeID),
+					app.Span().Style("color", colBorder).Text("│"),
 					app.Span().
 						Style("color", rc).
 						Style("font-size", "12px").
@@ -184,9 +159,8 @@ func (d *Dashboard) renderHeader() app.UI {
 						Style("padding", "2px 8px").
 						Style("border-radius", "4px").
 						Style("border", "1px solid "+rc+"44").
-						Text(d.stats.Role),
+						Text(role),
 				),
-			// right: live indicator + uptime
 			app.Div().
 				Style("display", "flex").
 				Style("align-items", "center").
@@ -202,37 +176,30 @@ func (d *Dashboard) renderHeader() app.UI {
 						Style("font-size", "12px").
 						Style("letter-spacing", "1px").
 						Text(statusText),
-					d.separator(),
+					app.Span().Style("color", colBorder).Text("│"),
 					app.Span().
 						Style("color", colMuted).
 						Style("font-size", "12px").
-						Text("up "+d.stats.Uptime),
+						Text("up "+uptime),
 				),
 		)
-}
-
-func (d *Dashboard) separator() app.UI {
-	return app.Span().
-		Style("color", colBorder).
-		Style("font-size", "16px").
-		Text("│")
 }
 
 // ── Error banner ──────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderErrorBanner() app.UI {
 	if d.errMsg == "" {
-		return app.Text("")
+		return app.Span()
 	}
 	return app.Div().
-		Style("background", colRed+"18").
-		Style("border", "1px solid "+colRed+"55").
+		Style("background", "#f8514922").
+		Style("border", "1px solid #f8514955").
 		Style("border-radius", "6px").
 		Style("padding", "10px 16px").
 		Style("margin-bottom", "20px").
 		Style("color", colRed).
 		Style("font-size", "13px").
-		Text("⚠ " + d.errMsg)
+		Text("⚠  broker unreachable — " + d.errMsg)
 }
 
 // ── Stat cards ────────────────────────────────────────────────────────────────
@@ -240,16 +207,16 @@ func (d *Dashboard) renderErrorBanner() app.UI {
 func (d *Dashboard) renderStatCards() app.UI {
 	return app.Div().
 		Style("display", "grid").
-		Style("grid-template-columns", "repeat(auto-fit, minmax(180px, 1fr))").
+		Style("grid-template-columns", "repeat(auto-fit, minmax(160px, 1fr))").
 		Style("gap", "16px").
 		Style("margin-bottom", "28px").
 		Body(
-			d.statCard("PUBLISHED", fmtCount(d.stats.TotalPublished), colGreen, "total messages written"),
-			d.statCard("CONSUMED", fmtCount(d.stats.TotalConsumed), colBlue, "total messages read"),
-			d.statCard("PUB RATE", fmtCount(d.pubRate)+"/s", colCyan, "messages per second"),
-			d.statCard("CON RATE", fmtCount(d.conRate)+"/s", colPurple, "consumed per second"),
+			d.statCard("PUBLISHED", fmtCount(d.stats.TotalPublished), colGreen, "total written"),
+			d.statCard("CONSUMED", fmtCount(d.stats.TotalConsumed), colBlue, "total read"),
+			d.statCard("PUB/s", fmtCount(d.pubRate), colCyan, "messages/sec"),
+			d.statCard("CON/s", fmtCount(d.conRate), colPurple, "consumed/sec"),
 			d.statCard("TOPICS", fmt.Sprintf("%d", len(d.stats.Topics)), colOrange, "active topics"),
-			d.statCard("TCP CONNS", fmt.Sprintf("%d", d.stats.TCPConnections), colMuted, "open tcp connections"),
+			d.statCard("TCP", fmt.Sprintf("%d", d.stats.TCPConnections), colMuted, "open connections"),
 		)
 }
 
@@ -285,7 +252,7 @@ func (d *Dashboard) statCard(label, value, accent, hint string) app.UI {
 // ── Topics ────────────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderTopics() app.UI {
-	sectionLabel := app.P().
+	label := app.P().
 		Style("color", colMuted).
 		Style("font-size", "10px").
 		Style("letter-spacing", "1.5px").
@@ -294,7 +261,7 @@ func (d *Dashboard) renderTopics() app.UI {
 
 	if len(d.stats.Topics) == 0 {
 		return app.Div().Body(
-			sectionLabel,
+			label,
 			app.Div().
 				Style("background", colSurface).
 				Style("border", "1px dashed "+colBorder).
@@ -307,57 +274,44 @@ func (d *Dashboard) renderTopics() app.UI {
 		)
 	}
 
-	rows := make([]app.UI, 0, len(d.stats.Topics))
+	rows := make([]app.UI, 0, len(d.stats.Topics)+1)
+	rows = append(rows, label)
 	for _, t := range d.stats.Topics {
 		rows = append(rows, d.topicRow(t))
 	}
 
-	return app.Div().Body(
-		append([]app.UI{sectionLabel},
-			app.Div().
-				Style("display", "flex").
-				Style("flex-direction", "column").
-				Style("gap", "8px").
-				Body(rows...),
-		)...,
-	)
+	return app.Div().
+		Style("display", "flex").
+		Style("flex-direction", "column").
+		Style("gap", "8px").
+		Body(rows...)
 }
 
 func (d *Dashboard) topicRow(t api.TopicStat) app.UI {
-	// build partition badges
 	badges := make([]app.UI, 0, len(t.Partitions))
 	for _, p := range t.Partitions {
-		fill := colGreen
+		col := colGreen
 		if p.Size == 0 {
-			fill = colMuted
+			col = colMuted
 		}
 		badges = append(badges,
-			app.Div().
-				Style("display", "flex").
-				Style("flex-direction", "column").
-				Style("align-items", "center").
-				Style("gap", "4px").
-				Body(
-					app.Span().
-						Style("background", colBg).
-						Style("border", "1px solid "+colBorder).
-						Style("border-radius", "4px").
-						Style("padding", "3px 10px").
-						Style("font-size", "11px").
-						Style("color", fill).
-						Text(fmt.Sprintf("p%d  %s", p.Index, fmtCount(p.Size))),
-				),
+			app.Span().
+				Style("background", colBg).
+				Style("border", "1px solid "+colBorder).
+				Style("border-radius", "4px").
+				Style("padding", "3px 10px").
+				Style("font-size", "11px").
+				Style("color", col).
+				Text(fmt.Sprintf("p%d  %s", p.Index, fmtCount(p.Size))),
 		)
 	}
 
-	// mini bar: how full is this topic (relative to total messages)
-	totalAll := d.stats.TotalPublished
 	pct := 0.0
-	if totalAll > 0 {
-		pct = float64(t.Total) / float64(totalAll) * 100
-	}
-	if pct > 100 {
-		pct = 100
+	if d.stats.TotalPublished > 0 {
+		pct = float64(t.Total) / float64(d.stats.TotalPublished) * 100
+		if pct > 100 {
+			pct = 100
+		}
 	}
 
 	return app.Div().
@@ -367,7 +321,6 @@ func (d *Dashboard) topicRow(t api.TopicStat) app.UI {
 		Style("border-radius", "6px").
 		Style("padding", "14px 18px").
 		Body(
-			// top row: name + total
 			app.Div().
 				Style("display", "flex").
 				Style("justify-content", "space-between").
@@ -384,14 +337,12 @@ func (d *Dashboard) topicRow(t api.TopicStat) app.UI {
 						Style("font-size", "13px").
 						Text(fmtCount(t.Total)+" msgs"),
 				),
-			// partition badges
 			app.Div().
 				Style("display", "flex").
 				Style("gap", "8px").
 				Style("flex-wrap", "wrap").
 				Style("margin-bottom", "10px").
 				Body(badges...),
-			// fill bar
 			app.Div().
 				Style("height", "3px").
 				Style("background", colBorder).
@@ -410,14 +361,20 @@ func (d *Dashboard) topicRow(t api.TopicStat) app.UI {
 // ── Footer ────────────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderFooter() app.UI {
-	walBadge := colGreen
+	walColor := colOrange
 	switch d.stats.WAL.SyncMode {
-	case "none":
-		walBadge = colOrange
 	case "always":
-		walBadge = colGreen
+		walColor = colGreen
 	case "interval":
-		walBadge = colBlue
+		walColor = colBlue
+	}
+	syncMode := d.stats.WAL.SyncMode
+	if syncMode == "" {
+		syncMode = "—"
+	}
+	walPath := d.stats.WAL.Path
+	if walPath == "" {
+		walPath = "—"
 	}
 
 	return app.Div().
@@ -430,32 +387,35 @@ func (d *Dashboard) renderFooter() app.UI {
 		Body(
 			app.Div().
 				Style("display", "flex").
-				Style("gap", "18px").
+				Style("gap", "14px").
 				Style("align-items", "center").
 				Body(
-					app.Span().Style("color", colMuted).Style("font-size", "11px").
-						Text("WAL: "+d.stats.WAL.Path),
 					app.Span().
-						Style("color", walBadge).
+						Style("color", colMuted).
+						Style("font-size", "11px").
+						Text("wal: "+walPath),
+					app.Span().
+						Style("color", walColor).
 						Style("font-size", "10px").
-						Style("background", walBadge+"22").
+						Style("background", walColor+"22").
 						Style("padding", "1px 7px").
 						Style("border-radius", "3px").
-						Text("sync="+d.stats.WAL.SyncMode),
+						Text("sync="+syncMode),
 				),
 			app.Span().
 				Style("color", colBorder).
 				Style("font-size", "11px").
-				Text("goqueue • built in Go → WASM"),
+				Text("goqueue · built in Go → WASM"),
 		)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func fmtCount(n int64) string {
-	switch {
-	case n < 0:
+	if n <= 0 {
 		return "0"
+	}
+	switch {
 	case n >= 1_000_000_000:
 		return fmt.Sprintf("%.2fB", float64(n)/1e9)
 	case n >= 1_000_000:
