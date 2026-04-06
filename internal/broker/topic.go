@@ -25,11 +25,12 @@ type Message struct {
 type Topic struct {
 	name string
 
-	mu       sync.RWMutex
-	messages []Message
-	head     atomic.Int64 // oldest offset still in ring
-	tail     atomic.Int64 // next offset to write (= total published)
-	cap      int
+	mu        sync.RWMutex
+	messages  []Message
+	head      atomic.Int64 // oldest offset still in ring
+	tail      atomic.Int64 // next offset to write (= total published)
+	cap       int
+	evictions atomic.Int64 // messages silently dropped due to ring buffer wrap
 
 	// subscribers waiting for new messages
 	subsMu sync.Mutex
@@ -62,6 +63,7 @@ func (t *Topic) Publish(payload []byte) int64 {
 	newTail := t.tail.Add(1)
 	if newTail-t.head.Load() > int64(t.cap) {
 		t.head.Add(1) // evict oldest when full
+		t.evictions.Add(1)
 	}
 	t.mu.Unlock()
 
@@ -103,6 +105,12 @@ func (t *Topic) Head() int64 { return t.head.Load() }
 
 // Tail returns the next offset to be written (lock-free).
 func (t *Topic) Tail() int64 { return t.tail.Load() }
+
+// Evictions returns the cumulative count of messages dropped due to ring overflow.
+func (t *Topic) Evictions() int64 { return t.evictions.Load() }
+
+// Capacity returns the ring buffer capacity.
+func (t *Topic) Capacity() int { return t.cap }
 
 func (t *Topic) Published() int64 { return t.published.Load() }
 
