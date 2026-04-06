@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -37,6 +38,7 @@ func main() {
 	walSyncMode := flag.String("wal-sync-mode", "none", "WAL fsync mode: none|always|interval")
 	walSyncInterval := flag.Duration("wal-sync-interval", 250*time.Millisecond, "WAL fsync interval when wal-sync-mode=interval")
 	walAllowPartialTail := flag.Bool("wal-allow-partial-tail", true, "allow replay to skip truncated tail records")
+	consumerOffsetsPath := flag.String("consumer-offsets-path", "data/consumer_offsets.json", "path to persist consumer group offsets")
 	nodeID := flag.String("node-id", "node-1", "node identifier for raft/dashboard labels")
 	raftRole := flag.String("raft-role", "standalone", "raft role label: leader|follower|candidate|standalone")
 	raftLeader := flag.String("raft-leader-id", "", "current raft leader id label")
@@ -81,7 +83,10 @@ func main() {
 	startTime := time.Now()
 	reg := prometheus.NewRegistry()
 	m := metrics.New(reg)
-	groups := consumer.NewManager()
+	groups, err := consumer.NewManagerWithPath(*consumerOffsetsPath)
+	if err != nil {
+		log.Fatalf("load consumer offsets: %v", err)
+	}
 	var tcpSrv *broker.TCPServer // declared early so /api/stats closure can capture it
 	leader := *raftLeader
 	if strings.TrimSpace(leader) == "" {
@@ -138,14 +143,24 @@ func main() {
 			partCount := b.PartitionCount(name)
 			ts := api.TopicStat{Name: name}
 			for i := 0; i < partCount; i++ {
-				head, tail, err := b.TopicPartitionInfo(name, i)
+				d, err := b.TopicPartitionDetail(name, i)
 				if err != nil {
 					continue
 				}
-				size := tail - head
+				size := d.Tail - d.Head
+				fillPct := 0.0
+				if d.Capacity > 0 {
+					fillPct = float64(size) / float64(d.Capacity) * 100
+				}
 				ts.Total += size
 				ts.Partitions = append(ts.Partitions, api.PartitionStat{
-					Index: i, Head: head, Tail: tail, Size: size,
+					Index:     i,
+					Head:      d.Head,
+					Tail:      d.Tail,
+					Size:      size,
+					Capacity:  int64(d.Capacity),
+					FillPct:   fillPct,
+					Evictions: d.Evictions,
 				})
 			}
 			topics = append(topics, ts)
@@ -314,6 +329,35 @@ func main() {
 
 	tcpSrv = broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	ready.Store(true)
+
+	// Keep partition fill % and eviction metrics current for Prometheus scrapes.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				for _, name := range b.Topics() {
+					for i := 0; i < b.PartitionCount(name); i++ {
+						d, err := b.TopicPartitionDetail(name, i)
+						if err != nil {
+							continue
+						}
+						size := d.Tail - d.Head
+						fillPct := 0.0
+						if d.Capacity > 0 {
+							fillPct = float64(size) / float64(d.Capacity) * 100
+						}
+						part := strconv.Itoa(i)
+						m.SetPartitionFillPct(name, part, fillPct)
+						m.SetPartitionEvictions(name, part, float64(d.Evictions))
+					}
+				}
+			case <-rootCtx.Done():
+				return
+			}
+		}
+	}()
 
 	errCh := make(chan error, 3)
 	go func() {

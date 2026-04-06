@@ -31,7 +31,9 @@ const (
 	accent      = "#0969da"
 	accentDim   = "rgba(9,105,218,0.10)"
 	accentBdr   = "rgba(9,105,218,0.30)"
-	danger      = "#cf222e"
+	warn    = "#9a6700"
+	warnDim = "rgba(154,103,0,0.12)"
+	danger  = "#cf222e"
 	dangerDim   = "rgba(207,34,46,0.10)"
 	ok          = "rgba(26,127,55,0.90)"
 	fontMono    = "'JetBrains Mono','Fira Code','Cascadia Code',monospace"
@@ -43,10 +45,12 @@ type Dashboard struct {
 	app.Compo
 
 	// live stats
-	stats   api.BrokerStats
-	pubRate int64
-	conRate int64
-	connErr string
+	stats       api.BrokerStats
+	pubRate     int64
+	conRate     int64
+	prevPubRate int64
+	prevConRate int64
+	connErr     string
 
 	// left panel — selected topic
 	selectedTopic string
@@ -83,6 +87,8 @@ func (d *Dashboard) OnMount(ctx app.Context) {
 					d.connErr = err.Error()
 					return
 				}
+				d.prevPubRate = d.pubRate
+				d.prevConRate = d.conRate
 				d.pubRate = s.TotalPublished - d.stats.TotalPublished
 				d.conRate = s.TotalConsumed - d.stats.TotalConsumed
 				d.stats = s
@@ -177,32 +183,49 @@ func (d *Dashboard) renderConnErr() app.UI {
 
 func (d *Dashboard) renderStatRow() app.UI {
 	backlog := max(d.stats.TotalPublished-d.stats.TotalConsumed, 0)
+	backlogCol := ok
+	switch {
+	case backlog > 100_000:
+		backlogCol = danger
+	case backlog > 1_000:
+		backlogCol = warn
+	}
 	return app.Div().
 		Style("display", "grid").
 		Style("grid-template-columns", "repeat(auto-fit,minmax(130px,1fr))").
 		Style("gap", "10px").Style("margin-bottom", "20px").
 		Body(
-			d.stat("PUBLISHED", fmtN(d.stats.TotalPublished)),
-			d.stat("CONSUMED", fmtN(d.stats.TotalConsumed)),
-			d.stat("PUB/s", fmtN(d.pubRate)),
-			d.stat("CON/s", fmtN(d.conRate)),
-			d.stat("BACKLOG", fmtN(backlog)),
-			d.stat("TOPICS", strconv.Itoa(len(d.stats.Topics))),
-			d.stat("TCP CONN", strconv.FormatInt(d.stats.TCPConnections, 10)),
-			d.stat("WAL SYNC", or(d.stats.WAL.SyncMode, "—")),
+			d.stat("PUBLISHED", fmtN(d.stats.TotalPublished), txt),
+			d.stat("CONSUMED", fmtN(d.stats.TotalConsumed), txt),
+			d.stat("PUB/s", fmtN(d.pubRate)+trend(d.pubRate, d.prevPubRate), accent),
+			d.stat("CON/s", fmtN(d.conRate)+trend(d.conRate, d.prevConRate), accent),
+			d.stat("BACKLOG", fmtN(backlog), backlogCol),
+			d.stat("TOPICS", strconv.Itoa(len(d.stats.Topics)), txt),
+			d.stat("TCP CONN", strconv.FormatInt(d.stats.TCPConnections, 10), txt),
+			d.stat("WAL SYNC", or(d.stats.WAL.SyncMode, "—"), txt),
 		)
 }
 
-func (d *Dashboard) stat(label, value string) app.UI {
+func (d *Dashboard) stat(label, value, valueColor string) app.UI {
 	return app.Div().Class("glass fade-in").
 		Style("padding", "14px 16px").
 		Style("border-left", "3px solid "+accentBdr).
 		Body(
 			app.P().Style("color", muted).Style("font-size", "9px").Style("letter-spacing", "1.2px").
 				Style("margin-bottom", "7px").Text(label),
-			app.P().Style("color", txt).Style("font-size", "22px").Style("font-weight", "700").
+			app.P().Style("color", valueColor).Style("font-size", "22px").Style("font-weight", "700").
 				Style("line-height", "1").Text(value),
 		)
+}
+
+func trend(curr, prev int64) string {
+	if curr > prev {
+		return " ↑"
+	}
+	if curr < prev {
+		return " ↓"
+	}
+	return ""
 }
 
 // ── main 2-column layout ──────────────────────────────────────────────────────
