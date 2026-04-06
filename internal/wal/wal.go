@@ -248,8 +248,9 @@ func ReplayWithOptions(path string, opts ReplayOptions, fn func(Record) error) e
 }
 
 func readV2Record(r *bufio.Reader, opts ReplayOptions) (*Record, error) {
-	header := make([]byte, 22)
-	if _, err := io.ReadFull(r, header); err != nil {
+	// Use stack-allocated array to avoid heap allocation per record.
+	var header [22]byte
+	if _, err := io.ReadFull(r, header[:]); err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) && opts.AllowPartialTail {
 			return nil, nil
 		}
@@ -261,9 +262,6 @@ func readV2Record(r *bufio.Reader, opts ReplayOptions) (*Record, error) {
 	topicLen := int(binary.BigEndian.Uint16(header[14:16]))
 	keyLen := int(binary.BigEndian.Uint16(header[16:18]))
 	payloadLen := int(binary.BigEndian.Uint32(header[18:22]))
-	if topicLen < 0 || keyLen < 0 || payloadLen < 0 {
-		return nil, ErrCorruptRecord
-	}
 	body := make([]byte, topicLen+keyLen+payloadLen)
 	if _, err := io.ReadFull(r, body); err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) && opts.AllowPartialTail {
@@ -278,22 +276,23 @@ func readV2Record(r *bufio.Reader, opts ReplayOptions) (*Record, error) {
 		Partition: int32(binary.BigEndian.Uint32(header[10:14])),
 		Topic:     string(body[:topicEnd]),
 		Key:       string(body[topicEnd:keyEnd]),
-		Payload:   append([]byte(nil), body[keyEnd:]...),
+		Payload:   body[keyEnd:], // body is not reused; safe to slice directly
 	}
 	return rec, nil
 }
 
 func readV1Record(r *bufio.Reader, opts ReplayOptions, prefix []byte) (*Record, error) {
-	headerRest := make([]byte, 12)
-	if _, err := io.ReadFull(r, headerRest); err != nil {
+	var headerRest [12]byte
+	if _, err := io.ReadFull(r, headerRest[:]); err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) && opts.AllowPartialTail {
 			return nil, nil
 		}
 		return nil, err
 	}
-	header := make([]byte, 14)
+	// Reconstruct full 14-byte header on the stack.
+	var header [14]byte
 	copy(header[:2], prefix)
-	copy(header[2:], headerRest)
+	copy(header[2:], headerRest[:])
 	topicLen := int(binary.BigEndian.Uint16(header[8:10]))
 	payloadLen := int(binary.BigEndian.Uint32(header[10:14]))
 	if topicLen < 0 || payloadLen < 0 {
@@ -310,7 +309,7 @@ func readV1Record(r *bufio.Reader, opts ReplayOptions, prefix []byte) (*Record, 
 		Timestamp: int64(binary.BigEndian.Uint64(header[0:8])),
 		Topic:     string(body[:topicLen]),
 		Partition: -1,
-		Payload:   append([]byte(nil), body[topicLen:]...),
+		Payload:   body[topicLen:], // body is not reused; safe to slice directly
 	}
 	return rec, nil
 }
