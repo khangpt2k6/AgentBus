@@ -65,14 +65,44 @@ func main() {
 			`<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">`,
 			`<style>
 				*{box-sizing:border-box;margin:0;padding:0}
-				html,body{background:#0d1117;height:100%}
-				@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+				html,body{
+					background:linear-gradient(135deg,#060c18 0%,#0a0f1e 60%,#060c18 100%);
+					background-attachment:fixed;
+					min-height:100%;
+				}
+				/* glassmorphism utility */
+				.glass{
+					background:rgba(255,255,255,0.05);
+					backdrop-filter:blur(14px) saturate(1.5);
+					-webkit-backdrop-filter:blur(14px) saturate(1.5);
+					border:1px solid rgba(255,255,255,0.09);
+					border-radius:10px;
+				}
+				/* animations */
+				@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 				@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-				.card{animation:fadeIn .25s ease}
-				.live-dot{animation:blink 1.4s ease-in-out infinite}
-				::-webkit-scrollbar{width:6px}
-				::-webkit-scrollbar-track{background:#161b22}
-				::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+				.fade-in{animation:fadeIn .25s ease}
+				.pulse{animation:pulse 1.8s ease-in-out infinite}
+				/* form inputs */
+				input,textarea,select{
+					width:100%;
+					background:rgba(255,255,255,0.04);
+					border:1px solid rgba(255,255,255,0.1);
+					border-radius:6px;
+					color:#e6edf3;
+					font-family:'JetBrains Mono','Fira Code',monospace;
+					font-size:12px;
+					outline:none;
+					padding:7px 10px;
+					transition:border-color .15s;
+				}
+				input:focus,textarea:focus{border-color:rgba(88,166,255,0.5)}
+				input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.2)}
+				button:hover{filter:brightness(1.15)}
+				/* scrollbar */
+				::-webkit-scrollbar{width:4px}
+				::-webkit-scrollbar-track{background:transparent}
+				::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
 			</style>`,
 		},
 	})
