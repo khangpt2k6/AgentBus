@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -45,5 +46,40 @@ func TestConcurrentCommitLastWriteWins(t *testing.T) {
 	}
 	if got < 0 || got >= writers {
 		t.Fatalf("offset out of range: %d", got)
+	}
+}
+
+func TestNewManagerWithPathPersistsAndLoads(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "offsets.json")
+
+	// Write offsets via first instance.
+	m1, err := NewManagerWithPath(path)
+	if err != nil {
+		t.Fatalf("NewManagerWithPath: %v", err)
+	}
+	m1.CommitPartition("events", "worker", 0, 42)
+	m1.CommitPartition("events", "worker", 1, 100)
+
+	// Second instance must load what the first wrote.
+	m2, err := NewManagerWithPath(path)
+	if err != nil {
+		t.Fatalf("second NewManagerWithPath: %v", err)
+	}
+	if v, ok := m2.GetPartition("events", "worker", 0); !ok || v != 42 {
+		t.Errorf("partition 0: got (%d, %v), want (42, true)", v, ok)
+	}
+	if v, ok := m2.GetPartition("events", "worker", 1); !ok || v != 100 {
+		t.Errorf("partition 1: got (%d, %v), want (100, true)", v, ok)
+	}
+}
+
+func TestNewManagerWithPathMissingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nonexistent.json")
+	m, err := NewManagerWithPath(path)
+	if err != nil {
+		t.Fatalf("missing file must not error: %v", err)
+	}
+	if _, ok := m.GetPartition("any", "group", 0); ok {
+		t.Fatal("expected empty manager for missing file")
 	}
 }
