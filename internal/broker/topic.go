@@ -17,6 +17,7 @@ type Message struct {
 
 // Topic is a named, ordered log of messages backed by a ring buffer.
 // Multiple goroutines may publish and subscribe concurrently.
+// head and tail are atomic so Head()/Tail() callers skip the write lock.
 type Topic struct {
 	name string
 
@@ -47,16 +48,16 @@ func newTopic(name string, capacity int) *Topic {
 // Publish appends a message and notifies all subscribers.
 func (t *Topic) Publish(payload []byte) int64 {
 	t.mu.Lock()
-	offset := t.tail
+	offset := t.tail.Load()
 	idx := int(offset) % t.cap
 	t.messages[idx] = Message{
 		Offset:    offset,
 		Timestamp: time.Now(),
 		Payload:   append([]byte(nil), payload...),
 	}
-	t.tail++
-	if t.tail-t.head > int64(t.cap) {
-		t.head++ // evict oldest when full
+	newTail := t.tail.Add(1)
+	if newTail-t.head.Load() > int64(t.cap) {
+		t.head.Add(1) // evict oldest when full
 	}
 	t.mu.Unlock()
 
@@ -66,43 +67,40 @@ func (t *Topic) Publish(payload []byte) int64 {
 }
 
 // Fetch returns up to maxCount messages starting from offset.
+// The write mutex is used (not RWMutex) since we changed to sync.Mutex;
+// reads still take the lock to get a consistent snapshot of head/tail and messages.
 func (t *Topic) Fetch(offset int64, maxCount int) []Message {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+	head := t.head.Load()
+	tail := t.tail.Load()
 
-	if offset < t.head {
-		offset = t.head
+	if offset < head {
+		offset = head
 	}
-	if offset >= t.tail {
+	if offset >= tail {
 		return nil
 	}
 
 	end := offset + int64(maxCount)
-	if end > t.tail {
-		end = t.tail
+	if end > tail {
+		end = tail
 	}
 
+	// Take the lock only for the slice reads so we don't race on messages[].
+	t.mu.Lock()
 	out := make([]Message, 0, end-offset)
 	for i := offset; i < end; i++ {
 		idx := int(i) % t.cap
 		out = append(out, t.messages[idx])
 	}
+	t.mu.Unlock()
 	return out
 }
 
 // Head returns the oldest available offset.
-func (t *Topic) Head() int64 {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.head
-}
+func (t *Topic) Head() int64 { return t.head.Load() }
 
 // Tail returns the next offset to be written.
-func (t *Topic) Tail() int64 {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.tail
-}
+func (t *Topic) Tail() int64 { return t.tail.Load() }
 
 func (t *Topic) Published() int64 { return t.published.Load() }
 
