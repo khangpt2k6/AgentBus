@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/2006t/goqueue/internal/api"
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
 	"github.com/2006t/goqueue/internal/grpcapi"
@@ -76,9 +78,11 @@ func main() {
 		log.Fatalf("open wal: %v", err)
 	}
 
+	startTime := time.Now()
 	reg := prometheus.NewRegistry()
 	m := metrics.New(reg)
 	groups := consumer.NewManager()
+	var tcpSrv *broker.TCPServer // declared early so /api/stats closure can capture it
 	leader := *raftLeader
 	if strings.TrimSpace(leader) == "" {
 		leader = *nodeID
@@ -116,6 +120,58 @@ func main() {
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready"))
+	})
+	mux.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		cur := state.Get()
+		uptime := time.Since(startTime).Round(time.Second)
+
+		topicNames := b.Topics()
+		topics := make([]api.TopicStat, 0, len(topicNames))
+		for _, name := range topicNames {
+			partCount := b.PartitionCount(name)
+			ts := api.TopicStat{Name: name}
+			for i := 0; i < partCount; i++ {
+				head, tail, err := b.TopicPartitionInfo(name, i)
+				if err != nil {
+					continue
+				}
+				size := tail - head
+				ts.Total += size
+				ts.Partitions = append(ts.Partitions, api.PartitionStat{
+					Index: i, Head: head, Tail: tail, Size: size,
+				})
+			}
+			topics = append(topics, ts)
+		}
+
+		var connCount int64
+		if tcpSrv != nil {
+			connCount = tcpSrv.ConnCount()
+		}
+
+		stats := api.BrokerStats{
+			NodeID:         cur.NodeID,
+			Role:           cur.Role,
+			LeaderID:       cur.LeaderID,
+			Term:           cur.Term,
+			Uptime:         formatUptime(uptime),
+			TotalPublished: b.TotalPublished(),
+			TotalConsumed:  b.TotalConsumed(),
+			TCPConnections: connCount,
+			Topics:         topics,
+			WAL: api.WALInfo{
+				Path:     *walPath,
+				SyncMode: string(syncMode),
+			},
+		}
+		_ = json.NewEncoder(w).Encode(stats)
 	})
 	mux.HandleFunc("/raft/state", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
@@ -163,7 +219,7 @@ func main() {
 	grpcSrv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	grpcapi.Register(grpcSrv, grpcapi.NewServer(b, groups, m, logFile))
 
-	tcpSrv := broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
+	tcpSrv = broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	ready.Store(true)
 
 	errCh := make(chan error, 3)
@@ -212,6 +268,19 @@ func main() {
 	if err := logFile.Close(); err != nil {
 		log.Printf("wal close error: %v", err)
 	}
+}
+
+func formatUptime(d time.Duration) string {
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	s := int(d.Seconds()) % 60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm %ds", h, m, s)
+	}
+	if m > 0 {
+		return fmt.Sprintf("%dm %ds", m, s)
+	}
+	return fmt.Sprintf("%ds", s)
 }
 
 type raftRuntimeState struct {

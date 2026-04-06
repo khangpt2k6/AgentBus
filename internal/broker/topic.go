@@ -17,11 +17,15 @@ type Message struct {
 
 // Topic is a named, ordered log of messages backed by a ring buffer.
 // Multiple goroutines may publish and subscribe concurrently.
-// head and tail are atomic so Head()/Tail() callers skip the write lock.
+//
+// head and tail are stored as atomic.Int64 so Head()/Tail() are lock-free.
+// The RWMutex still guards the messages slice for consistent snapshot reads
+// in Fetch(); head/tail are updated under the write lock and also atomically
+// so that callers of Head()/Tail() don't need the lock.
 type Topic struct {
 	name string
 
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	messages []Message
 	head     atomic.Int64 // oldest offset still in ring
 	tail     atomic.Int64 // next offset to write (= total published)
@@ -67,9 +71,10 @@ func (t *Topic) Publish(payload []byte) int64 {
 }
 
 // Fetch returns up to maxCount messages starting from offset.
-// The write mutex is used (not RWMutex) since we changed to sync.Mutex;
-// reads still take the lock to get a consistent snapshot of head/tail and messages.
 func (t *Topic) Fetch(offset int64, maxCount int) []Message {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	head := t.head.Load()
 	tail := t.tail.Load()
 
@@ -85,21 +90,18 @@ func (t *Topic) Fetch(offset int64, maxCount int) []Message {
 		end = tail
 	}
 
-	// Take the lock only for the slice reads so we don't race on messages[].
-	t.mu.Lock()
 	out := make([]Message, 0, end-offset)
 	for i := offset; i < end; i++ {
 		idx := int(i) % t.cap
 		out = append(out, t.messages[idx])
 	}
-	t.mu.Unlock()
 	return out
 }
 
-// Head returns the oldest available offset.
+// Head returns the oldest available offset (lock-free).
 func (t *Topic) Head() int64 { return t.head.Load() }
 
-// Tail returns the next offset to be written.
+// Tail returns the next offset to be written (lock-free).
 func (t *Topic) Tail() int64 { return t.tail.Load() }
 
 func (t *Topic) Published() int64 { return t.published.Load() }
