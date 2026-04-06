@@ -28,11 +28,11 @@ func newPublishCmd(opts *options) *cobra.Command {
 			if opts.grpc {
 				return publishGRPC(opts.addr, topic, key, partition, args[0])
 			}
-			return publishTCP(opts.addr, topic, args[0])
+			return publishTCP(opts.addr, topic, key, args[0])
 		},
 	}
 	cmd.Flags().StringVar(&topic, "topic", "", "topic name")
-	cmd.Flags().StringVar(&key, "key", "", "partition key (gRPC only)")
+	cmd.Flags().StringVar(&key, "key", "", "partition key for deterministic routing")
 	cmd.Flags().IntVar(&partition, "partition", -1, "target partition (gRPC only)")
 	_ = cmd.MarkFlagRequired("topic")
 	return cmd
@@ -80,18 +80,23 @@ func newPublishBatchCmd(opts *options) *cobra.Command {
 	return cmd
 }
 
-func publishTCP(addr, topic, msg string) error {
+func publishTCP(addr, topic, key, msg string) error {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("dial broker: %w", err)
 	}
 	defer conn.Close()
 
-	if err := protocol.Encode(conn, &protocol.Frame{
-		Op:      protocol.OpPublish,
-		Topic:   topic,
-		Payload: []byte(msg),
-	}); err != nil {
+	var frame protocol.Frame
+	frame.Topic = topic
+	if key != "" {
+		frame.Op = protocol.OpPublishWithKey
+		frame.Payload = protocol.EncodeKeyedPayload(key, []byte(msg))
+	} else {
+		frame.Op = protocol.OpPublish
+		frame.Payload = []byte(msg)
+	}
+	if err := protocol.Encode(conn, &frame); err != nil {
 		return fmt.Errorf("send publish: %w", err)
 	}
 	resp, err := protocol.Decode(conn)

@@ -96,6 +96,11 @@ func (s *TCPServer) handleConn(conn net.Conn) {
 				log.Printf("publish error: %v", err)
 				return
 			}
+		case protocol.OpPublishWithKey:
+			if err := s.handlePublishWithKey(conn, frame); err != nil {
+				log.Printf("publish-with-key error: %v", err)
+				return
+			}
 		case protocol.OpBatchPublish:
 			if err := s.handleBatchPublish(conn, frame); err != nil {
 				log.Printf("batch publish error: %v", err)
@@ -115,6 +120,44 @@ func (s *TCPServer) handleConn(conn net.Conn) {
 			_ = protocol.Encode(conn, &protocol.Frame{Op: protocol.OpError, Topic: frame.Topic, Payload: []byte("unsupported operation")})
 		}
 	}
+}
+
+func (s *TCPServer) handlePublishWithKey(conn net.Conn, frame *protocol.Frame) error {
+	start := time.Now()
+	key, payload, err := protocol.DecodeKeyedPayload(frame.Payload)
+	if err != nil {
+		return protocol.Encode(conn, &protocol.Frame{
+			Op:      protocol.OpError,
+			Topic:   frame.Topic,
+			Payload: []byte("invalid keyed payload"),
+		})
+	}
+	partition, offset, err := s.broker.PublishWithKey(frame.Topic, key, payload)
+	if err != nil {
+		return err
+	}
+	if s.wal != nil {
+		if err := s.wal.AppendRecord(wal.Record{
+			Timestamp: time.Now().UnixNano(),
+			Topic:     frame.Topic,
+			Key:       key,
+			Partition: int32(partition),
+			Payload:   payload,
+		}); err != nil {
+			return err
+		}
+	}
+	if s.metrics != nil {
+		s.metrics.PublishedTotal.Inc()
+		s.metrics.ObservePublishLatency(start)
+	}
+	out := make([]byte, 8)
+	binary.BigEndian.PutUint64(out, uint64(offset))
+	return protocol.Encode(conn, &protocol.Frame{
+		Op:      protocol.OpAck,
+		Topic:   frame.Topic,
+		Payload: out,
+	})
 }
 
 func (s *TCPServer) handleBatchPublish(conn net.Conn, frame *protocol.Frame) error {

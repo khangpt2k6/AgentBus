@@ -23,14 +23,15 @@ import (
 const (
 	Magic uint16 = 0x474B // "GK"
 
-	OpPublish      byte = 0x01
-	OpSubscribe    byte = 0x02
-	OpAck          byte = 0x03
-	OpFetch        byte = 0x04
-	OpError        byte = 0x05
-	OpMessage      byte = 0x06 // server → client delivery
-	OpBatchPublish byte = 0x07
-	OpBatchAck     byte = 0x08
+	OpPublish         byte = 0x01
+	OpSubscribe       byte = 0x02
+	OpAck             byte = 0x03
+	OpFetch           byte = 0x04
+	OpError           byte = 0x05
+	OpMessage         byte = 0x06 // server → client delivery
+	OpBatchPublish    byte = 0x07
+	OpBatchAck        byte = 0x08
+	OpPublishWithKey  byte = 0x09 // publish with routing key for deterministic partition
 )
 
 var (
@@ -194,6 +195,29 @@ func EncodeFetchResponse(messages []BatchMessage) []byte {
 		pos += len(m.Payload)
 	}
 	return out
+}
+
+// EncodeKeyedPayload encodes key + message payload for OpPublishWithKey:
+// keyLen(2) + key + payload.
+func EncodeKeyedPayload(key string, payload []byte) []byte {
+	k := []byte(key)
+	out := make([]byte, 2+len(k)+len(payload))
+	binary.BigEndian.PutUint16(out[0:2], uint16(len(k)))
+	copy(out[2:], k)
+	copy(out[2+len(k):], payload)
+	return out
+}
+
+// DecodeKeyedPayload decodes the key and message payload from an OpPublishWithKey frame.
+func DecodeKeyedPayload(p []byte) (key string, payload []byte, err error) {
+	if len(p) < 2 {
+		return "", nil, ErrBadPayload
+	}
+	kLen := int(binary.BigEndian.Uint16(p[0:2]))
+	if 2+kLen > len(p) {
+		return "", nil, ErrBadPayload
+	}
+	return string(p[2 : 2+kLen]), p[2+kLen:], nil
 }
 
 func DecodeFetchResponse(payload []byte) ([]BatchMessage, error) {
