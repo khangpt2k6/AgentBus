@@ -20,10 +20,10 @@ type Message struct {
 type Topic struct {
 	name string
 
-	mu       sync.RWMutex
+	mu       sync.Mutex
 	messages []Message
-	head     int64 // oldest offset still in ring
-	tail     int64 // next offset to write (= total published)
+	head     atomic.Int64 // oldest offset still in ring
+	tail     atomic.Int64 // next offset to write (= total published)
 	cap      int
 
 	// subscribers waiting for new messages

@@ -245,7 +245,15 @@ func (s *TCPServer) handleSubscribe(conn net.Conn, frame *protocol.Frame) error 
 	sub := s.broker.SubscribeAt(frame.Topic, group, startOffset)
 	defer s.broker.Unsubscribe(sub)
 
-	ctx := context.Background()
+	// Cancel context when connection closes so sub.Next() doesn't block forever.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		b := make([]byte, 1)
+		conn.Read(b) //nolint:errcheck // unblocks on close or any client data
+		cancel()
+	}()
+
 	for {
 		msgs, err := sub.Next(ctx, 128)
 		if err != nil {
