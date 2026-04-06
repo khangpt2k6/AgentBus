@@ -53,6 +53,17 @@ func main() {
 		RawHeaders: []string{
 			`<link rel="preconnect" href="https://fonts.googleapis.com">`,
 			`<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">`,
+			`<style>
+				*{box-sizing:border-box;margin:0;padding:0}
+				html,body{background:#0d1117;height:100%}
+				@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+				@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+				.card{animation:fadeIn .25s ease}
+				.live-dot{animation:blink 1.4s ease-in-out infinite}
+				::-webkit-scrollbar{width:6px}
+				::-webkit-scrollbar-track{background:#161b22}
+				::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+			</style>`,
 		},
 	})
 
