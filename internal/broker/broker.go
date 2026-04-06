@@ -142,6 +142,32 @@ func (b *Broker) TopicPartitionInfo(name string, partition int) (head, tail int6
 	return t.Head(), t.Tail(), nil
 }
 
+// PartitionDetail bundles all observable fields of a single partition.
+type PartitionDetail struct {
+	Head, Tail, Evictions int64
+	Capacity              int
+}
+
+// TopicPartitionDetail returns full detail for a single partition.
+func (b *Broker) TopicPartitionDetail(name string, partition int) (PartitionDetail, error) {
+	b.mu.RLock()
+	set, ok := b.topics[name]
+	b.mu.RUnlock()
+	if !ok {
+		return PartitionDetail{}, fmt.Errorf("topic %q not found", name)
+	}
+	if partition < 0 || partition >= len(set.partitions) {
+		return PartitionDetail{}, fmt.Errorf("invalid partition %d", partition)
+	}
+	t := set.partitions[partition]
+	return PartitionDetail{
+		Head:      t.Head(),
+		Tail:      t.Tail(),
+		Evictions: t.Evictions(),
+		Capacity:  t.Capacity(),
+	}, nil
+}
+
 func (b *Broker) Fetch(topicName string, offset int64, maxCount int) []Message {
 	return b.FetchPartition(topicName, 0, offset, maxCount)
 }

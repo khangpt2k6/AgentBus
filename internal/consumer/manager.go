@@ -1,18 +1,65 @@
 package consumer
 
-import "sync"
+import (
+	"encoding/json"
+	"os"
+	"sync"
+)
 
-// Manager stores committed offsets for consumer groups in-memory.
-// It is intentionally simple for now; persistence can be added later.
+// Manager stores committed offsets for consumer groups.
+// When a path is set, offsets are persisted to disk on every commit using an
+// atomic temp-file + rename so that a crash never leaves a partial file.
 type Manager struct {
 	mu      sync.RWMutex
 	offsets map[string]int64
+	path    string // empty = in-memory only
 }
 
+// NewManager creates an in-memory-only manager (no persistence).
 func NewManager() *Manager {
-	return &Manager{
-		offsets: make(map[string]int64),
+	return &Manager{offsets: make(map[string]int64)}
+}
+
+// NewManagerWithPath creates a manager that persists offsets to path.
+// Existing offsets are loaded on startup; missing file is not an error.
+func NewManagerWithPath(path string) (*Manager, error) {
+	m := &Manager{offsets: make(map[string]int64), path: path}
+	if err := m.load(); err != nil {
+		return nil, err
 	}
+	return m, nil
+}
+
+func (m *Manager) load() error {
+	data, err := os.ReadFile(m.path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, &m.offsets)
+}
+
+// save writes a snapshot atomically: write to .tmp then rename.
+func (m *Manager) save() error {
+	// Snapshot under read lock — don't hold lock during IO.
+	m.mu.RLock()
+	snap := make(map[string]int64, len(m.offsets))
+	for k, v := range m.offsets {
+		snap[k] = v
+	}
+	m.mu.RUnlock()
+
+	data, err := json.Marshal(snap)
+	if err != nil {
+		return err
+	}
+	tmp := m.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, m.path)
 }
 
 func key(topic, group string, partition int) string {
@@ -38,6 +85,9 @@ func (m *Manager) CommitPartition(topic, group string, partition int, offset int
 	m.mu.Lock()
 	m.offsets[key(topic, group, partition)] = offset
 	m.mu.Unlock()
+	if m.path != "" {
+		_ = m.save() // best-effort; crash-safe via atomic rename
+	}
 }
 
 func itoa(v int) string {

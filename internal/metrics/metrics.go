@@ -9,14 +9,16 @@ import (
 )
 
 type Metrics struct {
-	PublishedTotal    prometheus.Counter
-	ConsumedTotal     prometheus.Counter
-	ConsumerLag       *prometheus.GaugeVec
-	PublishLatency    prometheus.Histogram
-	RaftRole          *prometheus.GaugeVec
-	RaftTerm          *prometheus.GaugeVec
-	RaftLeader        *prometheus.GaugeVec
-	RaftLeaderChanges *prometheus.CounterVec
+	PublishedTotal      prometheus.Counter
+	ConsumedTotal       prometheus.Counter
+	ConsumerLag         *prometheus.GaugeVec
+	PublishLatency      prometheus.Histogram
+	RaftRole            *prometheus.GaugeVec
+	RaftTerm            *prometheus.GaugeVec
+	RaftLeader          *prometheus.GaugeVec
+	RaftLeaderChanges   *prometheus.CounterVec
+	PartitionFillPct    *prometheus.GaugeVec
+	PartitionEvictions  *prometheus.GaugeVec
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -54,6 +56,14 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "goqueue_raft_leader_changes_total",
 			Help: "Number of observed raft leader changes per node.",
 		}, []string{"node_id"}),
+		PartitionFillPct: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "goqueue_partition_fill_pct",
+			Help: "Ring buffer fill percentage per topic and partition (0–100).",
+		}, []string{"topic", "partition"}),
+		PartitionEvictions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "goqueue_partition_evictions_total",
+			Help: "Cumulative messages evicted from the ring buffer per topic and partition.",
+		}, []string{"topic", "partition"}),
 	}
 	reg.MustRegister(
 		m.PublishedTotal,
@@ -64,6 +74,8 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.RaftTerm,
 		m.RaftLeader,
 		m.RaftLeaderChanges,
+		m.PartitionFillPct,
+		m.PartitionEvictions,
 	)
 	return m
 }
@@ -87,6 +99,14 @@ func (m *Metrics) SetRaftState(nodeID, role, leaderID string, term int64) {
 
 func (m *Metrics) IncRaftLeaderChange(nodeID string) {
 	m.RaftLeaderChanges.WithLabelValues(nodeID).Inc()
+}
+
+func (m *Metrics) SetPartitionFillPct(topic, partition string, pct float64) {
+	m.PartitionFillPct.WithLabelValues(topic, partition).Set(pct)
+}
+
+func (m *Metrics) SetPartitionEvictions(topic, partition string, n float64) {
+	m.PartitionEvictions.WithLabelValues(topic, partition).Set(n)
 }
 
 func Handler(reg *prometheus.Registry) http.Handler {
