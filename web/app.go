@@ -1,12 +1,13 @@
-// Package web contains the GoQueue dashboard — 100% Go, compiled to WebAssembly.
-// No HTML, no CSS files, no JavaScript written by hand.
-// The same internal/api types used by the broker are imported directly here.
+// Package web — GoQueue dashboard, 100% Go compiled to WebAssembly.
+// No HTML / CSS / JS files written by hand.
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/2006t/goqueue/internal/api"
@@ -18,47 +19,74 @@ func init() {
 	app.Route("/*", func() app.Composer { return &Dashboard{} })
 }
 
-// ── colours ───────────────────────────────────────────────────────────────────
+// ── palette (minimal — one accent, rest is white/alpha) ──────────────────────
 
 const (
-	colBg      = "#0d1117"
-	colSurface = "#161b22"
-	colBorder  = "#30363d"
-	colText    = "#e6edf3"
-	colMuted   = "#8b949e"
-	colGreen   = "#3fb950"
-	colBlue    = "#58a6ff"
-	colPurple  = "#d2a8ff"
-	colOrange  = "#f0883e"
-	colRed     = "#f85149"
-	colCyan    = "#39c5cf"
-	fontMono   = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
+	bg          = "#060c18"
+	glass       = "rgba(255,255,255,0.05)"
+	glassBorder = "rgba(255,255,255,0.09)"
+	glassHover  = "rgba(255,255,255,0.08)"
+	txt         = "#e6edf3"
+	muted       = "rgba(255,255,255,0.38)"
+	accent      = "#58a6ff"
+	accentDim   = "rgba(88,166,255,0.18)"
+	accentBdr   = "rgba(88,166,255,0.35)"
+	danger      = "#f85149"
+	dangerDim   = "rgba(248,81,73,0.15)"
+	ok          = "rgba(63,185,80,0.85)"
+	fontMono    = "'JetBrains Mono','Fira Code','Cascadia Code',monospace"
 )
 
-// ── Dashboard (root component) ────────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 
 type Dashboard struct {
 	app.Compo
 
+	// live stats
 	stats   api.BrokerStats
 	pubRate int64
 	conRate int64
-	errMsg  string
+	connErr string
+
+	// left panel — selected topic
+	selectedTopic string
+
+	// right panel — active tab
+	activeTab string // "publish" | "fetch" | "guide"
+
+	// publish form
+	pubTopic    string
+	pubKey      string
+	pubPartStr  string
+	pubPayload  string
+	pubFeedback string
+	pubIsErr    bool
+	publishing  bool
+
+	// fetch form
+	fetchTopic   string
+	fetchPartStr string
+	fetchOffStr  string
+	fetchLimStr  string
+	fetchResults []api.FetchedMessage
+	fetchErr     string
+	fetching     bool
 }
 
 func (d *Dashboard) OnMount(ctx app.Context) {
+	d.activeTab = "publish"
 	ctx.Async(func() {
 		for {
 			s, err := fetchStats()
 			ctx.Dispatch(func(ctx app.Context) {
 				if err != nil {
-					d.errMsg = err.Error()
+					d.connErr = err.Error()
 					return
 				}
 				d.pubRate = s.TotalPublished - d.stats.TotalPublished
 				d.conRate = s.TotalConsumed - d.stats.TotalConsumed
 				d.stats = s
-				d.errMsg = ""
+				d.connErr = ""
 			})
 			time.Sleep(time.Second)
 		}
@@ -72,357 +100,607 @@ func fetchStats() (api.BrokerStats, error) {
 	}
 	defer resp.Body.Close()
 	var s api.BrokerStats
-	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
-		return api.BrokerStats{}, err
-	}
-	return s, nil
+	return s, json.NewDecoder(resp.Body).Decode(&s)
 }
+
+// ── root render ───────────────────────────────────────────────────────────────
 
 func (d *Dashboard) Render() app.UI {
 	return app.Div().
-		Style("background", colBg).
 		Style("min-height", "100vh").
 		Style("font-family", fontMono).
-		Style("color", colText).
-		Style("padding", "28px 32px").
+		Style("color", txt).
+		Style("padding", "24px 28px").
 		Body(
 			d.renderHeader(),
-			d.renderErrorBanner(),
-			d.renderStatCards(),
-			d.renderTopics(),
+			d.renderConnErr(),
+			d.renderStatRow(),
+			d.renderMain(),
 			d.renderFooter(),
 		)
 }
 
-// ── Header ────────────────────────────────────────────────────────────────────
+// ── header ────────────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderHeader() app.UI {
-	roleColors := map[string]string{
-		"leader":     colGreen,
-		"follower":   colBlue,
-		"candidate":  colOrange,
-		"standalone": colPurple,
-	}
-	rc := colMuted
-	if c, ok := roleColors[d.stats.Role]; ok {
-		rc = c
-	}
+	nodeID := or(d.stats.NodeID, "connecting…")
+	role := or(d.stats.Role, "—")
+	uptime := or(d.stats.Uptime, "—")
 
-	dotColor, statusText := colGreen, "LIVE"
-	if d.errMsg != "" {
-		dotColor, statusText = colRed, "ERROR"
-	} else if d.stats.NodeID == "" {
-		dotColor, statusText = colOrange, "CONNECTING"
-	}
-
-	nodeID := d.stats.NodeID
-	if nodeID == "" {
-		nodeID = "—"
-	}
-	role := d.stats.Role
-	if role == "" {
-		role = "—"
-	}
-	uptime := d.stats.Uptime
-	if uptime == "" {
-		uptime = "—"
+	dotCol := accent
+	if d.connErr != "" {
+		dotCol = danger
 	}
 
 	return app.Div().
 		Style("display", "flex").
 		Style("justify-content", "space-between").
 		Style("align-items", "center").
-		Style("border-bottom", "1px solid "+colBorder).
-		Style("padding-bottom", "20px").
-		Style("margin-bottom", "28px").
+		Style("padding-bottom", "18px").
+		Style("margin-bottom", "20px").
+		Style("border-bottom", "1px solid "+glassBorder).
 		Body(
-			app.Div().
-				Style("display", "flex").
-				Style("align-items", "center").
-				Style("gap", "14px").
-				Body(
-					app.Span().
-						Style("color", colCyan).
-						Style("font-size", "22px").
-						Style("font-weight", "700").
-						Text("GoQueue"),
-					app.Span().Style("color", colBorder).Text("│"),
-					app.Span().
-						Style("color", colText).
-						Style("font-size", "14px").
-						Text(nodeID),
-					app.Span().Style("color", colBorder).Text("│"),
-					app.Span().
-						Style("color", rc).
-						Style("font-size", "12px").
-						Style("background", rc+"22").
-						Style("padding", "2px 8px").
-						Style("border-radius", "4px").
-						Style("border", "1px solid "+rc+"44").
-						Text(role),
-				),
-			app.Div().
-				Style("display", "flex").
-				Style("align-items", "center").
-				Style("gap", "10px").
-				Body(
-					app.Span().
-						Class("live-dot").
-						Style("color", dotColor).
-						Style("font-size", "9px").
-						Text("●"),
-					app.Span().
-						Style("color", colMuted).
-						Style("font-size", "12px").
-						Style("letter-spacing", "1px").
-						Text(statusText),
-					app.Span().Style("color", colBorder).Text("│"),
-					app.Span().
-						Style("color", colMuted).
-						Style("font-size", "12px").
-						Text("up "+uptime),
-				),
+			// logo + node
+			app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "12px").Body(
+				app.Span().Style("font-size", "18px").Style("font-weight", "700").Style("color", accent).Text("GoQueue"),
+				app.Span().Style("color", glassBorder).Text("│"),
+				app.Span().Style("font-size", "13px").Style("color", txt).Text(nodeID),
+				app.Span().Style("color", glassBorder).Text("│"),
+				app.Span().
+					Style("font-size", "11px").Style("color", accent).
+					Style("background", accentDim).Style("border", "1px solid "+accentBdr).
+					Style("padding", "1px 8px").Style("border-radius", "4px").
+					Text(role),
+			),
+			// live dot + uptime
+			app.Div().Style("display", "flex").Style("align-items", "center").Style("gap", "8px").Body(
+				app.Span().Class("pulse").Style("color", dotCol).Style("font-size", "8px").Text("●"),
+				app.Span().Style("color", muted).Style("font-size", "11px").Text("up "+uptime),
+			),
 		)
 }
 
-// ── Error banner ──────────────────────────────────────────────────────────────
+// ── connection error banner ───────────────────────────────────────────────────
 
-func (d *Dashboard) renderErrorBanner() app.UI {
-	if d.errMsg == "" {
+func (d *Dashboard) renderConnErr() app.UI {
+	if d.connErr == "" {
 		return app.Span()
 	}
 	return app.Div().
-		Style("background", "#f8514922").
-		Style("border", "1px solid #f8514955").
-		Style("border-radius", "6px").
-		Style("padding", "10px 16px").
-		Style("margin-bottom", "20px").
-		Style("color", colRed).
-		Style("font-size", "13px").
-		Text("⚠  broker unreachable — " + d.errMsg)
+		Style("background", dangerDim).Style("border", "1px solid rgba(248,81,73,0.3)").
+		Style("border-radius", "8px").Style("padding", "9px 14px").
+		Style("margin-bottom", "16px").Style("font-size", "12px").Style("color", danger).
+		Text("⚠  " + d.connErr)
 }
 
-// ── Stat cards ────────────────────────────────────────────────────────────────
+// ── stat row ─────────────────────────────────────────────────────────────────
 
-func (d *Dashboard) renderStatCards() app.UI {
+func (d *Dashboard) renderStatRow() app.UI {
 	return app.Div().
 		Style("display", "grid").
-		Style("grid-template-columns", "repeat(auto-fit, minmax(160px, 1fr))").
-		Style("gap", "16px").
-		Style("margin-bottom", "28px").
+		Style("grid-template-columns", "repeat(auto-fit,minmax(130px,1fr))").
+		Style("gap", "10px").Style("margin-bottom", "20px").
 		Body(
-			d.statCard("PUBLISHED", fmtCount(d.stats.TotalPublished), colGreen, "total written"),
-			d.statCard("CONSUMED", fmtCount(d.stats.TotalConsumed), colBlue, "total read"),
-			d.statCard("PUB/s", fmtCount(d.pubRate), colCyan, "messages/sec"),
-			d.statCard("CON/s", fmtCount(d.conRate), colPurple, "consumed/sec"),
-			d.statCard("TOPICS", fmt.Sprintf("%d", len(d.stats.Topics)), colOrange, "active topics"),
-			d.statCard("TCP", fmt.Sprintf("%d", d.stats.TCPConnections), colMuted, "open connections"),
+			d.stat("PUBLISHED", fmtN(d.stats.TotalPublished)),
+			d.stat("CONSUMED", fmtN(d.stats.TotalConsumed)),
+			d.stat("PUB/s", fmtN(d.pubRate)),
+			d.stat("CON/s", fmtN(d.conRate)),
+			d.stat("TOPICS", strconv.Itoa(len(d.stats.Topics))),
+			d.stat("TCP CONN", strconv.FormatInt(d.stats.TCPConnections, 10)),
 		)
 }
 
-func (d *Dashboard) statCard(label, value, accent, hint string) app.UI {
+func (d *Dashboard) stat(label, value string) app.UI {
+	return app.Div().Class("glass fade-in").
+		Style("padding", "14px 16px").
+		Body(
+			app.P().Style("color", muted).Style("font-size", "9px").Style("letter-spacing", "1.2px").
+				Style("margin-bottom", "7px").Text(label),
+			app.P().Style("color", txt).Style("font-size", "22px").Style("font-weight", "700").
+				Style("line-height", "1").Text(value),
+		)
+}
+
+// ── main 2-column layout ──────────────────────────────────────────────────────
+
+func (d *Dashboard) renderMain() app.UI {
 	return app.Div().
-		Class("card").
-		Style("background", colSurface).
-		Style("border", "1px solid "+colBorder).
-		Style("border-top", "2px solid "+accent).
-		Style("border-radius", "6px").
-		Style("padding", "18px 20px").
+		Style("display", "grid").
+		Style("grid-template-columns", "260px 1fr").
+		Style("gap", "14px").
+		Style("margin-bottom", "20px").
 		Body(
-			app.P().
-				Style("color", colMuted).
-				Style("font-size", "10px").
-				Style("letter-spacing", "1.5px").
-				Style("margin-bottom", "10px").
-				Text(label),
-			app.P().
-				Style("color", accent).
-				Style("font-size", "30px").
-				Style("font-weight", "700").
-				Style("line-height", "1").
-				Style("margin-bottom", "6px").
-				Text(value),
-			app.P().
-				Style("color", colBorder).
-				Style("font-size", "10px").
-				Text(hint),
+			d.renderTopicList(),
+			d.renderToolPanel(),
 		)
 }
 
-// ── Topics ────────────────────────────────────────────────────────────────────
+// ── left: topic list ─────────────────────────────────────────────────────────
 
-func (d *Dashboard) renderTopics() app.UI {
-	label := app.P().
-		Style("color", colMuted).
-		Style("font-size", "10px").
-		Style("letter-spacing", "1.5px").
-		Style("margin-bottom", "14px").
-		Text("TOPICS")
+func (d *Dashboard) renderTopicList() app.UI {
+	header := app.P().
+		Style("color", muted).Style("font-size", "9px").Style("letter-spacing", "1.2px").
+		Style("margin-bottom", "12px").Text("TOPICS")
 
 	if len(d.stats.Topics) == 0 {
-		return app.Div().Body(
-			label,
+		return app.Div().Class("glass").Style("padding", "16px").Body(
+			header,
 			app.Div().
-				Style("background", colSurface).
-				Style("border", "1px dashed "+colBorder).
-				Style("border-radius", "6px").
-				Style("padding", "32px").
-				Style("text-align", "center").
-				Style("color", colMuted).
-				Style("font-size", "13px").
-				Text("no topics yet — publish a message to get started"),
+				Style("border", "1px dashed "+glassBorder).Style("border-radius", "8px").
+				Style("padding", "24px 12px").Style("text-align", "center").
+				Style("color", muted).Style("font-size", "12px").
+				Text("no topics yet"),
 		)
 	}
 
 	rows := make([]app.UI, 0, len(d.stats.Topics)+1)
-	rows = append(rows, label)
+	rows = append(rows, header)
 	for _, t := range d.stats.Topics {
-		rows = append(rows, d.topicRow(t))
+		t := t
+		active := d.selectedTopic == t.Name
+		leftBorder := "3px solid transparent"
+		bg2 := "transparent"
+		if active {
+			leftBorder = "3px solid " + accent
+			bg2 = accentDim
+		}
+		rows = append(rows,
+			app.Div().
+				Style("border-left", leftBorder).
+				Style("background", bg2).
+				Style("border-radius", "0 6px 6px 0").
+				Style("padding", "9px 12px").
+				Style("cursor", "pointer").
+				Style("transition", "all .15s").
+				OnClick(func(ctx app.Context, e app.Event) {
+					ctx.Dispatch(func(ctx app.Context) {
+						d.selectedTopic = t.Name
+						d.pubTopic = t.Name
+						d.fetchTopic = t.Name
+					})
+				}).
+				Body(
+					app.Div().Style("display", "flex").Style("justify-content", "space-between").
+						Style("align-items", "center").
+						Body(
+							app.Span().Style("font-size", "13px").Style("color", txt).Text(t.Name),
+							app.Span().Style("font-size", "10px").Style("color", muted).
+								Text(fmtN(t.Total)),
+						),
+					app.Div().Style("display", "flex").Style("gap", "4px").Style("margin-top", "5px").
+						Body(d.partBadges(t)...),
+				),
+		)
 	}
-
-	return app.Div().
-		Style("display", "flex").
-		Style("flex-direction", "column").
-		Style("gap", "8px").
-		Body(rows...)
+	return app.Div().Class("glass").Style("padding", "16px").Body(rows...)
 }
 
-func (d *Dashboard) topicRow(t api.TopicStat) app.UI {
-	badges := make([]app.UI, 0, len(t.Partitions))
+func (d *Dashboard) partBadges(t api.TopicStat) []app.UI {
+	out := make([]app.UI, 0, len(t.Partitions))
 	for _, p := range t.Partitions {
-		col := colGreen
-		if p.Size == 0 {
-			col = colMuted
+		col := muted
+		if p.Size > 0 {
+			col = accent
 		}
-		badges = append(badges,
+		out = append(out,
 			app.Span().
-				Style("background", colBg).
-				Style("border", "1px solid "+colBorder).
-				Style("border-radius", "4px").
-				Style("padding", "3px 10px").
-				Style("font-size", "11px").
-				Style("color", col).
-				Text(fmt.Sprintf("p%d  %s", p.Index, fmtCount(p.Size))),
+				Style("font-size", "9px").Style("color", col).
+				Style("background", "rgba(255,255,255,0.05)").
+				Style("border", "1px solid "+glassBorder).
+				Style("border-radius", "3px").Style("padding", "1px 5px").
+				Text(fmt.Sprintf("p%d", p.Index)),
 		)
 	}
-
-	pct := 0.0
-	if d.stats.TotalPublished > 0 {
-		pct = float64(t.Total) / float64(d.stats.TotalPublished) * 100
-		if pct > 100 {
-			pct = 100
-		}
-	}
-
-	return app.Div().
-		Class("card").
-		Style("background", colSurface).
-		Style("border", "1px solid "+colBorder).
-		Style("border-radius", "6px").
-		Style("padding", "14px 18px").
-		Body(
-			app.Div().
-				Style("display", "flex").
-				Style("justify-content", "space-between").
-				Style("align-items", "center").
-				Style("margin-bottom", "10px").
-				Body(
-					app.Span().
-						Style("color", colText).
-						Style("font-size", "14px").
-						Style("font-weight", "600").
-						Text(t.Name),
-					app.Span().
-						Style("color", colGreen).
-						Style("font-size", "13px").
-						Text(fmtCount(t.Total)+" msgs"),
-				),
-			app.Div().
-				Style("display", "flex").
-				Style("gap", "8px").
-				Style("flex-wrap", "wrap").
-				Style("margin-bottom", "10px").
-				Body(badges...),
-			app.Div().
-				Style("height", "3px").
-				Style("background", colBorder).
-				Style("border-radius", "2px").
-				Body(
-					app.Div().
-						Style("height", "100%").
-						Style("width", fmt.Sprintf("%.1f%%", pct)).
-						Style("background", colCyan).
-						Style("border-radius", "2px").
-						Style("transition", "width .4s ease"),
-				),
-		)
+	return out
 }
 
-// ── Footer ────────────────────────────────────────────────────────────────────
+// ── right: tool panel ────────────────────────────────────────────────────────
+
+func (d *Dashboard) renderToolPanel() app.UI {
+	tabs := []struct{ id, label string }{
+		{"publish", "PUBLISH"},
+		{"fetch", "FETCH"},
+		{"guide", "GUIDE"},
+	}
+	tabBtns := make([]app.UI, 0, len(tabs))
+	for _, t := range tabs {
+		t := t
+		active := d.activeTab == t.id
+		col, bg2, bdr := muted, "transparent", "transparent"
+		if active {
+			col, bg2, bdr = accent, accentDim, accentBdr
+		}
+		tabBtns = append(tabBtns,
+			app.Button().
+				Style("background", bg2).Style("border", "1px solid "+bdr).
+				Style("border-radius", "5px").Style("color", col).
+				Style("font-family", fontMono).Style("font-size", "10px").
+				Style("letter-spacing", "1px").Style("padding", "5px 12px").
+				Style("cursor", "pointer").Style("transition", "all .15s").
+				OnClick(func(ctx app.Context, e app.Event) {
+					ctx.Dispatch(func(ctx app.Context) { d.activeTab = t.id })
+				}).
+				Text(t.label),
+		)
+	}
+
+	var content app.UI
+	switch d.activeTab {
+	case "fetch":
+		content = d.renderFetchForm()
+	case "guide":
+		content = d.renderGuide()
+	default:
+		content = d.renderPublishForm()
+	}
+
+	return app.Div().Class("glass").Style("padding", "16px").Body(
+		// tab bar
+		app.Div().Style("display", "flex").Style("gap", "6px").Style("margin-bottom", "16px").
+			Body(tabBtns...),
+		// divider
+		app.Div().Style("height", "1px").Style("background", glassBorder).Style("margin-bottom", "16px"),
+		// tab content
+		content,
+	)
+}
+
+// ── publish form ──────────────────────────────────────────────────────────────
+
+func (d *Dashboard) renderPublishForm() app.UI {
+	selLabel := or(d.pubTopic, "— pick a topic on the left or type below —")
+	selCol := muted
+	if d.pubTopic != "" {
+		selCol = accent
+	}
+
+	btnLabel := "SEND →"
+	if d.publishing {
+		btnLabel = "sending…"
+	}
+
+	var feedback app.UI = app.Span()
+	if d.pubFeedback != "" {
+		col := ok
+		if d.pubIsErr {
+			col = danger
+		}
+		feedback = app.P().
+			Style("font-size", "11px").Style("color", col).
+			Style("margin-top", "10px").Style("word-break", "break-all").
+			Text(d.pubFeedback)
+	}
+
+	return app.Div().Body(
+		// topic indicator
+		app.P().Style("font-size", "11px").Style("color", selCol).
+			Style("margin-bottom", "14px").Text(selLabel),
+
+		d.formRow("TOPIC",
+			app.Input().Type("text").Placeholder("orders").
+				Value(d.pubTopic).
+				OnInput(func(ctx app.Context, e app.Event) {
+					d.pubTopic = ctx.JSSrc().Get("value").String()
+				}),
+		),
+		d.formRow("KEY  (optional — for partition routing)",
+			app.Input().Type("text").Placeholder("user-123").
+				Value(d.pubKey).
+				OnInput(func(ctx app.Context, e app.Event) {
+					d.pubKey = ctx.JSSrc().Get("value").String()
+				}),
+		),
+		d.formRow("PARTITION  (optional — leave blank for auto)",
+			app.Input().Type("text").Placeholder("-1").
+				Value(d.pubPartStr).
+				OnInput(func(ctx app.Context, e app.Event) {
+					d.pubPartStr = ctx.JSSrc().Get("value").String()
+				}),
+		),
+		d.formRow("PAYLOAD",
+			app.Textarea().
+				Style("resize", "vertical").Style("min-height", "80px").
+				Placeholder(`{"hello":"world"}`).
+				OnInput(func(ctx app.Context, e app.Event) {
+					d.pubPayload = ctx.JSSrc().Get("value").String()
+				}).
+				Text(d.pubPayload),
+		),
+
+		// send button
+		app.Button().
+			Style("margin-top", "12px").
+			Style("background", accentDim).Style("border", "1px solid "+accentBdr).
+			Style("color", accent).Style("font-family", fontMono).
+			Style("font-size", "11px").Style("letter-spacing", "1px").
+			Style("padding", "7px 18px").Style("border-radius", "6px").
+			Style("cursor", "pointer").Style("transition", "all .15s").
+			Disabled(d.publishing).
+			OnClick(d.doPublish).
+			Text(btnLabel),
+
+		feedback,
+	)
+}
+
+func (d *Dashboard) doPublish(ctx app.Context, e app.Event) {
+	if d.pubTopic == "" || d.pubPayload == "" {
+		ctx.Dispatch(func(ctx app.Context) {
+			d.pubFeedback = "topic and payload are required"
+			d.pubIsErr = true
+		})
+		return
+	}
+	ctx.Dispatch(func(ctx app.Context) { d.publishing = true; d.pubFeedback = "" })
+
+	topic, key, payload, partStr := d.pubTopic, d.pubKey, d.pubPayload, d.pubPartStr
+	partition := -1
+	if partStr != "" {
+		fmt.Sscanf(partStr, "%d", &partition)
+	}
+
+	ctx.Async(func() {
+		body, _ := json.Marshal(api.PublishRequest{
+			Topic:     topic,
+			Key:       key,
+			Partition: partition,
+			Payload:   payload,
+		})
+		resp, err := http.Post("/api/publish", "application/json", bytes.NewReader(body))
+		ctx.Dispatch(func(ctx app.Context) {
+			d.publishing = false
+			if err != nil {
+				d.pubFeedback = "error: " + err.Error()
+				d.pubIsErr = true
+				return
+			}
+			defer resp.Body.Close()
+			var pr api.PublishResponse
+			if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+				d.pubFeedback = "error: " + err.Error()
+				d.pubIsErr = true
+				return
+			}
+			d.pubFeedback = fmt.Sprintf("✓  %s  partition=%d  offset=%d", pr.Topic, pr.Partition, pr.Offset)
+			d.pubIsErr = false
+		})
+	})
+}
+
+// ── fetch form ────────────────────────────────────────────────────────────────
+
+func (d *Dashboard) renderFetchForm() app.UI {
+	btnLabel := "FETCH →"
+	if d.fetching {
+		btnLabel = "fetching…"
+	}
+
+	var results app.UI = app.Span()
+	if d.fetchErr != "" {
+		results = app.P().Style("color", danger).Style("font-size", "11px").
+			Style("margin-top", "10px").Text("error: " + d.fetchErr)
+	} else if len(d.fetchResults) > 0 {
+		rows := make([]app.UI, 0, len(d.fetchResults))
+		for _, m := range d.fetchResults {
+			rows = append(rows,
+				app.Div().
+					Style("border-bottom", "1px solid "+glassBorder).
+					Style("padding", "7px 10px").
+					Body(
+						app.Div().Style("display", "flex").Style("gap", "10px").
+							Style("margin-bottom", "3px").
+							Body(
+								app.Span().Style("color", accent).Style("font-size", "10px").
+									Text(fmt.Sprintf("#%d", m.Offset)),
+								app.Span().Style("color", muted).Style("font-size", "10px").
+									Text(m.Timestamp),
+							),
+						app.P().Style("font-size", "12px").Style("color", txt).
+							Style("word-break", "break-all").Text(m.Payload),
+					),
+			)
+		}
+		results = app.Div().
+			Style("margin-top", "12px").
+			Style("border", "1px solid "+glassBorder).Style("border-radius", "8px").
+			Style("max-height", "300px").Style("overflow-y", "auto").
+			Body(rows...)
+	}
+
+	return app.Div().Body(
+		d.formRow("TOPIC",
+			app.Input().Type("text").Placeholder("orders").
+				Value(d.fetchTopic).
+				OnInput(func(ctx app.Context, e app.Event) {
+					d.fetchTopic = ctx.JSSrc().Get("value").String()
+				}),
+		),
+		app.Div().Style("display", "grid").Style("grid-template-columns", "1fr 1fr 1fr").
+			Style("gap", "10px").
+			Body(
+				d.formRow("PARTITION",
+					app.Input().Type("text").Placeholder("0").Value(d.fetchPartStr).
+						OnInput(func(ctx app.Context, e app.Event) {
+							d.fetchPartStr = ctx.JSSrc().Get("value").String()
+						}),
+				),
+				d.formRow("OFFSET",
+					app.Input().Type("text").Placeholder("0").Value(d.fetchOffStr).
+						OnInput(func(ctx app.Context, e app.Event) {
+							d.fetchOffStr = ctx.JSSrc().Get("value").String()
+						}),
+				),
+				d.formRow("LIMIT",
+					app.Input().Type("text").Placeholder("20").Value(d.fetchLimStr).
+						OnInput(func(ctx app.Context, e app.Event) {
+							d.fetchLimStr = ctx.JSSrc().Get("value").String()
+						}),
+				),
+			),
+		app.Button().
+			Style("margin-top", "12px").
+			Style("background", accentDim).Style("border", "1px solid "+accentBdr).
+			Style("color", accent).Style("font-family", fontMono).
+			Style("font-size", "11px").Style("letter-spacing", "1px").
+			Style("padding", "7px 18px").Style("border-radius", "6px").
+			Style("cursor", "pointer").Style("transition", "all .15s").
+			Disabled(d.fetching).
+			OnClick(d.doFetch).
+			Text(btnLabel),
+		results,
+	)
+}
+
+func (d *Dashboard) doFetch(ctx app.Context, e app.Event) {
+	if d.fetchTopic == "" {
+		ctx.Dispatch(func(ctx app.Context) { d.fetchErr = "topic is required" })
+		return
+	}
+	ctx.Dispatch(func(ctx app.Context) { d.fetching = true; d.fetchErr = "" })
+
+	topic, partStr, offStr, limStr := d.fetchTopic, d.fetchPartStr, d.fetchOffStr, d.fetchLimStr
+	partition, offset, limit := 0, int64(0), 20
+	if partStr != "" {
+		fmt.Sscanf(partStr, "%d", &partition)
+	}
+	if offStr != "" {
+		fmt.Sscanf(offStr, "%d", &offset)
+	}
+	if limStr != "" {
+		fmt.Sscanf(limStr, "%d", &limit)
+	}
+
+	ctx.Async(func() {
+		url := fmt.Sprintf("/api/fetch?topic=%s&partition=%d&offset=%d&limit=%d",
+			topic, partition, offset, limit)
+		resp, err := http.Get(url)
+		ctx.Dispatch(func(ctx app.Context) {
+			d.fetching = false
+			if err != nil {
+				d.fetchErr = err.Error()
+				return
+			}
+			defer resp.Body.Close()
+			var msgs []api.FetchedMessage
+			if err := json.NewDecoder(resp.Body).Decode(&msgs); err != nil {
+				d.fetchErr = err.Error()
+				return
+			}
+			d.fetchResults = msgs
+		})
+	})
+}
+
+// ── guide / settings tab ──────────────────────────────────────────────────────
+
+func (d *Dashboard) renderGuide() app.UI {
+	walMode := or(d.stats.WAL.SyncMode, "—")
+	walPath := or(d.stats.WAL.Path, "—")
+
+	return app.Div().Body(
+		d.guideSection("QUICK START", []string{
+			"1.  go run ./cmd/broker/          # start broker  :9090 TCP  :9095 gRPC",
+			"2.  go run ./cmd/dashboard/       # open dashboard at :8080",
+			"3.  open browser → localhost:8080",
+		}),
+		d.guideSection("PUBLISH A MESSAGE", []string{
+			"Via dashboard  →  click PUBLISH tab, fill topic + payload, hit SEND",
+			"Via CLI (TCP)  →  goqueue publish --topic orders \"hello\"",
+			"Via CLI (gRPC) →  goqueue publish --grpc --topic orders \"hello\"",
+			"With key       →  goqueue publish --topic orders --key user-42 \"hi\"",
+			"Batch (TCP)    →  goqueue publish-batch --topic orders --count 1000",
+		}),
+		d.guideSection("READ MESSAGES", []string{
+			"Via dashboard  →  click FETCH tab, set topic + offset + limit",
+			"Via CLI        →  goqueue fetch --topic orders --offset 0",
+			"Subscribe      →  goqueue consume --topic orders --group myapp",
+		}),
+		d.guideSection("PARTITION ROUTING", []string{
+			"No key         →  round-robin across partitions (3 by default)",
+			"With key       →  FNV-32a hash → deterministic partition",
+			"Explicit part  →  goqueue publish --grpc --partition 1 --topic orders \"x\"",
+		}),
+		d.guideSection("CURRENT CONFIG", []string{
+			"broker tcp   :9090",
+			"broker grpc  :9095",
+			"metrics      :2112",
+			"wal path     " + walPath,
+			"wal sync     " + walMode,
+		}),
+	)
+}
+
+func (d *Dashboard) guideSection(title string, lines []string) app.UI {
+	items := make([]app.UI, 0, len(lines))
+	for _, l := range lines {
+		items = append(items,
+			app.P().
+				Style("font-size", "11px").Style("color", txt).
+				Style("opacity", "0.75").Style("padding", "2px 0").
+				Style("white-space", "pre").Text(l),
+		)
+	}
+	return app.Div().Style("margin-bottom", "18px").Body(
+		append([]app.UI{
+			app.P().Style("font-size", "9px").Style("color", accent).
+				Style("letter-spacing", "1.2px").Style("margin-bottom", "7px").Text(title),
+			app.Div().
+				Style("background", "rgba(255,255,255,0.03)").
+				Style("border", "1px solid "+glassBorder).
+				Style("border-radius", "6px").Style("padding", "10px 14px").
+				Body(items...),
+		})...,
+	)
+}
+
+// ── footer ────────────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderFooter() app.UI {
-	walColor := colOrange
-	switch d.stats.WAL.SyncMode {
-	case "always":
-		walColor = colGreen
-	case "interval":
-		walColor = colBlue
-	}
-	syncMode := d.stats.WAL.SyncMode
-	if syncMode == "" {
-		syncMode = "—"
-	}
-	walPath := d.stats.WAL.Path
-	if walPath == "" {
-		walPath = "—"
-	}
-
 	return app.Div().
-		Style("border-top", "1px solid "+colBorder).
-		Style("margin-top", "28px").
-		Style("padding-top", "16px").
-		Style("display", "flex").
-		Style("justify-content", "space-between").
+		Style("display", "flex").Style("justify-content", "space-between").
 		Style("align-items", "center").
+		Style("border-top", "1px solid "+glassBorder).Style("padding-top", "14px").
 		Body(
-			app.Div().
-				Style("display", "flex").
-				Style("gap", "14px").
-				Style("align-items", "center").
-				Body(
-					app.Span().
-						Style("color", colMuted).
-						Style("font-size", "11px").
-						Text("wal: "+walPath),
-					app.Span().
-						Style("color", walColor).
-						Style("font-size", "10px").
-						Style("background", walColor+"22").
-						Style("padding", "1px 7px").
-						Style("border-radius", "3px").
-						Text("sync="+syncMode),
-				),
-			app.Span().
-				Style("color", colBorder).
-				Style("font-size", "11px").
+			app.Span().Style("color", muted).Style("font-size", "10px").
+				Text("wal: "+or(d.stats.WAL.Path, "—")+"  sync="+or(d.stats.WAL.SyncMode, "—")),
+			app.Span().Style("color", "rgba(255,255,255,0.15)").Style("font-size", "10px").
 				Text("goqueue · built in Go → WASM"),
 		)
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+// ── form helpers ──────────────────────────────────────────────────────────────
 
-func fmtCount(n int64) string {
+func (d *Dashboard) formRow(label string, input app.UI) app.UI {
+	return app.Div().Style("margin-bottom", "10px").Body(
+		app.P().
+			Style("font-size", "9px").Style("color", muted).
+			Style("letter-spacing", "1px").Style("margin-bottom", "4px").
+			Text(label),
+		app.Div().Style("width", "100%").Body(input),
+	)
+}
+
+// ── number formatter ──────────────────────────────────────────────────────────
+
+func fmtN(n int64) string {
 	if n <= 0 {
 		return "0"
 	}
 	switch {
 	case n >= 1_000_000_000:
-		return fmt.Sprintf("%.2fB", float64(n)/1e9)
+		return fmt.Sprintf("%.1fB", float64(n)/1e9)
 	case n >= 1_000_000:
-		return fmt.Sprintf("%.2fM", float64(n)/1e6)
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
 	case n >= 1_000:
 		return fmt.Sprintf("%.1fK", float64(n)/1e3)
 	default:
-		return fmt.Sprintf("%d", n)
+		return strconv.FormatInt(n, 10)
 	}
+}
+
+func or(s, fallback string) string {
+	if s == "" {
+		return fallback
+	}
+	return s
 }
