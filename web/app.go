@@ -296,6 +296,7 @@ func (d *Dashboard) renderTopicList() app.UI {
 						),
 					app.Div().Style("display", "flex").Style("gap", "4px").Style("margin-top", "5px").
 						Body(d.partBadges(t)...),
+					d.fillBar(t),
 				),
 		)
 	}
@@ -305,11 +306,14 @@ func (d *Dashboard) renderTopicList() app.UI {
 func (d *Dashboard) partBadges(t api.TopicStat) []app.UI {
 	out := make([]app.UI, 0, len(t.Partitions))
 	for _, p := range t.Partitions {
-		col := muted
-		bg2 := "rgba(0,0,0,0.04)"
-		if p.Size > 0 {
-			col = accent
-			bg2 = accentDim
+		col, bg2 := muted, "rgba(0,0,0,0.04)"
+		switch {
+		case p.FillPct > 80:
+			col, bg2 = danger, "rgba(207,34,46,0.10)"
+		case p.FillPct > 50:
+			col, bg2 = warn, warnDim
+		case p.Size > 0:
+			col, bg2 = accent, accentDim
 		}
 		label := fmt.Sprintf("p%d", p.Index)
 		if p.Size > 0 {
@@ -325,6 +329,43 @@ func (d *Dashboard) partBadges(t api.TopicStat) []app.UI {
 		)
 	}
 	return out
+}
+
+// fillBar renders a thin animated progress bar showing the max partition fill %.
+// Returns an empty span when all partitions are empty.
+func (d *Dashboard) fillBar(t api.TopicStat) app.UI {
+	maxFill := 0.0
+	for _, p := range t.Partitions {
+		if p.FillPct > maxFill {
+			maxFill = p.FillPct
+		}
+	}
+	if maxFill < 0.01 {
+		return app.Span()
+	}
+	barCol := accent
+	switch {
+	case maxFill > 80:
+		barCol = danger
+	case maxFill > 50:
+		barCol = warn
+	}
+	pct := fmt.Sprintf("%.2f%%", maxFill)
+	return app.Div().
+		Style("display", "flex").Style("align-items", "center").Style("gap", "6px").
+		Style("margin-top", "6px").
+		Body(
+			app.Div().
+				Style("flex", "1").Style("height", "3px").
+				Style("background", glassBorder).Style("border-radius", "2px").
+				Body(
+					app.Div().
+						Style("height", "100%").Style("width", pct).
+						Style("background", barCol).Style("border-radius", "2px").
+						Style("transition", "width 1s ease"),
+				),
+			app.Span().Style("font-size", "9px").Style("color", muted).Text(pct+" full"),
+		)
 }
 
 // ── right: tool panel ────────────────────────────────────────────────────────
@@ -674,15 +715,13 @@ func (d *Dashboard) guideSection(title string, lines []string) app.UI {
 		)
 	}
 	return app.Div().Style("margin-bottom", "18px").Body(
-		append([]app.UI{
-			app.P().Style("font-size", "9px").Style("color", accent).
-				Style("letter-spacing", "1.2px").Style("margin-bottom", "7px").Text(title),
-			app.Div().
-				Style("background", "rgba(255,255,255,0.03)").
-				Style("border", "1px solid "+glassBorder).
-				Style("border-radius", "6px").Style("padding", "10px 14px").
-				Body(items...),
-		})...,
+		app.P().Style("font-size", "9px").Style("color", accent).
+			Style("letter-spacing", "1.2px").Style("margin-bottom", "7px").Text(title),
+		app.Div().
+			Style("background", "rgba(255,255,255,0.03)").
+			Style("border", "1px solid "+glassBorder).
+			Style("border-radius", "6px").Style("padding", "10px 14px").
+			Body(items...),
 	)
 }
 
