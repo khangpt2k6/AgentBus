@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path/filepath"
 
 	_ "github.com/2006t/goqueue/web" // registers all routes via init()
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
@@ -30,17 +31,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("invalid broker address: %v", err)
 	}
-
 	proxy := httputil.NewSingleHostReverseProxy(brokerURL)
 
 	mux := http.NewServeMux()
 
-	// /api/* → proxied to broker (same-origin for the WASM, no CORS needed)
+	// /api/* → proxied to broker
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(w, r)
 	})
 
-	// go-app serves: /, /app.wasm, /wasm_exec.js, /app-worker.js, /manifest.webmanifest
+	// Serve app.wasm with correct MIME type.
+	// go-app's LocalDir("") generates URL /app.wasm — we handle it here explicitly
+	// so the MIME type is always application/wasm (Go's FileServer may omit it).
+	wasmPath := filepath.Join(*wasmDir, "app.wasm")
+	mux.HandleFunc("/app.wasm", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/wasm")
+		http.ServeFile(w, r, wasmPath)
+	})
+
+	// go-app handler — LocalDir("") generates /app.wasm, /app-worker.js, etc.
+	// with no directory prefix, matching our routes above.
 	mux.Handle("/", &app.Handler{
 		Name:            "GoQueue Dashboard",
 		Description:     "Real-time GoQueue message broker dashboard — built in Go → WASM",
@@ -49,7 +59,7 @@ func main() {
 		Icon: app.Icon{
 			Default: "https://go.dev/images/favicon-gopher.png",
 		},
-		Resources: app.LocalDir(*wasmDir),
+		Resources: app.LocalDir(""),
 		RawHeaders: []string{
 			`<link rel="preconnect" href="https://fonts.googleapis.com">`,
 			`<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">`,
