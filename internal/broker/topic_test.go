@@ -74,3 +74,37 @@ func TestConcurrentPublish(t *testing.T) {
 		t.Fatalf("tail: got %d, want %d", topic.Tail(), total)
 	}
 }
+
+func TestTopicCapacity(t *testing.T) {
+	cap := 128
+	topic := newTopic("cap-test", cap)
+	if topic.Capacity() != cap {
+		t.Fatalf("capacity: got %d, want %d", topic.Capacity(), cap)
+	}
+}
+
+func TestTopicEvictions(t *testing.T) {
+	cap := 32
+	topic := newTopic("evict-test", cap)
+
+	if topic.Evictions() != 0 {
+		t.Fatalf("initial evictions: got %d, want 0", topic.Evictions())
+	}
+
+	// Fill exactly — no eviction yet.
+	for range cap {
+		topic.Publish([]byte("x"))
+	}
+	if topic.Evictions() != 0 {
+		t.Fatalf("evictions at full capacity: got %d, want 0", topic.Evictions())
+	}
+
+	// Overflow by 7 — each extra message evicts one.
+	overflow := 7
+	for range overflow {
+		topic.Publish([]byte("x"))
+	}
+	if topic.Evictions() != int64(overflow) {
+		t.Fatalf("evictions after overflow: got %d, want %d", topic.Evictions(), overflow)
+	}
+}
