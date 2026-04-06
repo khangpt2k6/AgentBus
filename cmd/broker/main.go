@@ -207,6 +207,99 @@ func main() {
 			"term":      cur.Term,
 		})
 	})
+	mux.HandleFunc("/api/publish", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req api.PublishRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.Topic == "" {
+			http.Error(w, "topic is required", http.StatusBadRequest)
+			return
+		}
+		var (
+			partition int
+			offset    int64
+			pubErr    error
+		)
+		payload := []byte(req.Payload)
+		switch {
+		case req.Partition > 0:
+			offset, pubErr = b.PublishToPartition(req.Topic, req.Partition, payload)
+			partition = req.Partition
+		case req.Key != "":
+			var p int
+			p, offset, pubErr = b.PublishWithKey(req.Topic, req.Key, payload)
+			partition = p
+		default:
+			offset = b.Publish(req.Topic, payload)
+		}
+		if pubErr != nil {
+			http.Error(w, pubErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		if logFile != nil {
+			_ = logFile.AppendRecord(wal.Record{
+				Timestamp: time.Now().UnixNano(),
+				Topic:     req.Topic,
+				Key:       req.Key,
+				Partition: int32(partition),
+				Payload:   payload,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(api.PublishResponse{
+			Topic:     req.Topic,
+			Partition: partition,
+			Offset:    offset,
+		})
+	})
+
+	mux.HandleFunc("/api/fetch", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		q := r.URL.Query()
+		topic := q.Get("topic")
+		if topic == "" {
+			http.Error(w, "topic is required", http.StatusBadRequest)
+			return
+		}
+		partition := 0
+		if p := q.Get("partition"); p != "" {
+			fmt.Sscanf(p, "%d", &partition)
+		}
+		var offset int64
+		if o := q.Get("offset"); o != "" {
+			fmt.Sscanf(o, "%d", &offset)
+		}
+		limit := 20
+		if l := q.Get("limit"); l != "" {
+			fmt.Sscanf(l, "%d", &limit)
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		msgs := b.FetchPartition(topic, partition, offset, limit)
+		out := make([]api.FetchedMessage, 0, len(msgs))
+		for _, m := range msgs {
+			out = append(out, api.FetchedMessage{
+				Offset:    m.Offset,
+				Timestamp: m.Timestamp.Format(time.RFC3339),
+				Payload:   string(m.Payload),
+			})
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+
 	metricsSrv := &http.Server{
 		Addr:    *metricsAddr,
 		Handler: mux,
