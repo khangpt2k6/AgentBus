@@ -1,163 +1,178 @@
-<p align="center">
-  <img width="1376" height="768" alt="image" src="https://github.com/user-attachments/assets/e436248a-81d9-4dcd-9755-437b7212a4e8" />
+# GoQueue
 
-</p>
+A compact, partitioned message broker in Go built to answer one practical infrastructure question:
 
-<h1 align="center">GoQueue</h1>
+**How do you keep event processing fast and debuggable when many producers and consumers hit the system at once?**
 
-<p align="center">
-  A partitioned Go message broker with TCP and gRPC transport, WAL-backed replay, and production-style observability for local workloads.
-</p>
+---
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go badge" />
-  <img src="https://img.shields.io/badge/gRPC-API-244C5A?style=for-the-badge&logo=grpc&logoColor=white" alt="gRPC badge" />
-  <img src="https://img.shields.io/badge/Protocol%20Buffers-Typed%20Contracts-6A5ACD?style=for-the-badge" alt="Protocol Buffers badge" />
-  <img src="https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=for-the-badge&logo=prometheus&logoColor=white" alt="Prometheus badge" />
-  <img src="https://img.shields.io/badge/OpenTelemetry-Tracing-5A4FCF?style=for-the-badge&logo=opentelemetry&logoColor=white" alt="OpenTelemetry badge" />
-  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker badge" />
-</p>
+## Background
 
-## Overview
-`GoQueue` is built for lightweight event and queue workloads where you want a compact broker with a clean developer experience. It supports TCP workflows, typed gRPC APIs, deterministic partition routing, write-ahead logging for replay, and a ready-to-run observability stack.
+Most queue demos stop at "message in, message out."
 
-## Current Scope
-- Single-node broker process with partitioned in-memory topics and WAL replay.
-- Docker Compose starts multiple independent broker nodes for local topology demos and observability.
-- Raft fields and dashboards are metadata labels only in the current version (no consensus replication yet).
+Real systems need more:
+- stable ordering for related events
+- replay after crashes
+- visibility into throughput and lag
+- APIs that support both simple clients and typed services
 
-## Tech Stack
-<p>
-  <img src="https://img.shields.io/badge/Go-Backend-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
-  <img src="https://img.shields.io/badge/gRPC-Transport-244C5A?style=flat-square&logo=grpc&logoColor=white" alt="gRPC" />
-  <img src="https://img.shields.io/badge/Protobuf-Schemas-6A5ACD?style=flat-square" alt="Protobuf" />
-  <img src="https://img.shields.io/badge/WAL-Durability-111827?style=flat-square" alt="WAL" />
-  <img src="https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat-square&logo=prometheus&logoColor=white" alt="Prometheus" />
-  <img src="https://img.shields.io/badge/OpenTelemetry-Traces-5A4FCF?style=flat-square&logo=opentelemetry&logoColor=white" alt="OpenTelemetry" />
-  <img src="https://img.shields.io/badge/Grafana-Dashboards-F46800?style=flat-square&logo=grafana&logoColor=white" alt="Grafana" />
-  <img src="https://img.shields.io/badge/Tempo-Trace%20Storage-7B61FF?style=flat-square" alt="Tempo" />
-  <img src="https://img.shields.io/badge/Buf-Codegen-0F172A?style=flat-square" alt="Buf" />
-  <img src="https://img.shields.io/badge/Docker-Local%20Stack-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
-</p>
+`GoQueue` is built as a learning-and-engineering project around those exact problems.
 
-## Core Capabilities
-| Capability | What it gives you |
-| --- | --- |
-| TCP + gRPC interfaces | Use the lightweight TCP protocol for simple clients or gRPC for typed contracts and streaming. |
-| Partitioned topics | Route by round-robin, explicit partition, or stable key-based partitioning. |
-| WAL replay | Recover broker state from persisted records on startup (including partition metadata in WAL v2 records). |
-| Consumer groups | Consume by group and partition for predictable scaling behavior. |
-| Metrics + tracing | Export Prometheus metrics and OpenTelemetry traces for visibility. |
-| Local observability stack | Bring up Grafana, Prometheus, and Tempo with Docker Compose. |
+---
 
-## Architecture
+## Core Idea
+
+Use a small broker with:
+- **partitioned topics** for predictable routing and ordering
+- **WAL-backed replay** for crash recovery
+- **dual transport** (`TCP` and `gRPC`) for flexibility
+- **observability-first design** (Prometheus + OpenTelemetry)
+
+---
+
+## Architecture (Analogy)
+
+### The Brain: Broker
+- Holds topic state, partitions, offsets, and routing decisions.
+- Implements round-robin, key-based routing, and explicit partition publish.
+
+### The Memory: WAL
+- Appends publish records and replays them on restart.
+- Stores partition metadata in current WAL records for correct replay routing.
+
+### The Eyes: Metrics and Tracing
+- Prometheus for rates/lag/counters.
+- OpenTelemetry traces for request-level visibility (especially gRPC flows).
+
+### The Hands: Clients
+- `cmd/goqueue` CLI for publish/consume workflows.
+- TCP clients for lightweight usage, gRPC clients for typed APIs.
+
 ```mermaid
 flowchart LR
-    A[TCP Clients] --> C[GoQueue Broker]
-    B[gRPC Clients] --> C
-    C --> D[Partitioned Topics]
-    D --> E[Consumer Groups]
-    C --> F[WAL Persistence]
-    C --> G[Prometheus Metrics]
-    C --> H[OpenTelemetry Traces]
-    G --> I[Grafana Dashboards]
-    H --> J[Tempo]
+    tcpClients[TCPClients] --> broker[GoQueueBroker]
+    grpcClients[gRPCClients] --> broker
+    broker --> partitions[PartitionedTopics]
+    broker --> wal[WAL]
+    broker --> metrics[PrometheusMetrics]
+    broker --> traces[OpenTelemetryTraces]
 ```
 
+---
+
+## Current Scope (Important)
+
+- `GoQueue` is currently a **single-node broker runtime**.
+- Docker Compose can start multiple nodes for local topology/observability demos.
+- Raft role/leader/term fields are currently **state labels**, not full consensus replication.
+
+This keeps claims honest while the distributed-v1 track is developed.
+
+---
+
 ## Quick Start
-### 1. Run the broker
+
+### 1) Run broker
 ```bash
 go run ./cmd/broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/goqueue.wal
 ```
 
-### 2. Publish and consume over TCP
+### 2) Publish and consume (TCP)
 ```bash
 go run ./cmd/goqueue publish --addr localhost:9090 --topic orders "hello tcp"
 go run ./cmd/goqueue consume --addr localhost:9090 --topic orders --group payment-service
 ```
 
-### 3. Publish and consume over gRPC
+### 3) Publish and consume (gRPC)
 ```bash
 go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders "hello grpc"
 go run ./cmd/goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service --partition -1
 ```
 
-## Partition Routing
-### Keyed routing
-Use a stable key when related messages must land on the same partition.
-
+### 4) Key-based routing (gRPC)
 ```bash
 go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 "order-a"
 go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 "order-b"
 ```
 
-### Explicit partition targeting
-Route directly to a chosen partition for debugging or controlled workloads.
-
+### 5) Explicit partition publish (gRPC)
 ```bash
 go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders --partition 2 "force-p2"
 go run ./cmd/goqueue consume --grpc --addr localhost:9095 --topic orders --group debug --partition 2
 ```
 
-## Observability
-Bring up the local observability stack:
+---
+
+## Go WASM Dashboard (No Docker Required)
+
+If you want the web dashboard built in Go + WebAssembly:
+
+```powershell
+$env:GOOS="js"
+$env:GOARCH="wasm"
+go build -o web/app.wasm ./cmd/dashboard
+Remove-Item Env:GOOS
+Remove-Item Env:GOARCH
+go run ./cmd/dashboard --broker http://localhost:2112 --addr :8080 --wasm-dir web
+```
+
+Open: `http://localhost:8080`
+
+---
+
+## Observability Stack (Optional with Docker)
 
 ```bash
 docker compose up --build
 ```
 
-Available services:
-
+Services:
 - Grafana: `http://localhost:3000`
 - Prometheus: `http://localhost:9099`
-- Tempo API: `http://localhost:3200`
-- Broker metrics endpoint: `http://localhost:2112/metrics`
-- Broker readiness endpoint: `http://localhost:2112/readyz`
-- Broker raft state endpoint: `http://localhost:2112/raft/state`
+- Tempo: `http://localhost:3200`
+- Broker metrics: `http://localhost:2112/metrics`
+- Broker readiness: `http://localhost:2112/readyz`
 
-The Grafana dashboard is auto-loaded as **GoQueue Observability**.
+---
 
-To generate traces for the trace panel, publish and consume over gRPC while the stack is running:
+## Benchmark Evidence (Local)
 
-```bash
-go run ./cmd/goqueue publish --grpc --addr localhost:9191 --topic orders "trace-me"
-go run ./cmd/goqueue consume --grpc --addr localhost:9191 --topic orders --group trace-demo --partition -1
-```
+Benchmarks are documented and reproducible from `bench/bench_test.go`.
 
-## Benchmark Results (Local Reference)
-The benchmark suite includes both in-process and localhost TCP workloads in [bench/bench_test.go](bench/bench_test.go).
-
-Run benchmark reports:
-
+Run:
 ```bash
 GOQUEUE_BENCH=1 go test ./bench -run TestThroughputReport -count=1 -v
 GOQUEUE_BENCH=1 go test ./bench -run TestTCPThroughputReport -count=1 -v
+GOQUEUE_BENCH=1 go test ./bench -run TestLatencyReport -count=1 -v
 ```
 
-Example local output from this repo on a developer machine:
-- In-process publish (256B payload): `~4.3M msgs/sec`
-- TCP end-to-end publish on localhost (256B payload): `~45K msgs/sec`
+Reference local numbers (developer machine, 256B payload):
+- In-process publish: around `4.3M msgs/sec`
+- TCP end-to-end publish (localhost): around `45K msgs/sec`
 
-Treat these as machine-specific local benchmarks, not production SLAs.
+Treat these as local benchmark evidence, not production SLA claims.
 
-## Protobuf Code Generation
-```bash
-go run github.com/bufbuild/buf/cmd/buf@latest generate
-```
+---
 
 ## Project Layout
+
 ```text
-cmd/broker       broker server entrypoint
-cmd/goqueue      CLI client for publish and consume
-internal/broker  topic, subscription, and routing logic
-internal/metrics Prometheus metrics integration
-internal/telemetry OpenTelemetry tracing setup
-internal/wal     write-ahead log and replay
-proto            gRPC and protobuf contracts
+cmd/broker        broker server entrypoint
+cmd/goqueue       CLI for publish/consume
+cmd/dashboard     dashboard server + wasm build target
+internal/broker   routing, topic/partition logic
+internal/wal      write-ahead log and replay
+internal/metrics  Prometheus metrics
+internal/telemetry OpenTelemetry setup
+proto             gRPC/protobuf contracts
+web               Go WASM dashboard source
 ```
 
-## Why GoQueue
-- Clean local developer workflow with `go run` and `docker compose`
-- Modern transport mix with low-level TCP and typed gRPC
-- Useful observability defaults for demos, debugging, and performance profiling
-- Small enough to understand quickly, capable enough to extend into a richer broker
+---
+
+## Why This Project
+
+- Models real queue concerns: ordering, replay, lag, and visibility.
+- Uses practical interfaces (TCP + gRPC) instead of a toy API only.
+- Keeps implementation readable enough for extension and experimentation.
+- Provides a clear path to distributed-v1 evolution.
