@@ -63,7 +63,7 @@ func newPublishAgentCmd(opts *options) *cobra.Command {
 	cmd.Flags().StringVar(&agentID, "agent", "", "agent id")
 	cmd.Flags().StringVar(&eventType, "type", "", "event type (e.g. token.chunk, tool.call, tool.result)")
 	cmd.Flags().StringVar(&step, "step", "", "pipeline step name")
-	cmd.Flags().IntVar(&attempt, "attempt", 0, "retry attempt number")
+	cmd.Flags().IntVar(&attempt, "attempt", 1, "retry attempt number")
 	cmd.Flags().StringVar(&payload, "payload", "{}", "event payload as JSON object/string")
 	cmd.Flags().IntVar(&partition, "partition", -1, "target partition (gRPC only)")
 
