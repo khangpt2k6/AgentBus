@@ -1,32 +1,33 @@
 # GoQueue
 
-A compact, partitioned message broker in Go built to answer one practical infrastructure question:
+A compact, partitioned message broker in Go focused on one practical question:
 
-**How do you keep event processing fast and debuggable when many producers and consumers hit the system at once?**
-
----
-
-## Background
-
-Most queue demos stop at "message in, message out."
-
-Real systems need more:
-- stable ordering for related events
-- replay after crashes
-- visibility into throughput and lag
-- APIs that support both simple clients and typed services
-
-`GoQueue` is built as a learning-and-engineering project around those exact problems.
+**How do you run multi-agent AI event streams with stable ordering, replay, and incident-level observability without heavyweight broker operations?**
 
 ---
 
-## Core Idea
+## Problem We Solve
 
-Use a small broker with:
-- **partitioned topics** for predictable routing and ordering
-- **WAL-backed replay** for crash recovery
-- **dual transport** (`TCP` and `gRPC`) for flexibility
-- **observability-first design** (Prometheus + OpenTelemetry)
+Multi-agent systems generate bursty streams: token chunks, tool calls, retries, and handoff events.
+Teams usually hit one of two bad options:
+
+- lightweight queues that are easy to run but hard to replay and debug
+- heavyweight brokers that are powerful but expensive to operate for small-to-mid workloads
+
+`GoQueue` targets this gap with a focused event backbone for AI agent pipelines.
+
+---
+
+## Product Direction (Current Pivot)
+
+`GoQueue` is being developed as a **Session-Ordered Event Bus for AI Agents**:
+
+- keep ordering stable by routing with a session key (`tenant/project/session`)
+- keep recovery practical with WAL-backed replay
+- keep ops simple with a small Go runtime + Docker Compose stack
+- keep incidents debuggable with metrics + traces by default
+
+This is not positioned as a universal Kafka replacement. It is focused on AI-native streaming workloads where low operational overhead matters.
 
 ---
 
@@ -70,6 +71,30 @@ This keeps claims honest while the distributed-v1 track is developed.
 
 ---
 
+## Codebase Fit Analysis (Why This Pivot Is Practical)
+
+The current codebase already has the right primitives for an AI-agent event bus:
+
+- partitioned broker routing (`internal/broker`) for per-session ordering
+- WAL append/replay (`internal/wal`) for crash recovery
+- group offsets (`internal/consumer`) for streaming consumers
+- gRPC + TCP clients (`internal/grpcapi`, `internal/cli`) for different integration needs
+- metrics/tracing (`internal/metrics`, `internal/telemetry`) for runtime visibility
+
+Current gaps to close for this direction:
+
+- AI-specific queue policies (priority, delayed retry, dead-letter)
+- stronger session-level observability (per-session lag/error counters)
+- clearer SLO-oriented benchmark scenarios for agent workloads
+
+### Pivot Started (implemented)
+
+- added a standardized agent event envelope in `internal/agentstream`
+- added `goqueue publish-agent` command with session-key routing
+- preserved existing publish/consume APIs for compatibility
+
+---
+
 ## Quick Start
 
 ### 1) Run broker
@@ -101,6 +126,14 @@ go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders --parti
 go run ./cmd/goqueue consume --grpc --addr localhost:9095 --topic orders --group debug --partition 2
 ```
 
+### 6) Publish AI agent event envelope (session-ordered key)
+```bash
+go run ./cmd/goqueue publish-agent --grpc --addr localhost:9095 \
+  --tenant acme --project support-bot --session sess-42 --agent planner \
+  --type tool.call --step retrieve-context --attempt 1 \
+  --payload '{"tool":"search","query":"latest order status"}'
+```
+
 ---
 
 ## Go WASM Dashboard (No Docker Required)
@@ -117,6 +150,40 @@ go run ./cmd/dashboard --broker http://localhost:2112 --addr :8080 --wasm-dir we
 ```
 
 Open: `http://localhost:8080`
+
+---
+
+## Automation (Cross-Platform)
+
+### macOS / Linux (Make)
+
+```bash
+make dev
+make test
+make lint
+make up
+make down
+```
+
+### Windows (PowerShell)
+
+```powershell
+./scripts/goqueue.ps1 dev
+./scripts/goqueue.ps1 test
+./scripts/goqueue.ps1 lint
+./scripts/goqueue.ps1 up
+./scripts/goqueue.ps1 down
+```
+
+You can list available tasks with:
+
+```bash
+make help
+```
+
+```powershell
+./scripts/goqueue.ps1 help
+```
 
 ---
 
@@ -162,6 +229,7 @@ cmd/goqueue       CLI for publish/consume
 cmd/dashboard     dashboard server + wasm build target
 internal/broker   routing, topic/partition logic
 internal/wal      write-ahead log and replay
+internal/agentstream AI event envelope + session key helpers
 internal/metrics  Prometheus metrics
 internal/telemetry OpenTelemetry setup
 proto             gRPC/protobuf contracts

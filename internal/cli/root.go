@@ -27,6 +27,7 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&opts.grpc, "grpc", false, "use gRPC transport")
 
 	root.AddCommand(newPublishCmd(opts))
+	root.AddCommand(newPublishAgentCmd(opts))
 	root.AddCommand(newPublishBatchCmd(opts))
 	root.AddCommand(newConsumeCmd(opts))
 	root.AddCommand(newFetchCmd(opts))
