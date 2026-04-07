@@ -163,6 +163,7 @@ make test
 make lint
 make up
 make down
+make clean
 ```
 
 ### Windows (PowerShell)
@@ -173,6 +174,7 @@ make down
 ./scripts/goqueue.ps1 lint
 ./scripts/goqueue.ps1 up
 ./scripts/goqueue.ps1 down
+./scripts/goqueue.ps1 clean
 ```
 
 You can list available tasks with:

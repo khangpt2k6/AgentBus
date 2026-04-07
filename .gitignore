@@ -1,0 +1,11 @@
+# Test and coverage artifacts
+coverage.out
+coverage.txt
+
+# Local broker data
+data/
+*.wal
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
