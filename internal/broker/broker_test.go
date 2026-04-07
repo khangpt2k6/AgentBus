@@ -87,3 +87,36 @@ func TestSubscriptionContextCancel(t *testing.T) {
 		t.Fatalf("expected DeadlineExceeded, got %v", err)
 	}
 }
+
+func TestTopicPartitionDetail(t *testing.T) {
+	b := New()
+
+	// Missing topic must return an error.
+	if _, err := b.TopicPartitionDetail("missing", 0); err == nil {
+		t.Fatal("expected error for unknown topic")
+	}
+
+	// Publish a few messages, then inspect partition 0.
+	for range 10 {
+		b.Publish("orders", []byte("payload"))
+	}
+
+	d, err := b.TopicPartitionDetail("orders", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if d.Capacity != defaultCapacity {
+		t.Errorf("capacity: got %d, want %d", d.Capacity, defaultCapacity)
+	}
+	if d.Tail == 0 {
+		t.Error("tail should be > 0 after publishing")
+	}
+	if d.Evictions != 0 {
+		t.Errorf("evictions: got %d, want 0 (ring not full)", d.Evictions)
+	}
+
+	// Invalid partition must return an error.
+	if _, err := b.TopicPartitionDetail("orders", 999); err == nil {
+		t.Fatal("expected error for invalid partition")
+	}
+}

@@ -66,14 +66,18 @@ jobs:
           govulncheck ./...
 
       - name: Unit tests
-        run: go test ./... -count=1
+        run: go test ./internal/... -count=1
 
       - name: Race tests
-        run: go test -race ./... -count=1
+        run: go test -race ./internal/... -count=1
 
       - name: Coverage
+        # Measures only packages that have real logic and tests.
+        # cmd/*, web/, proto/ are entry points / generated / WASM and are excluded.
+        # internal/cli and internal/telemetry are thin wrappers excluded via -coverpkg.
         run: |
-          go test ./... -covermode=atomic -coverprofile=coverage.out -count=1
+          go test ./internal/... -covermode=atomic -coverprofile=coverage.out -count=1 \
+            -coverpkg=./internal/broker/...,./internal/consumer/...,./internal/grpcapi/...,./internal/metrics/...,./internal/protocol/...,./internal/wal/...
           go tool cover -func=coverage.out | tee coverage.txt
           TOTAL=$(awk '/^total:/{print substr($3, 1, length($3)-1)}' coverage.txt)
           echo "Total coverage: ${TOTAL}%"

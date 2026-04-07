@@ -158,9 +158,11 @@ jobs:
           if [[ "${{ inputs.mark_latest }}" == "true" ]]; then
             TAGS="${TAGS}"$'\n'"${IMAGE}:latest"
           fi
-          echo "tags<<EOF" >> "${GITHUB_OUTPUT}"
-          echo "${TAGS}" >> "${GITHUB_OUTPUT}"
-          echo "EOF" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tags<<EOF"
+            echo "${TAGS}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Build and push broker image
         if: ${{ inputs.publish_docker }}
