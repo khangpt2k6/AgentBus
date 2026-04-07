@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $false, Position = 0)]
-  [ValidateSet("help", "dev", "test", "lint", "fmt", "up", "down", "logs", "bench")]
+  [ValidateSet("help", "dev", "test", "lint", "fmt", "up", "down", "logs", "bench", "clean")]
   [string]$Task = "help"
 )
 
@@ -29,6 +29,7 @@ switch ($Task) {
     Write-Host "  ./scripts/goqueue.ps1 down   - stop docker compose stack"
     Write-Host "  ./scripts/goqueue.ps1 logs   - tail broker logs"
     Write-Host "  ./scripts/goqueue.ps1 bench  - run benchmark reports"
+    Write-Host "  ./scripts/goqueue.ps1 clean  - remove generated artifacts"
   }
   "dev" {
     Invoke-Checked { go run ./cmd/broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/goqueue.wal }
@@ -56,5 +57,10 @@ switch ($Task) {
     Invoke-Checked { $env:GOQUEUE_BENCH = "1"; go test ./bench -run TestThroughputReport -count=1 -v }
     Invoke-Checked { $env:GOQUEUE_BENCH = "1"; go test ./bench -run TestTCPThroughputReport -count=1 -v }
     Invoke-Checked { $env:GOQUEUE_BENCH = "1"; go test ./bench -run TestLatencyReport -count=1 -v }
+  }
+  "clean" {
+    Invoke-Checked { go clean -testcache }
+    if (Test-Path "coverage.out") { Remove-Item "coverage.out" -Force }
+    if (Test-Path "coverage.txt") { Remove-Item "coverage.txt" -Force }
   }
 }

@@ -6,7 +6,7 @@ BROKER_GRPC_ADDR ?= :9095
 BROKER_METRICS_ADDR ?= :2112
 BROKER_WAL_PATH ?= data/goqueue.wal
 
-.PHONY: help dev test lint fmt up down logs bench
+.PHONY: help dev test lint fmt up down logs bench clean
 
 help:
 	@echo "Available targets:"
@@ -18,6 +18,7 @@ help:
 	@echo "  make down   - stop docker compose stack"
 	@echo "  make logs   - tail broker logs"
 	@echo "  make bench  - run benchmark reports"
+	@echo "  make clean  - remove generated artifacts"
 
 dev:
 	$(GO) run ./cmd/broker --tcp-addr=$(BROKER_TCP_ADDR) --grpc-addr=$(BROKER_GRPC_ADDR) --metrics-addr=$(BROKER_METRICS_ADDR) --wal-path=$(BROKER_WAL_PATH)
@@ -45,3 +46,7 @@ bench:
 	GOQUEUE_BENCH=1 $(GO) test ./bench -run TestThroughputReport -count=1 -v
 	GOQUEUE_BENCH=1 $(GO) test ./bench -run TestTCPThroughputReport -count=1 -v
 	GOQUEUE_BENCH=1 $(GO) test ./bench -run TestLatencyReport -count=1 -v
+
+clean:
+	-$(GO) clean -testcache
+	-rm -f coverage.out coverage.txt
