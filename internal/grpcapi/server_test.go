@@ -9,7 +9,10 @@ import (
 
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
+	"github.com/2006t/goqueue/internal/metrics"
 	"github.com/2006t/goqueue/internal/wal"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	goqueuev1 "github.com/2006t/goqueue/proto"
 	"google.golang.org/grpc/metadata"
 )
@@ -103,6 +106,68 @@ func TestConsumeStreamsAndCommitsOffsets(t *testing.T) {
 	if got != want {
 		t.Fatalf("offset = %d, want %d", got, want)
 	}
+}
+
+func TestPublishAgentEventUpdatesMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.New(reg)
+	srv := NewServer(broker.New(), consumer.NewManager(), m, nil)
+
+	payload := `{"version":"v1","type":"tool.call","tenant":"acme","project":"support","session_id":"sess-1","agent_id":"planner","attempt":2,"created_at":"2026-04-03T10:00:00Z","payload":{"tool":"search"}}`
+	if _, err := srv.Publish(context.Background(), &goqueuev1.PublishRequest{
+		Topic:   "agent-events.dlq",
+		Payload: []byte(payload),
+	}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	assertCounter := func(name string) {
+		value, ok := counterValue(families, name, map[string]string{
+			"topic":      "agent-events.dlq",
+			"event_type": "tool.call",
+		})
+		if !ok {
+			t.Fatalf("counter %s with labels not found", name)
+		}
+		if value != 1 {
+			t.Fatalf("counter %s value=%v want 1", name, value)
+		}
+	}
+	assertCounter("goqueue_agent_events_published_total")
+	assertCounter("goqueue_agent_event_retries_total")
+	assertCounter("goqueue_agent_event_dlq_total")
+}
+
+func counterValue(families []*dto.MetricFamily, name string, labels map[string]string) (float64, bool) {
+	for _, fam := range families {
+		if fam.GetName() != name {
+			continue
+		}
+		for _, metric := range fam.GetMetric() {
+			if matchLabels(metric.GetLabel(), labels) && metric.GetCounter() != nil {
+				return metric.GetCounter().GetValue(), true
+			}
+		}
+		return 0, false
+	}
+	return 0, false
+}
+
+func matchLabels(pairs []*dto.LabelPair, want map[string]string) bool {
+	if len(pairs) != len(want) {
+		// We only accept exact label sets to avoid false positives.
+		return false
+	}
+	for _, p := range pairs {
+		if want[p.GetName()] != p.GetValue() {
+			return false
+		}
+	}
+	return true
 }
 
 type testConsumeStream struct {

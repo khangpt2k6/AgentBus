@@ -16,6 +16,9 @@ func TestMetricsRegistration(t *testing.T) {
 	m.ConsumedTotal.Inc()
 	m.ConsumerLag.WithLabelValues("orders", "payment-svc").Set(42)
 	m.ObservePublishLatency(time.Now().Add(-5 * time.Millisecond))
+	m.IncAgentEvent("agent-events", "tool.call")
+	m.IncAgentRetry("agent-events", "tool.call")
+	m.IncAgentDLQ("agent-events.dlq", "tool.call")
 	m.SetRaftState("broker-1", "leader", "broker-1", 3)
 	m.IncRaftLeaderChange("broker-1")
 
@@ -34,6 +37,9 @@ func TestMetricsRegistration(t *testing.T) {
 		"goqueue_messages_consumed_total",
 		"goqueue_consumer_lag",
 		"goqueue_publish_latency_seconds",
+		"goqueue_agent_events_published_total",
+		"goqueue_agent_event_retries_total",
+		"goqueue_agent_event_dlq_total",
 		"goqueue_raft_role",
 		"goqueue_raft_term",
 		"goqueue_raft_leader",

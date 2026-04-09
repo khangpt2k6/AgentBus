@@ -21,3 +21,7 @@ func ResolveDLQTopic(primaryTopic, dlqTopic string) string {
 	}
 	return primaryTopic + ".dlq"
 }
+
+func IsDLQTopic(topic string) bool {
+	return strings.HasSuffix(strings.TrimSpace(topic), ".dlq")
+}
