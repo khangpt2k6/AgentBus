@@ -92,7 +92,7 @@ Current gaps to close for this direction:
 - added a standardized agent event envelope in `internal/agentstream`
 - added `goqueue publish-agent` command with session-key routing
 - added `goqueue retry-agent` command for retry/DLQ routing flow
-- added broker-side Prometheus counters for agent events/retries/DLQ on gRPC publish
+- added broker-side Prometheus counters for agent events/retries/DLQ on both gRPC and TCP publish paths
 - preserved existing publish/consume APIs for compatibility
 
 ---

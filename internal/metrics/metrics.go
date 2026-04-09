@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/2006t/goqueue/internal/agentstream"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -137,6 +138,22 @@ func (m *Metrics) IncAgentRetry(topic, eventType string) {
 
 func (m *Metrics) IncAgentDLQ(topic, eventType string) {
 	m.AgentDLQTotal.WithLabelValues(topic, eventType).Inc()
+}
+
+// ObserveAgentPayload updates agent-event counters when payload matches
+// a valid agentstream event envelope.
+func (m *Metrics) ObserveAgentPayload(topic string, payload []byte) {
+	ev, ok := agentstream.ParseEvent(payload)
+	if !ok {
+		return
+	}
+	m.IncAgentEvent(topic, ev.Type)
+	if ev.Attempt > 1 {
+		m.IncAgentRetry(topic, ev.Type)
+	}
+	if agentstream.IsDLQTopic(topic) {
+		m.IncAgentDLQ(topic, ev.Type)
+	}
 }
 
 func Handler(reg *prometheus.Registry) http.Handler {
