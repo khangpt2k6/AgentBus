@@ -51,3 +51,12 @@ func TestResolveDLQTopic(t *testing.T) {
 		t.Fatalf("custom dlq topic=%q", got)
 	}
 }
+
+func TestIsDLQTopic(t *testing.T) {
+	if !IsDLQTopic("agent-events.dlq") {
+		t.Fatal("expected .dlq topic to be detected")
+	}
+	if IsDLQTopic("agent-events") {
+		t.Fatal("did not expect non-dlq topic to be detected")
+	}
+}

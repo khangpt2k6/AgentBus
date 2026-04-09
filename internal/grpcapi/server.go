@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/2006t/goqueue/internal/agentstream"
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
 	"github.com/2006t/goqueue/internal/metrics"
@@ -84,6 +85,15 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
+		if ev, ok := agentstream.ParseEvent(req.Payload); ok {
+			s.metrics.IncAgentEvent(req.Topic, ev.Type)
+			if ev.Attempt > 1 {
+				s.metrics.IncAgentRetry(req.Topic, ev.Type)
+			}
+			if agentstream.IsDLQTopic(req.Topic) {
+				s.metrics.IncAgentDLQ(req.Topic, ev.Type)
+			}
+		}
 	}
 	span.SetAttributes(
 		attribute.Int("partition", partition),

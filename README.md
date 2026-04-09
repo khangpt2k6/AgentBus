@@ -83,7 +83,7 @@ The current codebase already has the right primitives for an AI-agent event bus:
 
 Current gaps to close for this direction:
 
-- AI-specific queue policies (priority, delayed retry, dead-letter)
+- AI-specific queue policies (priority)
 - stronger session-level observability (per-session lag/error counters)
 - clearer SLO-oriented benchmark scenarios for agent workloads
 
@@ -91,6 +91,8 @@ Current gaps to close for this direction:
 
 - added a standardized agent event envelope in `internal/agentstream`
 - added `goqueue publish-agent` command with session-key routing
+- added `goqueue retry-agent` command for retry/DLQ routing flow
+- added broker-side Prometheus counters for agent events/retries/DLQ on gRPC publish
 - preserved existing publish/consume APIs for compatibility
 
 ---
@@ -133,6 +135,15 @@ go run ./cmd/goqueue publish-agent --grpc --addr localhost:9095 \
   --type tool.call --step retrieve-context --attempt 1 \
   --payload '{"tool":"search","query":"latest order status"}'
 ```
+
+### 7) Retry or route failed agent event to DLQ
+```bash
+go run ./cmd/goqueue retry-agent --grpc --addr localhost:9095 \
+  --topic agent-events --max-attempts 3 --delay 2s \
+  --event '{"version":"v1","type":"tool.call","tenant":"acme","project":"support-bot","session_id":"sess-42","agent_id":"planner","attempt":1,"created_at":"2026-04-03T10:00:00Z","payload":{"tool":"search","query":"latest order status"}}'
+```
+
+If `attempt+1 > max-attempts`, the event is routed to `<topic>.dlq` (or `--dlq-topic`).
 
 ---
 
@@ -201,6 +212,11 @@ Services:
 - Tempo: `http://localhost:3200`
 - Broker metrics: `http://localhost:2112/metrics`
 - Broker readiness: `http://localhost:2112/readyz`
+
+Agent-focused metrics (new):
+- `goqueue_agent_events_published_total`
+- `goqueue_agent_event_retries_total`
+- `goqueue_agent_event_dlq_total`
 
 ---
 

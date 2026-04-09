@@ -61,3 +61,18 @@ func (e Event) Marshal() ([]byte, error) {
 	}
 	return json.Marshal(out)
 }
+
+// ParseEvent attempts to decode a payload into an Event envelope.
+func ParseEvent(payload []byte) (Event, bool) {
+	var ev Event
+	if len(payload) == 0 || !json.Valid(payload) {
+		return Event{}, false
+	}
+	if err := json.Unmarshal(payload, &ev); err != nil {
+		return Event{}, false
+	}
+	if err := ev.Validate(); err != nil {
+		return Event{}, false
+	}
+	return ev, true
+}

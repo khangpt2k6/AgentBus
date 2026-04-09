@@ -27,11 +27,13 @@ Position `GoQueue` as a session-ordered event bus for multi-agent AI workloads w
 
 - standardize event envelope for agent traffic (`internal/agentstream`)
 - route by session key (`tenant/project/session`)
+- add CLI retry/DLQ operator command (`retry-agent`) for failed events
+- add broker-side Prometheus counters for agent events/retries/DLQ
 - document workload/problem framing in README
 
 ### Phase 2
 
-- add delayed retry + dead-letter topic behavior
+- move delayed retry + dead-letter from CLI-level operator flow into broker-level policy
 - add retry metadata propagation and max-attempt enforcement
 - expose per-session lag/retry counters in metrics
 

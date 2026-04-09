@@ -49,3 +49,20 @@ func TestMarshalValidation(t *testing.T) {
 		t.Fatal("expected validation error for missing agent_id")
 	}
 }
+
+func TestParseEvent(t *testing.T) {
+	raw := []byte(`{"version":"v1","type":"tool.call","tenant":"acme","project":"support-bot","session_id":"sess-42","agent_id":"planner","attempt":2,"created_at":"2026-04-03T10:00:00Z","payload":{"tool":"search"}}`)
+	ev, ok := ParseEvent(raw)
+	if !ok {
+		t.Fatal("expected ParseEvent success")
+	}
+	if ev.Type != "tool.call" || ev.Attempt != 2 {
+		t.Fatalf("unexpected parsed event: %+v", ev)
+	}
+}
+
+func TestParseEventRejectsInvalidPayload(t *testing.T) {
+	if _, ok := ParseEvent([]byte(`{"type":"tool.call"}`)); ok {
+		t.Fatal("expected invalid envelope to be rejected")
+	}
+}
