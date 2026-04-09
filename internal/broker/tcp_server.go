@@ -150,6 +150,7 @@ func (s *TCPServer) handlePublishWithKey(conn net.Conn, frame *protocol.Frame) e
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
+		s.metrics.ObserveAgentPayload(frame.Topic, payload)
 	}
 	out := make([]byte, 8)
 	binary.BigEndian.PutUint64(out, uint64(offset))
@@ -206,6 +207,9 @@ func (s *TCPServer) handleBatchPublish(conn net.Conn, frame *protocol.Frame) err
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Add(float64(len(payloads)))
 		s.metrics.ObservePublishLatency(start)
+		for _, p := range payloads {
+			s.metrics.ObserveAgentPayload(frame.Topic, p)
+		}
 	}
 
 	return protocol.Encode(conn, &protocol.Frame{
@@ -265,6 +269,7 @@ func (s *TCPServer) handlePublish(conn net.Conn, frame *protocol.Frame) error {
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
+		s.metrics.ObserveAgentPayload(frame.Topic, frame.Payload)
 	}
 	out := make([]byte, 8)
 	binary.BigEndian.PutUint64(out, uint64(offset))
