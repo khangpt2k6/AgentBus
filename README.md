@@ -229,6 +229,7 @@ Run:
 GOQUEUE_BENCH=1 go test ./bench -run TestThroughputReport -count=1 -v
 GOQUEUE_BENCH=1 go test ./bench -run TestTCPThroughputReport -count=1 -v
 GOQUEUE_BENCH=1 go test ./bench -run TestLatencyReport -count=1 -v
+GOQUEUE_BENCH=1 go test ./bench -run TestAgentEventThroughputAndMetricsReport -count=1 -v
 ```
 
 Reference local numbers (developer machine, 256B payload):
