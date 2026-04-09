@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/2006t/goqueue/internal/agentstream"
 	"github.com/2006t/goqueue/internal/broker"
 	"github.com/2006t/goqueue/internal/consumer"
 	"github.com/2006t/goqueue/internal/grpcapi"
@@ -22,6 +23,7 @@ import (
 	"github.com/2006t/goqueue/internal/wal"
 	goqueuev1 "github.com/2006t/goqueue/proto"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -522,7 +524,104 @@ func TestLatencyReport(t *testing.T) {
 	)
 }
 
+func TestAgentEventThroughputAndMetricsReport(t *testing.T) {
+	if os.Getenv("GOQUEUE_BENCH") == "" {
+		t.Skip("set GOQUEUE_BENCH=1 to run agent event report")
+	}
+
+	addr, reg, stop := startTestGRPCServerWithRegistry(t)
+	defer stop()
+
+	conn, err := grpc.NewClient(
+		addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	client := goqueuev1.NewBrokerServiceClient(conn)
+	const total = 40_000
+	const dlqEvery = 10
+	expectedDLQ := total / dlqEvery
+	expectedRetry := expectedDLQ
+
+	start := time.Now()
+	for i := range total {
+		attempt := 1
+		topic := "agent-events"
+		if i%dlqEvery == 0 {
+			attempt = 2
+			topic = "agent-events.dlq"
+		}
+		ev := agentstream.Event{
+			Version:   "v1",
+			Type:      "tool.call",
+			Tenant:    "acme",
+			Project:   "support-bot",
+			SessionID: fmt.Sprintf("sess-%d", i%500),
+			AgentID:   "planner",
+			Attempt:   attempt,
+			CreatedAt: "2026-04-03T10:00:00Z",
+			Payload:   []byte(`{"tool":"search","query":"order status"}`),
+		}
+		payload, err := ev.Marshal()
+		if err != nil {
+			t.Fatalf("marshal event: %v", err)
+		}
+		if _, err := client.Publish(context.Background(), &goqueuev1.PublishRequest{
+			Topic:   topic,
+			Key:     agentstream.SessionKey(ev.Tenant, ev.Project, ev.SessionID),
+			Payload: payload,
+		}); err != nil {
+			t.Fatalf("publish event: %v", err)
+		}
+	}
+	elapsed := time.Since(start)
+	rate := float64(total) / elapsed.Seconds()
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	publishedMain := counterValueWithLabels(families, "goqueue_agent_events_published_total", map[string]string{
+		"topic":      "agent-events",
+		"event_type": "tool.call",
+	})
+	publishedDLQ := counterValueWithLabels(families, "goqueue_agent_events_published_total", map[string]string{
+		"topic":      "agent-events.dlq",
+		"event_type": "tool.call",
+	})
+	retries := counterValueWithLabels(families, "goqueue_agent_event_retries_total", map[string]string{
+		"topic":      "agent-events.dlq",
+		"event_type": "tool.call",
+	})
+	dlq := counterValueWithLabels(families, "goqueue_agent_event_dlq_total", map[string]string{
+		"topic":      "agent-events.dlq",
+		"event_type": "tool.call",
+	})
+
+	if int(publishedMain+publishedDLQ) != total {
+		t.Fatalf("agent events counted=%v want=%d", publishedMain+publishedDLQ, total)
+	}
+	if int(retries) != expectedRetry {
+		t.Fatalf("retries counted=%v want=%d", retries, expectedRetry)
+	}
+	if int(dlq) != expectedDLQ {
+		t.Fatalf("dlq counted=%v want=%d", dlq, expectedDLQ)
+	}
+
+	t.Logf("Agent events: %d publishes in %v -> %.0f events/sec", total, elapsed, rate)
+	t.Logf("Agent metrics: published_main=%.0f published_dlq=%.0f retries=%.0f dlq=%.0f", publishedMain, publishedDLQ, retries, dlq)
+}
+
 func startTestGRPCServer(tb testing.TB) (string, func()) {
+	addr, _, stop := startTestGRPCServerWithRegistry(tb)
+	return addr, stop
+}
+
+func startTestGRPCServerWithRegistry(tb testing.TB) (string, *prometheus.Registry, func()) {
 	tb.Helper()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -551,7 +650,7 @@ func startTestGRPCServer(tb testing.TB) (string, func()) {
 		grpcSrv.Stop()
 		_ = traceShutdown(context.Background())
 	}
-	return addr, stop
+	return addr, reg, stop
 }
 
 func quantile(samples []time.Duration, q float64) time.Duration {
@@ -566,6 +665,33 @@ func quantile(samples []time.Duration, q float64) time.Duration {
 	}
 	idx := int(q * float64(len(samples)-1))
 	return samples[idx]
+}
+
+func counterValueWithLabels(families []*dto.MetricFamily, name string, labels map[string]string) float64 {
+	for _, fam := range families {
+		if fam.GetName() != name {
+			continue
+		}
+		for _, metric := range fam.GetMetric() {
+			if metric.GetCounter() == nil || !labelPairsEqual(metric.GetLabel(), labels) {
+				continue
+			}
+			return metric.GetCounter().GetValue()
+		}
+	}
+	return 0
+}
+
+func labelPairsEqual(pairs []*dto.LabelPair, want map[string]string) bool {
+	if len(pairs) != len(want) {
+		return false
+	}
+	for _, p := range pairs {
+		if want[p.GetName()] != p.GetValue() {
+			return false
+		}
+	}
+	return true
 }
 
 // placeholder to avoid "unused import" if fmt gets stripped
