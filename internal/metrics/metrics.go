@@ -4,21 +4,25 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/2006t/goqueue/internal/agentstream"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Metrics struct {
-	PublishedTotal      prometheus.Counter
-	ConsumedTotal       prometheus.Counter
-	ConsumerLag         *prometheus.GaugeVec
-	PublishLatency      prometheus.Histogram
-	RaftRole            *prometheus.GaugeVec
-	RaftTerm            *prometheus.GaugeVec
-	RaftLeader          *prometheus.GaugeVec
-	RaftLeaderChanges   *prometheus.CounterVec
-	PartitionFillPct    *prometheus.GaugeVec
-	PartitionEvictions  *prometheus.GaugeVec
+	PublishedTotal     prometheus.Counter
+	ConsumedTotal      prometheus.Counter
+	ConsumerLag        *prometheus.GaugeVec
+	PublishLatency     prometheus.Histogram
+	AgentEventsTotal   *prometheus.CounterVec
+	AgentRetriesTotal  *prometheus.CounterVec
+	AgentDLQTotal      *prometheus.CounterVec
+	RaftRole           *prometheus.GaugeVec
+	RaftTerm           *prometheus.GaugeVec
+	RaftLeader         *prometheus.GaugeVec
+	RaftLeaderChanges  *prometheus.CounterVec
+	PartitionFillPct   *prometheus.GaugeVec
+	PartitionEvictions *prometheus.GaugeVec
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -40,6 +44,18 @@ func New(reg prometheus.Registerer) *Metrics {
 			Help:    "Publish handler latency in seconds.",
 			Buckets: prometheus.DefBuckets,
 		}),
+		AgentEventsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "goqueue_agent_events_published_total",
+			Help: "Total published agent events by topic and event type.",
+		}, []string{"topic", "event_type"}),
+		AgentRetriesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "goqueue_agent_event_retries_total",
+			Help: "Total retried agent events by topic and event type.",
+		}, []string{"topic", "event_type"}),
+		AgentDLQTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "goqueue_agent_event_dlq_total",
+			Help: "Total agent events routed to DLQ topics by topic and event type.",
+		}, []string{"topic", "event_type"}),
 		RaftRole: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "goqueue_raft_role",
 			Help: "Current raft role of a node (one-hot by role label).",
@@ -70,6 +86,9 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ConsumedTotal,
 		m.ConsumerLag,
 		m.PublishLatency,
+		m.AgentEventsTotal,
+		m.AgentRetriesTotal,
+		m.AgentDLQTotal,
 		m.RaftRole,
 		m.RaftTerm,
 		m.RaftLeader,
@@ -107,6 +126,34 @@ func (m *Metrics) SetPartitionFillPct(topic, partition string, pct float64) {
 
 func (m *Metrics) SetPartitionEvictions(topic, partition string, n float64) {
 	m.PartitionEvictions.WithLabelValues(topic, partition).Set(n)
+}
+
+func (m *Metrics) IncAgentEvent(topic, eventType string) {
+	m.AgentEventsTotal.WithLabelValues(topic, eventType).Inc()
+}
+
+func (m *Metrics) IncAgentRetry(topic, eventType string) {
+	m.AgentRetriesTotal.WithLabelValues(topic, eventType).Inc()
+}
+
+func (m *Metrics) IncAgentDLQ(topic, eventType string) {
+	m.AgentDLQTotal.WithLabelValues(topic, eventType).Inc()
+}
+
+// ObserveAgentPayload updates agent-event counters when payload matches
+// a valid agentstream event envelope.
+func (m *Metrics) ObserveAgentPayload(topic string, payload []byte) {
+	ev, ok := agentstream.ParseEvent(payload)
+	if !ok {
+		return
+	}
+	m.IncAgentEvent(topic, ev.Type)
+	if ev.Attempt > 1 {
+		m.IncAgentRetry(topic, ev.Type)
+	}
+	if agentstream.IsDLQTopic(topic) {
+		m.IncAgentDLQ(topic, ev.Type)
+	}
 }
 
 func Handler(reg *prometheus.Registry) http.Handler {

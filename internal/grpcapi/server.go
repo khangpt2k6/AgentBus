@@ -84,6 +84,7 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObservePublishLatency(start)
+		s.metrics.ObserveAgentPayload(req.Topic, req.Payload)
 	}
 	span.SetAttributes(
 		attribute.Int("partition", partition),
