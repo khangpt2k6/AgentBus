@@ -1,0 +1,197 @@
+version: 2
+
+project_name: goqueue
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: broker
+    main: ./cmd/broker
+    binary: broker
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .Date }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+  - id: goqueue
+    main: ./cmd/goqueue
+    binary: goqueue
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .Date }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    builds: [broker, goqueue]
+    name_template: >-
+      {{- .ProjectName }}_{{ .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - docs/getting-started.md
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  name_template: '{{ incpatch .Version }}-next'
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - 'Merge pull request'
+      - 'Merge branch'
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Performance
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: Other
+      order: 99
+
+dockers:
+  - image_templates:
+      - 'ghcr.io/khangpt2k6/goqueue:{{ .Version }}-amd64'
+      - 'ghcr.io/khangpt2k6/goqueue:latest-amd64'
+    use: buildx
+    goos: linux
+    goarch: amd64
+    ids: [broker]
+    dockerfile: docker/broker.goreleaser.Dockerfile
+    build_flag_templates:
+      - '--platform=linux/amd64'
+      - '--label=org.opencontainers.image.title={{ .ProjectName }}'
+      - '--label=org.opencontainers.image.description=Session-ordered event bus for AI agents'
+      - '--label=org.opencontainers.image.source=https://github.com/khangpt2k6/GoQueue'
+      - '--label=org.opencontainers.image.version={{ .Version }}'
+      - '--label=org.opencontainers.image.revision={{ .FullCommit }}'
+      - '--label=org.opencontainers.image.created={{ .Date }}'
+      - '--label=org.opencontainers.image.licenses=MIT'
+
+  - image_templates:
+      - 'ghcr.io/khangpt2k6/goqueue:{{ .Version }}-arm64'
+      - 'ghcr.io/khangpt2k6/goqueue:latest-arm64'
+    use: buildx
+    goos: linux
+    goarch: arm64
+    ids: [broker]
+    dockerfile: docker/broker.goreleaser.Dockerfile
+    build_flag_templates:
+      - '--platform=linux/arm64'
+      - '--label=org.opencontainers.image.title={{ .ProjectName }}'
+      - '--label=org.opencontainers.image.description=Session-ordered event bus for AI agents'
+      - '--label=org.opencontainers.image.source=https://github.com/khangpt2k6/GoQueue'
+      - '--label=org.opencontainers.image.version={{ .Version }}'
+      - '--label=org.opencontainers.image.revision={{ .FullCommit }}'
+      - '--label=org.opencontainers.image.created={{ .Date }}'
+      - '--label=org.opencontainers.image.licenses=MIT'
+
+docker_manifests:
+  - name_template: 'ghcr.io/khangpt2k6/goqueue:{{ .Version }}'
+    image_templates:
+      - 'ghcr.io/khangpt2k6/goqueue:{{ .Version }}-amd64'
+      - 'ghcr.io/khangpt2k6/goqueue:{{ .Version }}-arm64'
+  - name_template: 'ghcr.io/khangpt2k6/goqueue:latest'
+    image_templates:
+      - 'ghcr.io/khangpt2k6/goqueue:latest-amd64'
+      - 'ghcr.io/khangpt2k6/goqueue:latest-arm64'
+
+# Homebrew tap — requires you to create a separate repo:
+#   github.com/khangpt2k6/homebrew-goqueue
+# and add a HOMEBREW_TAP_GITHUB_TOKEN secret with push access to that repo.
+# Uncomment when ready.
+#
+# brews:
+#   - name: goqueue
+#     repository:
+#       owner: khangpt2k6
+#       name: homebrew-goqueue
+#       token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
+#     homepage: https://github.com/khangpt2k6/GoQueue
+#     description: Session-ordered event bus for AI agents
+#     license: MIT
+#     install: |
+#       bin.install "broker"
+#       bin.install "goqueue"
+#     test: |
+#       system "#{bin}/broker", "--help"
+#       system "#{bin}/goqueue", "--help"
+
+# Scoop bucket — same idea for Windows.
+# Requires github.com/khangpt2k6/scoop-goqueue.
+#
+# scoops:
+#   - repository:
+#       owner: khangpt2k6
+#       name: scoop-goqueue
+#       token: '{{ .Env.SCOOP_TAP_GITHUB_TOKEN }}'
+#     homepage: https://github.com/khangpt2k6/GoQueue
+#     description: Session-ordered event bus for AI agents
+#     license: MIT
+
+release:
+  github:
+    owner: khangpt2k6
+    name: GoQueue
+  draft: false
+  prerelease: auto
+  mode: append
+  header: |
+    ## GoQueue {{ .Tag }}
+
+    Session-ordered event bus for AI agents.
+  footer: |
+    ---
+
+    **Quick start**
+
+    ```bash
+    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+    # or
+    docker run --rm -p 9090:9090 ghcr.io/khangpt2k6/goqueue:{{ .Tag }}
+    ```
+
+    Verify downloads with `checksums.txt`:
+    ```bash
+    sha256sum -c checksums.txt
+    ```

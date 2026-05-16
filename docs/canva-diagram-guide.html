@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent Bus — Canva Diagram Guide</title>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --panel: #121828;
+    --panel-2: #1a2236;
+    --border: #243049;
+    --text: #e6ecff;
+    --muted: #8a96b4;
+    --accent: #7aa2ff;
+    --accent-2: #9ef0c5;
+    --warn: #ffb86b;
+    --danger: #ff7a90;
+    --chip: #1f2a44;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  header.hero {
+    text-align: left;
+    margin-bottom: 48px;
+    padding: 32px 36px;
+    background: linear-gradient(135deg, #1a2240 0%, #121828 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+  }
+  header.hero .tag {
+    display: inline-block;
+    background: var(--chip);
+    color: var(--accent);
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  header.hero h1 {
+    font-size: 34px;
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p {
+    color: var(--muted);
+    margin: 0;
+    font-size: 16px;
+    max-width: 720px;
+  }
+  .toc {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin: 28px 0 0;
+  }
+  .toc a {
+    text-decoration: none;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    transition: border-color 120ms ease, transform 120ms ease;
+  }
+  .toc a:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  section.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 30px;
+    margin-bottom: 28px;
+  }
+  section.card h2 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section.card h2 .num {
+    background: var(--accent);
+    color: #0b0f1a;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 3px 9px;
+  }
+  section.card .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 18px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 22px;
+    margin-top: 16px;
+  }
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .panel h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+  ul.clean {
+    margin: 0;
+    padding-left: 18px;
+  }
+  ul.clean li {
+    margin-bottom: 6px;
+    color: #cdd6f4;
+    font-size: 14.5px;
+  }
+  .swatches {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+    gap: 4px;
+  }
+  .swatch .dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .ascii {
+    background: #0a0f1d;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: #c8d3f0;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.45;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .chip {
+    background: var(--chip);
+    color: #cfd9ff;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+  }
+  .callout {
+    margin-top: 16px;
+    background: rgba(122, 162, 255, 0.08);
+    border: 1px solid rgba(122, 162, 255, 0.3);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #d8e2ff;
+    font-size: 14px;
+  }
+  .callout strong { color: var(--accent); }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend span::before {
+    content: "■";
+    margin-right: 6px;
+  }
+  footer {
+    text-align: center;
+    margin-top: 40px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .tip {
+    border-left: 3px solid var(--accent-2);
+    padding: 6px 12px;
+    margin-top: 12px;
+    color: #c8d3f0;
+    font-size: 13.5px;
+    background: rgba(158, 240, 197, 0.05);
+    border-radius: 0 6px 6px 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="tag">Canva Design Brief</span>
+    <h1>Agent Bus — Visuals That Explain the Whole System</h1>
+    <p>
+      Eight diagrams to design in Canva so any engineer, PM, or stakeholder can grasp
+      Agent Bus in under five minutes. Each block lists the layout, what to include,
+      a color palette, and an ASCII sketch you can mirror visually.
+    </p>
+    <nav class="toc">
+      <a href="#d1">1 · Hero / Pitch Slide</a>
+      <a href="#d2">2 · System Architecture</a>
+      <a href="#d3">3 · Session Routing</a>
+      <a href="#d4">4 · Event Lifecycle</a>
+      <a href="#d5">5 · Retry &amp; DLQ Flow</a>
+      <a href="#d6">6 · WAL &amp; Replay</a>
+      <a href="#d7">7 · Observability Stack</a>
+      <a href="#d8">8 · Roadmap Timeline</a>
+    </nav>
+  </header>
+
+  <!-- ============ 1 ============ -->
+  <section class="card" id="d1">
+    <h2><span class="num">1</span> Hero / Pitch Slide</h2>
+    <p class="subtitle">Goal: one slide that answers “what is this and why does it exist?”</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Include</h3>
+        <ul class="clean">
+          <li>Title: <em>Agent Bus — Session-Ordered Event Bus for AI Agents</em></li>
+          <li>One-line pitch: ordering + replay + observability without heavy broker ops</li>
+          <li>Three icons: <strong>Order</strong> · <strong>Replay</strong> · <strong>Observe</strong></li>
+          <li>“Built in Go · single binary · Docker optional” footer chip</li>
+          <li>A subtle background pattern of dotted lines (event stream feel)</li>
+        </ul>
+        <div class="swatches">
+          <div class="swatch"><div class="dot" style="background:#0b0f1a"></div>#0B0F1A</div>
+          <div class="swatch"><div class="dot" style="background:#7aa2ff"></div>#7AA2FF</div>
+          <div class="swatch"><div class="dot" style="background:#9ef0c5"></div>#9EF0C5</div>
+          <div class="swatch"><div class="dot" style="background:#ffb86b"></div>#FFB86B</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">┌──────────────────────────────────────┐
+│  AGENT BUS                           │
+│  Session-ordered events for AI       │
+│  ──────────────────────────────      │
+│                                      │
+│   [icon]    [icon]    [icon]         │
+│   Order     Replay    Observe        │
+│                                      │
+│   Go · single binary · Docker opt.   │
+└──────────────────────────────────────┘</div>
+        <div class="tip">Tip: use Canva's "Tech / Dark Minimal" template family — keeps focus on the three pillars.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section class="card" id="d2">
+    <h2><span class="num">2</span> System Architecture (Hero Diagram)</h2>
+    <p class="subtitle">The diagram everyone screenshots. Recreate the README's mermaid graph in a polished form.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Blocks &amp; Labels</h3>
+        <ul class="clean">
+          <li><strong>Producers</strong> — AI Agents / Tools (top-left)</li>
+          <li><strong>Consumers</strong> — Consumer Groups (top-right)</li>
+          <li><strong>Client APIs</strong> band — TCP · gRPC · CLI</li>
+          <li><strong>Core</strong> stack — Session Router → Partitioned Topics → Retry + DLQ</li>
+          <li><strong>WAL</strong> — append + replay (cylinder icon, side-attached)</li>
+          <li><strong>Observability</strong> — Prometheus · OpenTelemetry · Grafana/WASM</li>
+        </ul>
+        <div class="chips">
+          <span class="chip">Solid arrow = data flow</span>
+          <span class="chip">Dotted arrow = metrics/traces</span>
+          <span class="chip">Double arrow = read/write WAL</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">  Producers ───►              ◄─── Consumers
+            ╲                  ╱
+        ┌────▼──── Client APIs ▼────┐
+        │   TCP  ·  gRPC  ·  CLI    │
+        └──────────────┬────────────┘
+                       ▼
+        ┌──── Agent Bus Core ───────┐        ┌──────┐
+        │  Session Router           │◄──────►│ WAL  │
+        │      ▼                    │        │ ▒▒▒▒ │
+        │  Partitioned Topics       │        └──────┘
+        │      ▼                    │
+        │  Retry + DLQ              │
+        └────────────┬──────────────┘
+              ┊metrics      ┊traces
+              ▼              ▼
+         Prometheus     OpenTelemetry
+                  ╲    ╱
+              Grafana / WASM</div>
+        <div class="callout"><strong>Style hint:</strong> stick to 4 colors max — one for clients, one for core, one for storage, one for observability. Reuse exactly these in every later diagram so viewers build muscle memory.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section class="card" id="d3">
+    <h2><span class="num">3</span> Session Routing Explained</h2>
+    <p class="subtitle">Show <em>why</em> ordering is stable — same session key always lands on the same partition.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Include</h3>
+        <ul class="clean">
+          <li>3 producers sending events tagged with <code>tenant/project/session</code></li>
+          <li>A hash funnel labeled <strong>Session Router</strong></li>
+          <li>4 horizontal partition lanes (rectangles with event boxes inside)</li>
+          <li>Same-colored events for the same session, all in the same lane</li>
+          <li>Caption: <em>“sess-42 → always partition 2”</em></li>
+        </ul>
+        <div class="legend">
+          <span style="color:#7aa2ff">sess-42</span>
+          <span style="color:#9ef0c5">sess-77</span>
+          <span style="color:#ffb86b">sess-09</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">  [A1·sess42] [A2·sess77] [A3·sess42] [A4·sess09]
+        ╲          │          │          ╱
+         ╲         ▼          ▼         ╱
+          ┌────── Session Router ──────┐
+          │  hash(tenant/project/sid)  │
+          └────┬────┬────┬────┬────────┘
+               ▼    ▼    ▼    ▼
+        P0 │ ── ── ── ── ── ── ── ──
+        P1 │ [09] ── ── [09] ── ── ──
+        P2 │ [42][42][42][42] ── ──    ◄── stable order
+        P3 │ [77] ── [77] ── ── ── ──</div>
+        <div class="tip">Tip: in Canva, use the same shade of blue for every sess-42 box. The visual repetition <em>is</em> the lesson.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section class="card" id="d4">
+    <h2><span class="num">4</span> Agent Event Lifecycle</h2>
+    <p class="subtitle">A horizontal timeline of one event from emit → ack. Great for onboarding decks.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Stages (left → right)</h3>
+        <ul class="clean">
+          <li><strong>1. Emit</strong> — agent publishes <code>tool.call</code></li>
+          <li><strong>2. Envelope</strong> — wrap with version, attempt, timestamps</li>
+          <li><strong>3. Route</strong> — session key → partition</li>
+          <li><strong>4. Persist</strong> — WAL append</li>
+          <li><strong>5. Deliver</strong> — consumer group pulls in order</li>
+          <li><strong>6. Ack / Retry</strong> — success or back to step 2 with attempt+1</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">[Agent] ─► [Envelope] ─► [Router] ─► [WAL] ─► [Topic] ─► [Consumer]
+   1          2            3          4         5           6
+                                                       │
+                                                       ├──► ack ✓
+                                                       └──► fail → retry</div>
+        <div class="callout"><strong>Design move:</strong> put a tiny payload card under stage 2 showing real fields — <code>tenant</code>, <code>project</code>, <code>session_id</code>, <code>agent_id</code>, <code>type</code>, <code>attempt</code>. Makes the abstract concrete.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5 ============ -->
+  <section class="card" id="d5">
+    <h2><span class="num">5</span> Retry &amp; DLQ Decision Flow</h2>
+    <p class="subtitle">A flowchart that explains the broker-native retry policy in a glance.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Include</h3>
+        <ul class="clean">
+          <li>Start: <em>Consumer reports failure</em></li>
+          <li>Diamond: <em>attempt + 1 &gt; max-attempts?</em></li>
+          <li>No path → wait <code>delay</code> → re-publish to same topic, attempt+1</li>
+          <li>Yes path → publish to <code>&lt;topic&gt;.dlq</code></li>
+          <li>Side note: metric <code>goqueue_agent_event_dlq_total</code> increments on DLQ branch</li>
+        </ul>
+        <div class="chips">
+          <span class="chip" style="border-color:#ffb86b;color:#ffb86b">retry path</span>
+          <span class="chip" style="border-color:#ff7a90;color:#ff7a90">DLQ path</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">          ┌───────────────────────┐
+          │ Consumer reports fail │
+          └──────────┬────────────┘
+                     ▼
+           ╔═════════════════════╗
+           ║ attempt+1 > max?    ║
+           ╚═════╦══════════╦════╝
+              no ║          ║ yes
+                 ▼          ▼
+        wait(delay)     publish → topic.dlq
+                 │              │
+                 ▼              ▼
+        publish topic,   metric: dlq_total++
+        attempt+1</div>
+        <div class="tip">Tip: place the metric chip near the DLQ arrow — visually links code behavior to dashboards.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6 ============ -->
+  <section class="card" id="d6">
+    <h2><span class="num">6</span> WAL &amp; Crash Replay</h2>
+    <p class="subtitle">Two side-by-side states — <em>before crash</em> and <em>after restart</em> — to show durability.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Before Crash (left)</h3>
+        <ul class="clean">
+          <li>Broker in-memory partition with offsets 0..N</li>
+          <li>WAL file mirrors the same entries, offset markers visible</li>
+          <li>Lightning bolt icon over broker (the crash)</li>
+        </ul>
+        <h3 style="margin-top:18px">After Restart (right)</h3>
+        <ul class="clean">
+          <li>Broker memory = empty</li>
+          <li>Arrow “replay” from WAL → broker</li>
+          <li>Broker re-populated with same offsets, ready to serve</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">  BEFORE CRASH ⚡             AFTER RESTART
+  ┌──────────────┐           ┌──────────────┐
+  │ Memory       │           │ Memory       │
+  │ [0][1][2][3] │           │  (empty)     │
+  └──────┬───────┘           └──────▲───────┘
+         │ append                    │ replay
+         ▼                           │
+  ┌──────────────┐           ┌──────┴───────┐
+  │ WAL          │           │ WAL          │
+  │ [0][1][2][3] │           │ [0][1][2][3] │
+  └──────────────┘           └──────────────┘</div>
+        <div class="callout"><strong>Why two panels:</strong> readers instantly see that the WAL is the source of truth. One-panel versions of this diagram never land.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7 ============ -->
+  <section class="card" id="d7">
+    <h2><span class="num">7</span> Observability Stack</h2>
+    <p class="subtitle">Show the path from broker code → metrics &amp; traces → dashboards.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Include</h3>
+        <ul class="clean">
+          <li>Broker box at left, with three callout chips:
+            <code>agent_events_published_total</code>,
+            <code>agent_event_retries_total</code>,
+            <code>agent_event_dlq_total</code>
+          </li>
+          <li>Two parallel pipes: <strong>Prometheus</strong> (metrics) and <strong>Tempo + OTEL</strong> (traces)</li>
+          <li>Right side: Grafana dashboard + WASM dashboard browser mockup</li>
+          <li>URL chips at the bottom: <code>:2112/metrics</code>, <code>:3000</code>, <code>:9099</code>, <code>:3200</code></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">┌────── Broker ──────┐
+│ counters & spans   │
+│ • published_total  │──metrics──► Prometheus ──┐
+│ • retries_total    │                          │
+│ • dlq_total        │──traces ──► Tempo/OTEL ──┤
+└────────────────────┘                          ▼
+                                       ┌──────────────┐
+                                       │ Grafana      │
+                                       │ WASM Dash    │
+                                       └──────────────┘
+:2112/metrics   :9099   :3200   :3000</div>
+        <div class="tip">Tip: add a tiny browser-window frame around the dashboard image — readers instantly know "this is a UI" without a caption.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 8 ============ -->
+  <section class="card" id="d8">
+    <h2><span class="num">8</span> Roadmap / Scope Timeline</h2>
+    <p class="subtitle">Set expectations: what's real today vs. on the way.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Three Columns</h3>
+        <ul class="clean">
+          <li><strong>Today (single-node)</strong> — broker, WAL, retry/DLQ, TCP/gRPC/CLI, observability</li>
+          <li><strong>Next (multi-node demo)</strong> — Docker Compose topology, dashboard <code>raft-*</code> state labels</li>
+          <li><strong>Distributed v1</strong> — real consensus, link to <code>docs/distributed-v1-design.md</code></li>
+        </ul>
+        <div class="callout"><strong>Honesty chip:</strong> add a small badge on column 2 — <em>“labels only, not real consensus yet”</em>. The README is explicit about this and your diagram should be too.</div>
+      </div>
+      <div class="panel">
+        <h3>Layout Sketch</h3>
+        <div class="ascii">  Today              Next               Distributed v1
+  ─────             ─────              ──────────────
+  ✓ Broker          ◐ Multi-node demo  ○ Raft consensus
+  ✓ WAL replay      ◐ raft-* labels    ○ Replication
+  ✓ Retry / DLQ     ◐ Compose topo     ○ Leader election
+  ✓ TCP / gRPC      ◐ Dashboard view   ○ Quorum writes
+  ✓ Metrics         ─────              ──────────────
+  ─────             "demo only"        "design doc"</div>
+        <div class="tip">Tip: use ✓ / ◐ / ○ icons (Canva has these as shape primitives). They convey progress without a legend.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ design system ============ -->
+  <section class="card">
+    <h2><span class="num">★</span> Shared Design System (use across all 8 diagrams)</h2>
+    <p class="subtitle">Reuse the same colors, shapes, and arrow styles everywhere — that consistency is what makes a deck feel professional.</p>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Palette</h3>
+        <div class="swatches">
+          <div class="swatch"><div class="dot" style="background:#0b0f1a"></div>BG #0B0F1A</div>
+          <div class="swatch"><div class="dot" style="background:#1a2236"></div>Panel #1A2236</div>
+          <div class="swatch"><div class="dot" style="background:#7aa2ff"></div>Clients #7AA2FF</div>
+          <div class="swatch"><div class="dot" style="background:#9ef0c5"></div>Core #9EF0C5</div>
+          <div class="swatch"><div class="dot" style="background:#ffb86b"></div>Storage #FFB86B</div>
+          <div class="swatch"><div class="dot" style="background:#c79bff"></div>Observe #C79BFF</div>
+          <div class="swatch"><div class="dot" style="background:#ff7a90"></div>DLQ/Error #FF7A90</div>
+        </div>
+        <h3 style="margin-top:18px">Typography</h3>
+        <ul class="clean">
+          <li>Headings: <strong>Inter</strong> or <strong>Space Grotesk</strong>, semibold</li>
+          <li>Body: <strong>Inter</strong>, regular, 14–16px equivalent</li>
+          <li>Code / IDs: <strong>JetBrains Mono</strong> or <strong>Fira Code</strong></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Shape Conventions</h3>
+        <ul class="clean">
+          <li><strong>Rounded rectangle</strong> → service / component</li>
+          <li><strong>Cylinder</strong> → storage (WAL only)</li>
+          <li><strong>Diamond</strong> → decision (retry/DLQ)</li>
+          <li><strong>Pill / chip</strong> → metric name or URL</li>
+          <li><strong>Dashed border</strong> → "planned, not built"</li>
+        </ul>
+        <h3 style="margin-top:18px">Arrows</h3>
+        <ul class="clean">
+          <li><strong>Solid</strong> → data flow (events)</li>
+          <li><strong>Dotted</strong> → telemetry (metrics, traces)</li>
+          <li><strong>Double-ended</strong> → bidirectional (WAL read/write)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Agent Bus · Design brief for Canva · Drop in screenshots, agent icons, and broker icons where placeholders sit.
+  </footer>
+
+</div>
+</body>
+</html>

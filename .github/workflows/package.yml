@@ -1,32 +1,37 @@
-name: Package
+name: Package (snapshot)
+
+# Dry-run of the release pipeline. Builds all binaries and the Docker image
+# locally without publishing anything. Useful for verifying release config
+# before tagging.
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Package version label (example: v1.0.0 or dev)"
-        required: false
-        default: dev
-        type: string
+  pull_request:
+    paths:
+      - '.goreleaser.yml'
+      - 'docker/broker.goreleaser.Dockerfile'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
 
 permissions:
   contents: read
 
 concurrency:
-  group: package-${{ github.ref }}-${{ inputs.version }}
+  group: package-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-packages:
-    name: Build Binary Packages
+  snapshot:
+    name: GoReleaser snapshot
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      VERSION: ${{ inputs.version }}
-
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -34,70 +39,22 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Validate workspace
-        run: go test ./...
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build package archives
-        run: |
-          mkdir -p dist
-          TARGETS=(
-            "linux amd64"
-            "linux arm64"
-            "darwin amd64"
-            "darwin arm64"
-            "windows amd64"
-          )
+      - name: Run GoReleaser (snapshot, no publish)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --snapshot --clean --skip=publish
 
-          for target in "${TARGETS[@]}"; do
-            read -r GOOS GOARCH <<<"${target}"
-            EXT=""
-            ARCHIVE_EXT="tar.gz"
-            if [[ "${GOOS}" == "windows" ]]; then
-              EXT=".exe"
-              ARCHIVE_EXT="zip"
-            fi
-
-            PKG_DIR="goqueue_${VERSION}_${GOOS}_${GOARCH}"
-            mkdir -p "dist/${PKG_DIR}"
-
-            GOOS="${GOOS}" GOARCH="${GOARCH}" go build -trimpath -ldflags "-s -w" -o "dist/${PKG_DIR}/broker${EXT}" ./cmd/broker
-            GOOS="${GOOS}" GOARCH="${GOARCH}" go build -trimpath -ldflags "-s -w" -o "dist/${PKG_DIR}/goqueue${EXT}" ./cmd/goqueue
-            if [[ -f README.md ]]; then cp README.md "dist/${PKG_DIR}/"; fi
-            if [[ -f LICENSE ]]; then cp LICENSE "dist/${PKG_DIR}/"; fi
-
-            if [[ "${ARCHIVE_EXT}" == "zip" ]]; then
-              (cd dist && zip -qr "${PKG_DIR}.zip" "${PKG_DIR}")
-            else
-              tar -C dist -czf "dist/${PKG_DIR}.tar.gz" "${PKG_DIR}"
-            fi
-            rm -rf "dist/${PKG_DIR}"
-          done
-
-      - name: Create package checksums and summary
-        run: |
-          cd dist
-          sha256sum goqueue_* > checksums.txt
-          cat > PACKAGES.md <<EOF
-          # GoQueue Packages (${VERSION})
-
-          Included:
-          - linux amd64, arm64
-          - darwin amd64, arm64
-          - windows amd64
-
-          Verify:
-          \`\`\`bash
-          sha256sum -c checksums.txt
-          \`\`\`
-          EOF
-
-      - name: Upload package artifacts
+      - name: Upload snapshot artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: goqueue-packages-${{ inputs.version }}
+          name: goqueue-snapshot
           path: |
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
-            dist/PACKAGES.md
-          retention-days: 14
+          retention-days: 7
