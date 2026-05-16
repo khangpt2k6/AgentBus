@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package goqueue.v1;
 
-option go_package = "github.com/2006t/goqueue/proto;goqueuev1";
+option go_package = "github.com/khangpt2k6/AgentBus/proto;goqueuev1";
 
 service BrokerService {
   rpc Publish(PublishRequest) returns (PublishResponse);

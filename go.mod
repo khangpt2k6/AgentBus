@@ -1,4 +1,4 @@
-module github.com/2006t/goqueue
+module github.com/khangpt2k6/AgentBus
 
 go 1.26.1
 

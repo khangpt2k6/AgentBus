@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/2006t/goqueue/internal/broker"
-	"github.com/2006t/goqueue/internal/consumer"
-	"github.com/2006t/goqueue/internal/metrics"
-	"github.com/2006t/goqueue/internal/wal"
+	"github.com/khangpt2k6/AgentBus/internal/broker"
+	"github.com/khangpt2k6/AgentBus/internal/consumer"
+	"github.com/khangpt2k6/AgentBus/internal/metrics"
+	"github.com/khangpt2k6/AgentBus/internal/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	goqueuev1 "github.com/2006t/goqueue/proto"
+	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
 	"google.golang.org/grpc/metadata"
 )
 
