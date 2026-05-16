@@ -294,7 +294,7 @@ const file_goqueue_proto_rawDesc = "" +
 	"\tpartition\x18\x04 \x01(\x05R\tpartition2\x98\x01\n" +
 	"\rBrokerService\x12B\n" +
 	"\aPublish\x12\x1a.goqueue.v1.PublishRequest\x1a\x1b.goqueue.v1.PublishResponse\x12C\n" +
-	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01B*Z(github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
+	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01B0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
 
 var (
 	file_goqueue_proto_rawDescOnce sync.Once
