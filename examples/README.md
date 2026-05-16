@@ -14,6 +14,7 @@ Then in another terminal:
 |---|---|
 | [`basic/`](basic/main.go) | Connect, Publish, Subscribe round-trip |
 | [`agent-events/`](agent-events/main.go) | `PublishAgent` with per-session ordering and structured envelope decoding |
+| [`session-replay/`](session-replay/main.go) | Produce a fake agent run, then `ReplaySession` it back chronologically — the killer-feature workflow |
 
 Run them:
 
