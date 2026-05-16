@@ -1,0 +1,156 @@
+# Default values for the AgentBus chart.
+# Override with --set or a values file: `helm install agentbus . -f my-values.yaml`
+
+# -----------------------------------------------------------------------------
+# Image
+# -----------------------------------------------------------------------------
+image:
+  # Container image published by the release pipeline on every tag.
+  repository: ghcr.io/khangpt2k6/goqueue
+  # When empty, defaults to .Chart.AppVersion (kept in lock-step with the
+  # chart bump). Override to pin a specific build, e.g. "sha-abc1234".
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# Workload
+# -----------------------------------------------------------------------------
+# AgentBus is single-node today — replicas > 1 will not give you HA or shard
+# the topics. It will give you two independent brokers sharing nothing. Keep
+# this at 1 unless you know what you want.
+replicaCount: 1
+
+# Identity & labels
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod-level
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  runAsUser: 1000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1
+    memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# -----------------------------------------------------------------------------
+# Broker configuration (flags passed to the broker process)
+# -----------------------------------------------------------------------------
+broker:
+  # Listen addresses inside the pod. Match the Service ports below.
+  tcpAddr: ":9090"
+  grpcAddr: ":9095"
+  metricsAddr: ":2112"
+  # WAL location inside the container. Lives on the PVC when persistence.enabled.
+  walPath: "/data/agentbus.wal"
+  # Extra args appended to the broker command, e.g. ["--log-level=debug"].
+  extraArgs: []
+
+# -----------------------------------------------------------------------------
+# Persistence (WAL + consumer offsets)
+# -----------------------------------------------------------------------------
+# When disabled, AgentBus uses an emptyDir — fast, but lose the pod, lose
+# the WAL. For anything other than dev, enable persistence.
+persistence:
+  enabled: true
+  storageClass: ""    # "" = cluster default
+  accessMode: ReadWriteOnce
+  size: 8Gi
+  # If provided, the PVC will mount this existing claim instead of creating
+  # a new one. Useful for blue-green or migration scenarios.
+  existingClaim: ""
+
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  tcpPort: 9090
+  grpcPort: 9095
+  metricsPort: 2112
+  annotations: {}
+
+# -----------------------------------------------------------------------------
+# Ingress (optional — usually you front gRPC with a service mesh or LB)
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: agentbus.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# -----------------------------------------------------------------------------
+# Probes
+# -----------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /readyz
+    port: metrics
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: metrics
+  initialDelaySeconds: 2
+  periodSeconds: 5
+startupProbe:
+  httpGet:
+    path: /readyz
+    port: metrics
+  failureThreshold: 30
+  periodSeconds: 2
+
+# -----------------------------------------------------------------------------
+# Prometheus integration
+# -----------------------------------------------------------------------------
+serviceMonitor:
+  # Requires the Prometheus Operator (kube-prometheus-stack) installed.
+  enabled: false
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+  # Drop or relabel: extra Prometheus relabel rules appended to the scrape job.
+  relabelings: []
+  metricRelabelings: []
+
+# -----------------------------------------------------------------------------
+# OpenTelemetry — optional env wiring to the OTEL collector you already run.
+# -----------------------------------------------------------------------------
+otel:
+  enabled: false
+  endpoint: ""        # e.g. "otel-collector.observability.svc.cluster.local:4317"
+  insecure: true
+  resourceAttributes: ""   # e.g. "deployment.environment=prod,team=ai-platform"

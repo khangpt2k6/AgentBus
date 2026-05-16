@@ -1,0 +1,43 @@
+AgentBus deployed.
+
+----------------------------------------------------------------
+What you have
+----------------------------------------------------------------
+
+Release : {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image   : {{ include "agentbus.image" . }}
+
+Service ports (cluster-internal):
+  - tcp     : {{ include "agentbus.fullname" . }}:{{ .Values.service.tcpPort }}
+  - grpc    : {{ include "agentbus.fullname" . }}:{{ .Values.service.grpcPort }}
+  - metrics : {{ include "agentbus.fullname" . }}:{{ .Values.service.metricsPort }}
+
+{{- if .Values.persistence.enabled }}
+WAL persistence is ENABLED on PVC "{{ include "agentbus.pvcName" . }}" ({{ .Values.persistence.size }}).
+{{- else }}
+WAL persistence is DISABLED. The WAL lives on an emptyDir — restart loses it.
+For anything beyond a demo, set persistence.enabled=true.
+{{- end }}
+
+----------------------------------------------------------------
+Try it
+----------------------------------------------------------------
+
+Port-forward the gRPC port and run the CLI against it:
+
+    kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "agentbus.fullname" . }} 9095:{{ .Values.service.grpcPort }}
+
+    go install github.com/khangpt2k6/AgentBus/cmd/goqueue@latest
+    goqueue publish-agent --grpc --addr localhost:9095 \
+      --tenant acme --project bot --session sess-1 --agent planner \
+      --type tool.call --payload '{"tool":"search"}'
+
+    goqueue session replay --grpc --addr localhost:9095 \
+      --tenant acme --project bot --session sess-1
+
+----------------------------------------------------------------
+Docs
+----------------------------------------------------------------
+
+https://khangpt2k6.github.io/AgentBus/

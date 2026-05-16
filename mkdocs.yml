@@ -112,6 +112,7 @@ nav:
       - WAL & replay: concepts/wal-replay.md
   - Deploy:
       - Docker: deploy/docker.md
+      - Kubernetes (Helm): deploy/kubernetes.md
       - systemd on a VM: deploy/systemd.md
   - Reference:
       - CLI: reference/cli.md

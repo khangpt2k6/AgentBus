@@ -39,6 +39,9 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
     # or Docker
     docker run -d -p 9095:9095 ghcr.io/khangpt2k6/goqueue:latest --grpc-addr=:9095
 
+    # or Kubernetes (Helm)
+    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus
+
     # or in your Go module
     go get github.com/khangpt2k6/AgentBus/agentbus@latest
     ```

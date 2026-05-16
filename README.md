@@ -140,6 +140,14 @@ docker run --rm -p 9090:9090 -p 9095:9095 -p 2112:2112 \
   --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112
 ```
 
+### Kubernetes (Helm)
+
+```bash
+helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus
+```
+
+Provisions a Deployment, Service, PVC for the WAL, and (optional) ServiceMonitor for Prometheus. Full guide: [docs/deploy/kubernetes.md](docs/deploy/kubernetes.md).
+
 <details>
 <summary><b>Manual download</b></summary>
 

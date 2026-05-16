@@ -1,0 +1,40 @@
+apiVersion: v2
+name: agentbus
+description: |
+  AgentBus is a session-ordered event bus for AI agents, with replay,
+  durable WAL, Prometheus metrics, and OpenTelemetry traces — in a
+  single Go binary.
+type: application
+
+# Bumped on every chart change, independent of the appVersion.
+version: 0.1.0
+
+# Tracks the broker container tag deployed by default.
+appVersion: "0.4.0"
+
+home: https://khangpt2k6.github.io/AgentBus/
+sources:
+  - https://github.com/khangpt2k6/AgentBus
+
+keywords:
+  - event-bus
+  - message-queue
+  - ai-agents
+  - llm
+  - observability
+  - opentelemetry
+
+maintainers:
+  - name: khangpt2k6
+    url: https://github.com/khangpt2k6
+
+icon: https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/docs/assets/logo.svg
+
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial Helm chart for single-node AgentBus broker
+    - kind: added
+      description: ServiceMonitor for Prometheus Operator
+    - kind: added
+      description: Optional PVC for WAL persistence

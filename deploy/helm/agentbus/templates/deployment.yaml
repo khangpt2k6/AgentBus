@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentbus.fullname" . }}
+  labels:
+    {{- include "agentbus.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    # Recreate, not RollingUpdate — the broker is single-node and the WAL is
+    # tied to one PVC (ReadWriteOnce). A new pod cannot mount the volume
+    # while the old one still owns it, so a rolling update would deadlock.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "agentbus.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agentbus.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # Roll pods when only the config changes (no image change).
+        checksum/config: {{ printf "%v" .Values.broker | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "agentbus.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: broker
+          image: {{ include "agentbus.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - --tcp-addr={{ .Values.broker.tcpAddr }}
+            - --grpc-addr={{ .Values.broker.grpcAddr }}
+            - --metrics-addr={{ .Values.broker.metricsAddr }}
+            - --wal-path={{ .Values.broker.walPath }}
+            {{- with .Values.broker.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: tcp
+              containerPort: 9090
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+            - name: metrics
+              containerPort: 2112
+              protocol: TCP
+          env:
+            {{- if .Values.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: {{ .Values.otel.insecure | quote }}
+            {{- if .Values.otel.resourceAttributes }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ .Values.otel.resourceAttributes | quote }}
+            {{- end }}
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            # /tmp scratch since the container runs with readOnlyRootFilesystem.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "agentbus.pvcName" . }}
+          {{- else }}
+          emptyDir:
+            sizeLimit: 1Gi
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
