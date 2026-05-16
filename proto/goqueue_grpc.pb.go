@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	BrokerService_Publish_FullMethodName = "/goqueue.v1.BrokerService/Publish"
 	BrokerService_Consume_FullMethodName = "/goqueue.v1.BrokerService/Consume"
+	BrokerService_Fetch_FullMethodName   = "/goqueue.v1.BrokerService/Fetch"
 )
 
 // BrokerServiceClient is the client API for BrokerService service.
@@ -29,6 +30,10 @@ const (
 type BrokerServiceClient interface {
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error)
 	Consume(ctx context.Context, in *ConsumeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ConsumeMessage], error)
+	// Fetch returns historical messages starting at from_offset. Unlike Consume,
+	// it does not track consumer-group state and does not stream — it returns a
+	// single page. Use it for session replay, debugging, and time-travel reads.
+	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 }
 
 type brokerServiceClient struct {
@@ -68,12 +73,26 @@ func (c *brokerServiceClient) Consume(ctx context.Context, in *ConsumeRequest, o
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BrokerService_ConsumeClient = grpc.ServerStreamingClient[ConsumeMessage]
 
+func (c *brokerServiceClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FetchResponse)
+	err := c.cc.Invoke(ctx, BrokerService_Fetch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BrokerServiceServer is the server API for BrokerService service.
 // All implementations must embed UnimplementedBrokerServiceServer
 // for forward compatibility.
 type BrokerServiceServer interface {
 	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
 	Consume(*ConsumeRequest, grpc.ServerStreamingServer[ConsumeMessage]) error
+	// Fetch returns historical messages starting at from_offset. Unlike Consume,
+	// it does not track consumer-group state and does not stream — it returns a
+	// single page. Use it for session replay, debugging, and time-travel reads.
+	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
 	mustEmbedUnimplementedBrokerServiceServer()
 }
 
@@ -89,6 +108,9 @@ func (UnimplementedBrokerServiceServer) Publish(context.Context, *PublishRequest
 }
 func (UnimplementedBrokerServiceServer) Consume(*ConsumeRequest, grpc.ServerStreamingServer[ConsumeMessage]) error {
 	return status.Error(codes.Unimplemented, "method Consume not implemented")
+}
+func (UnimplementedBrokerServiceServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Fetch not implemented")
 }
 func (UnimplementedBrokerServiceServer) mustEmbedUnimplementedBrokerServiceServer() {}
 func (UnimplementedBrokerServiceServer) testEmbeddedByValue()                       {}
@@ -140,6 +162,24 @@ func _BrokerService_Consume_Handler(srv interface{}, stream grpc.ServerStream) e
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BrokerService_ConsumeServer = grpc.ServerStreamingServer[ConsumeMessage]
 
+func _BrokerService_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrokerServiceServer).Fetch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrokerService_Fetch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrokerServiceServer).Fetch(ctx, req.(*FetchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BrokerService_ServiceDesc is the grpc.ServiceDesc for BrokerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -150,6 +190,10 @@ var BrokerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Publish",
 			Handler:    _BrokerService_Publish_Handler,
+		},
+		{
+			MethodName: "Fetch",
+			Handler:    _BrokerService_Fetch_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

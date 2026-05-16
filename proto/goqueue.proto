@@ -7,6 +7,10 @@ option go_package = "github.com/khangpt2k6/AgentBus/proto;goqueuev1";
 service BrokerService {
   rpc Publish(PublishRequest) returns (PublishResponse);
   rpc Consume(ConsumeRequest) returns (stream ConsumeMessage);
+  // Fetch returns historical messages starting at from_offset. Unlike Consume,
+  // it does not track consumer-group state and does not stream — it returns a
+  // single page. Use it for session replay, debugging, and time-travel reads.
+  rpc Fetch(FetchRequest) returns (FetchResponse);
 }
 
 message PublishRequest {
@@ -32,4 +36,24 @@ message ConsumeMessage {
   bytes payload = 2;
   int64 timestamp_unix_nano = 3;
   int32 partition = 4;
+}
+
+message FetchRequest {
+  string topic = 1;
+  int32 partition = 2;
+  int64 from_offset = 3;
+  // Maximum messages to return. Server caps at 4096.
+  int32 max_count = 4;
+}
+
+message FetchResponse {
+  repeated ConsumeMessage messages = 1;
+  // next_offset is the offset to pass on the next page to continue reading.
+  // Equals from_offset + len(messages) on success.
+  int64 next_offset = 2;
+  // head is the oldest offset still retained for this partition (older
+  // messages have been evicted from the ring buffer).
+  int64 head = 3;
+  // tail is the next-write offset (one past the latest persisted message).
+  int64 tail = 4;
 }

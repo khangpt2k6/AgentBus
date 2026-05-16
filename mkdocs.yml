@@ -66,6 +66,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Integrate (Go SDK): integrate.md
+  - Debug an agent run: debug-agent-run.md
   - Concepts:
       - Sessions & Ordering: concepts/sessions.md
       - Retry & DLQ: concepts/retry-dlq.md
