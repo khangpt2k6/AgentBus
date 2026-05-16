@@ -115,10 +115,31 @@ Grab the archive for your OS/arch from [Releases](https://github.com/khangpt2k6/
 
 ```bash
 git clone https://github.com/khangpt2k6/AgentBus.git
-cd GoQueue
+cd AgentBus
 go build -o bin/broker  ./cmd/broker
 go build -o bin/goqueue ./cmd/goqueue
 ```
+
+### Use the Go SDK in your own project
+
+```bash
+go get github.com/khangpt2k6/AgentBus/agentbus@latest
+```
+
+```go
+import "github.com/khangpt2k6/AgentBus/agentbus"
+
+client, _ := agentbus.Connect(ctx, "localhost:9095")
+defer client.Close()
+
+client.PublishAgent(ctx, agentbus.AgentEvent{
+    Tenant: "acme", Project: "support-bot", SessionID: "sess-42",
+    AgentID: "planner", Type: "tool.call",
+    Payload: []byte(`{"tool":"search"}`),
+})
+```
+
+Full guide: [docs/integrate.md](docs/integrate.md). Runnable examples in [`examples/`](examples/).
 
 ---
 

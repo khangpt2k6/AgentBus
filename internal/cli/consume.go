@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/2006t/goqueue/internal/protocol"
-	goqueuev1 "github.com/2006t/goqueue/proto"
+	"github.com/khangpt2k6/AgentBus/internal/protocol"
+	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

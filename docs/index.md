@@ -43,6 +43,7 @@ It is not a Kafka replacement. It is focused on AI-native streaming where low op
 ## Where to next
 
 - New here? Start with **[Getting Started](getting-started.md)**.
+- Building a Go service? **[Integrate the Go SDK](integrate.md)** in 4 lines.
 - Want to understand the model? Read **[Sessions & Ordering](concepts/sessions.md)**.
 - Going to production? See **[Deploy → Docker](deploy/docker.md)** or **[systemd](deploy/systemd.md)**.
 

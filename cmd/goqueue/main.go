@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/2006t/goqueue/internal/cli"
+	"github.com/khangpt2k6/AgentBus/internal/cli"
 )
 
 func main() {

@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/2006t/goqueue/internal/consumer"
-	"github.com/2006t/goqueue/internal/metrics"
-	"github.com/2006t/goqueue/internal/protocol"
-	"github.com/2006t/goqueue/internal/wal"
+	"github.com/khangpt2k6/AgentBus/internal/consumer"
+	"github.com/khangpt2k6/AgentBus/internal/metrics"
+	"github.com/khangpt2k6/AgentBus/internal/protocol"
+	"github.com/khangpt2k6/AgentBus/internal/wal"
 )
 
 type TCPServer struct {
