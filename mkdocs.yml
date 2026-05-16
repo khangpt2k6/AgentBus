@@ -1,5 +1,6 @@
-site_name: Agent Bus
-site_description: Session-ordered event bus for AI agents — ordering, replay, and observability in a single Go binary.
+site_name: AgentBus
+site_description: Session-ordered event bus for AI agents — replay, observability, and integration in a single Go binary.
+site_author: khangpt2k6
 site_url: https://khangpt2k6.github.io/AgentBus/
 repo_url: https://github.com/khangpt2k6/AgentBus
 repo_name: khangpt2k6/AgentBus
@@ -10,44 +11,69 @@ site_dir: site
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
   palette:
     - scheme: slate
-      primary: indigo
-      accent: cyan
+      primary: black
+      accent: indigo
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
     - scheme: default
-      primary: indigo
+      primary: black
       accent: indigo
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
     - navigation.top
     - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.indexes
+    - toc.follow
     - content.code.copy
     - content.code.annotate
+    - content.tabs.link
     - search.highlight
     - search.suggest
+    - search.share
   icon:
     repo: fontawesome/brands/github
+    annotation: material/arrow-right-circle
 
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
   - def_list
+  - footnotes
   - md_in_html
   - tables
   - toc:
-      permalink: true
+      permalink: "#"
+      permalink_title: Anchor link
+  - pymdownx.betterem
+  - pymdownx.caret
   - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
   - pymdownx.snippets
   - pymdownx.superfences:
       custom_fences:
@@ -56,38 +82,53 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - pymdownx.tasklist:
       custom_checkbox: true
+  - pymdownx.tilde
 
 plugins:
-  - search
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Integrate (Go SDK): integrate.md
-  - Debug an agent run: debug-agent-run.md
-  - Webhook subscriber: webhook.md
-  - OpenTelemetry tracing: otel-tracing.md
+  - Get started:
+      - Installation: getting-started.md
+      - Integrate the Go SDK: integrate.md
+  - Workflows:
+      - Debug an agent run: debug-agent-run.md
+      - Webhook subscriber: webhook.md
+      - OpenTelemetry tracing: otel-tracing.md
+      - Observability: observability.md
   - Concepts:
-      - Sessions & Ordering: concepts/sessions.md
+      - Sessions & ordering: concepts/sessions.md
       - Retry & DLQ: concepts/retry-dlq.md
-      - WAL & Replay: concepts/wal-replay.md
+      - WAL & replay: concepts/wal-replay.md
   - Deploy:
       - Docker: deploy/docker.md
-      - systemd (VM): deploy/systemd.md
-  - Observability: observability.md
+      - systemd on a VM: deploy/systemd.md
   - Reference:
       - CLI: reference/cli.md
-  - Design Notes:
+  - Design notes:
       - Distributed v1: distributed-v1-design.md
       - Benchmarking: benchmarking.md
-      - AI Agent Pivot: ai-agent-pivot.md
+      - AI agent pivot: ai-agent-pivot.md
 
 extra:
+  generator: false
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/khangpt2k6/AgentBus
+      name: Source on GitHub
+    - icon: fontawesome/brands/docker
+      link: https://github.com/khangpt2k6/AgentBus/pkgs/container/goqueue
+      name: Container image on GHCR
 
 exclude_docs: |
   canva-diagram-guide.html
