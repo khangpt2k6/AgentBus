@@ -10,7 +10,11 @@ import (
 func TestBrokerPublishSubscribe(t *testing.T) {
 	b := New()
 
-	// subscriber first, then publish — it should block and receive
+	// Subscriber first, then publish — but Subscription.Next returns as
+	// soon as ANY messages are available, so a single Next() call may see
+	// only the first publish if the second hasn't landed yet. Drain in a
+	// loop until both arrive or the deadline fires. The race-detector
+	// timing made the single-call assumption flaky in CI.
 	sub := b.Subscribe("orders", "payment-svc")
 	defer b.Unsubscribe(sub)
 
@@ -23,15 +27,22 @@ func TestBrokerPublishSubscribe(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	msgs, err := sub.Next(ctx, 10)
-	if err != nil {
-		t.Fatalf("next: %v", err)
+	var msgs []Message
+	for len(msgs) < 2 {
+		batch, err := sub.Next(ctx, 10)
+		if err != nil {
+			t.Fatalf("next (after %d msgs): %v", len(msgs), err)
+		}
+		msgs = append(msgs, batch...)
 	}
 	if len(msgs) != 2 {
 		t.Fatalf("got %d msgs, want 2", len(msgs))
 	}
 	if string(msgs[0].Payload) != "order-1" {
 		t.Errorf("msg[0]: got %q, want %q", string(msgs[0].Payload), "order-1")
+	}
+	if string(msgs[1].Payload) != "order-2" {
+		t.Errorf("msg[1]: got %q, want %q", string(msgs[1].Payload), "order-2")
 	}
 }
 
