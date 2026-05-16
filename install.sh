@@ -2,9 +2,9 @@
 # GoQueue / Agent Bus installer
 #
 # Usage:
-#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
-#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh -s -- --version v0.1.0
-#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh -s -- --prefix $HOME/.local/bin
+#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
+#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh -s -- --version v0.1.0
+#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh -s -- --prefix $HOME/.local/bin
 #
 # Env overrides:
 #   GOQUEUE_VERSION   release tag to install (default: latest)
@@ -12,7 +12,7 @@
 
 set -eu
 
-REPO="khangpt2k6/GoQueue"
+REPO="khangpt2k6/AgentBus"
 VERSION="${GOQUEUE_VERSION:-latest}"
 PREFIX="${GOQUEUE_PREFIX:-}"
 

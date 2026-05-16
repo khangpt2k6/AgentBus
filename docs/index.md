@@ -22,7 +22,7 @@ It is not a Kafka replacement. It is focused on AI-native streaming where low op
 === "Install"
 
     ```bash
-    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
     ```
 
 === "Run"
