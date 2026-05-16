@@ -7,7 +7,7 @@ By the end of this page you'll have Agent Bus running locally and have sent your
 === "One-line installer (Linux/macOS)"
 
     ```bash
-    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
     ```
 
     Pin a version: `... | sh -s -- --version v0.1.0`.
@@ -23,7 +23,7 @@ By the end of this page you'll have Agent Bus running locally and have sent your
 === "Build from source"
 
     ```bash
-    git clone https://github.com/khangpt2k6/GoQueue.git
+    git clone https://github.com/khangpt2k6/AgentBus.git
     cd GoQueue
     go build -o bin/broker  ./cmd/broker
     go build -o bin/goqueue ./cmd/goqueue

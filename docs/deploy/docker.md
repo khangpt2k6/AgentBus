@@ -28,7 +28,7 @@ Image tags:
 The repository ships a `docker-compose.yml` that runs the broker plus Grafana, Prometheus, and Tempo:
 
 ```bash
-git clone https://github.com/khangpt2k6/GoQueue.git
+git clone https://github.com/khangpt2k6/AgentBus.git
 cd GoQueue
 docker compose up --build
 ```

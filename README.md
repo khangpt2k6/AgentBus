@@ -94,7 +94,7 @@ Pick whichever fits your platform.
 ### One-line installer (Linux / macOS)
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
 ```
 
 Installs `broker` and `goqueue` to `/usr/local/bin` (falls back to `$HOME/.local/bin`). Pin a version with `sh -s -- --version v0.1.0`.
@@ -109,12 +109,12 @@ docker run --rm -p 9090:9090 -p 9095:9095 -p 2112:2112 \
 
 ### Manual download
 
-Grab the archive for your OS/arch from [Releases](https://github.com/khangpt2k6/GoQueue/releases), verify with `checksums.txt`, extract, and put `broker` + `goqueue` on your `PATH`.
+Grab the archive for your OS/arch from [Releases](https://github.com/khangpt2k6/AgentBus/releases), verify with `checksums.txt`, extract, and put `broker` + `goqueue` on your `PATH`.
 
 ### Build from source
 
 ```bash
-git clone https://github.com/khangpt2k6/GoQueue.git
+git clone https://github.com/khangpt2k6/AgentBus.git
 cd GoQueue
 go build -o bin/broker  ./cmd/broker
 go build -o bin/goqueue ./cmd/goqueue

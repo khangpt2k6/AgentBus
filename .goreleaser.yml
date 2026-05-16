@@ -102,7 +102,7 @@ dockers:
       - '--platform=linux/amd64'
       - '--label=org.opencontainers.image.title={{ .ProjectName }}'
       - '--label=org.opencontainers.image.description=Session-ordered event bus for AI agents'
-      - '--label=org.opencontainers.image.source=https://github.com/khangpt2k6/GoQueue'
+      - '--label=org.opencontainers.image.source=https://github.com/khangpt2k6/AgentBus'
       - '--label=org.opencontainers.image.version={{ .Version }}'
       - '--label=org.opencontainers.image.revision={{ .FullCommit }}'
       - '--label=org.opencontainers.image.created={{ .Date }}'
@@ -120,7 +120,7 @@ dockers:
       - '--platform=linux/arm64'
       - '--label=org.opencontainers.image.title={{ .ProjectName }}'
       - '--label=org.opencontainers.image.description=Session-ordered event bus for AI agents'
-      - '--label=org.opencontainers.image.source=https://github.com/khangpt2k6/GoQueue'
+      - '--label=org.opencontainers.image.source=https://github.com/khangpt2k6/AgentBus'
       - '--label=org.opencontainers.image.version={{ .Version }}'
       - '--label=org.opencontainers.image.revision={{ .FullCommit }}'
       - '--label=org.opencontainers.image.created={{ .Date }}'
@@ -147,7 +147,7 @@ docker_manifests:
 #       owner: khangpt2k6
 #       name: homebrew-goqueue
 #       token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
-#     homepage: https://github.com/khangpt2k6/GoQueue
+#     homepage: https://github.com/khangpt2k6/AgentBus
 #     description: Session-ordered event bus for AI agents
 #     license: MIT
 #     install: |
@@ -165,14 +165,14 @@ docker_manifests:
 #       owner: khangpt2k6
 #       name: scoop-goqueue
 #       token: '{{ .Env.SCOOP_TAP_GITHUB_TOKEN }}'
-#     homepage: https://github.com/khangpt2k6/GoQueue
+#     homepage: https://github.com/khangpt2k6/AgentBus
 #     description: Session-ordered event bus for AI agents
 #     license: MIT
 
 release:
   github:
     owner: khangpt2k6
-    name: GoQueue
+    name: AgentBus
   draft: false
   prerelease: auto
   mode: append
@@ -186,7 +186,7 @@ release:
     **Quick start**
 
     ```bash
-    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
     # or
     docker run --rm -p 9090:9090 ghcr.io/khangpt2k6/goqueue:{{ .Tag }}
     ```

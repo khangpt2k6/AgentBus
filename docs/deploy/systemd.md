@@ -5,7 +5,7 @@ For when you want the broker running on a Linux VM without Docker.
 ## 1. Install the binary
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
 which broker
 # /usr/local/bin/broker
 ```
@@ -74,7 +74,7 @@ goqueue consume --addr localhost:9090 --topic smoke --group test
 
 ```bash
 sudo systemctl stop agentbus
-curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sudo sh -s -- --version v0.2.0
+curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sudo sh -s -- --version v0.2.0
 sudo systemctl start agentbus
 ```
 
