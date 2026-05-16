@@ -1,0 +1,25 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" fill="none" aria-label="AgentBus logo">
+  <!-- Three horizontal partition lanes with session-ordered events flowing left to right. -->
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="#0b0f1a"/>
+  <g stroke="rgba(255,255,255,0.18)" stroke-width="0.5">
+    <line x1="3.5" y1="9.5" x2="28.5" y2="9.5"/>
+    <line x1="3.5" y1="16" x2="28.5" y2="16"/>
+    <line x1="3.5" y1="22.5" x2="28.5" y2="22.5"/>
+  </g>
+  <!-- Sess-A: indigo, top lane, ordered chain -->
+  <g fill="#818cf8">
+    <rect x="5" y="6.5" width="5" height="6" rx="1.2"/>
+    <rect x="13" y="6.5" width="5" height="6" rx="1.2"/>
+    <rect x="21" y="6.5" width="5" height="6" rx="1.2"/>
+  </g>
+  <!-- Sess-B: emerald, middle lane -->
+  <g fill="#34d399">
+    <rect x="7" y="13" width="5" height="6" rx="1.2"/>
+    <rect x="19" y="13" width="5" height="6" rx="1.2"/>
+  </g>
+  <!-- Sess-C: amber, bottom lane -->
+  <g fill="#fbbf24">
+    <rect x="5" y="19.5" width="5" height="6" rx="1.2"/>
+    <rect x="13" y="19.5" width="5" height="6" rx="1.2"/>
+  </g>
+</svg>

@@ -1,0 +1,313 @@
+/* ---------------------------------------------------------------------------
+   AgentBus docs — visual polish.
+   Adds: tighter typography, hero block, feature grid cards,
+   custom code-block tint, opinionated admonitions.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --ab-bg-grad: linear-gradient(135deg, #1a1f3a 0%, #0b0f1a 100%);
+  --ab-accent: #818cf8;        /* indigo-400 */
+  --ab-accent-2: #34d399;      /* emerald-400 */
+  --ab-accent-3: #fbbf24;      /* amber-400 */
+  --ab-text-muted: #94a3b8;
+  --ab-border: rgba(148, 163, 184, 0.16);
+}
+
+/* Brand colors for the Material palette ------------------------------- */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b0f1a;
+  --md-default-fg-color: #e2e8f0;
+  --md-default-fg-color--light: #cbd5e1;
+  --md-default-fg-color--lighter: rgba(226, 232, 240, 0.5);
+  --md-primary-fg-color: #0b0f1a;
+  --md-primary-bg-color: #f1f5f9;
+  --md-accent-fg-color: var(--ab-accent);
+  --md-typeset-a-color: var(--ab-accent);
+  --md-code-bg-color: rgba(30, 41, 59, 0.6);
+  --md-code-fg-color: #e2e8f0;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0b0f1a;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #4338ca;
+  --md-typeset-a-color: #4338ca;
+}
+
+/* Typography -------------------------------------------------------- */
+.md-typeset {
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-size: 2.4rem;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+.md-typeset h2 {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin-top: 2.6rem;
+  padding-top: 0.4rem;
+}
+.md-typeset h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 1.8rem;
+}
+.md-typeset code,
+.md-typeset pre {
+  font-feature-settings: "calt" 1, "liga" 1;
+}
+
+/* Header & navigation --------------------------------------------- */
+.md-header {
+  background: var(--ab-bg-grad);
+  box-shadow: 0 1px 0 var(--ab-border);
+  backdrop-filter: saturate(120%) blur(8px);
+}
+.md-tabs {
+  background: transparent;
+  border-bottom: 1px solid var(--ab-border);
+}
+[data-md-color-scheme="slate"] .md-tabs__link {
+  color: rgba(226, 232, 240, 0.75);
+}
+[data-md-color-scheme="slate"] .md-tabs__link--active {
+  color: #ffffff;
+}
+
+/* Hero (used on index.md) ----------------------------------------- */
+.ab-hero {
+  position: relative;
+  padding: 3.2rem 2rem 3.4rem;
+  margin: -1.5rem -0.8rem 2.5rem;
+  border-radius: 18px;
+  background:
+    radial-gradient(1100px 460px at 100% 0%, rgba(129, 140, 248, 0.15), transparent 60%),
+    radial-gradient(900px 420px at 0% 100%, rgba(52, 211, 153, 0.10), transparent 60%),
+    linear-gradient(180deg, #0c1224 0%, #080b15 100%);
+  border: 1px solid var(--ab-border);
+  overflow: hidden;
+}
+.ab-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(129, 140, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(129, 140, 248, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at 50% 50%, black 35%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 35%, transparent 75%);
+  pointer-events: none;
+}
+.ab-hero > * { position: relative; }
+.ab-hero .ab-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ab-accent);
+  background: rgba(129, 140, 248, 0.08);
+  border: 1px solid rgba(129, 140, 248, 0.22);
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  margin-bottom: 1.4rem;
+}
+.ab-hero h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #f1f5f9;
+  margin: 0 0 0.8rem;
+  line-height: 1.05;
+}
+.ab-hero .ab-lede {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  max-width: 38rem;
+  margin: 0 0 1.8rem;
+}
+.ab-hero .ab-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.4rem;
+}
+.ab-hero .ab-cta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.55rem 1.05rem;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: transform 100ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+.ab-hero .ab-cta a.primary {
+  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 18px -8px rgba(99, 102, 241, 0.7);
+}
+.ab-hero .ab-cta a.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -10px rgba(99, 102, 241, 0.8);
+}
+.ab-hero .ab-cta a.ghost {
+  background: rgba(226, 232, 240, 0.04);
+  color: #e2e8f0;
+  border: 1px solid rgba(226, 232, 240, 0.12);
+}
+.ab-hero .ab-cta a.ghost:hover {
+  background: rgba(226, 232, 240, 0.08);
+  border-color: rgba(226, 232, 240, 0.22);
+}
+
+/* Highlight chips inside the hero --------------------------------- */
+.ab-hero .ab-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ab-hero .ab-pills li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: rgba(226, 232, 240, 0.05);
+  border: 1px solid rgba(226, 232, 240, 0.12);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+}
+.ab-hero .ab-pills .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ab-accent-2);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.7);
+}
+
+/* Feature grid (use after a Material grid block) ------------------ */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid.cards > ol > li,
+.md-typeset .grid > .card {
+  border-radius: 12px;
+  border: 1px solid var(--ab-border);
+  background: rgba(255, 255, 255, 0.02);
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.md-typeset .grid.cards > ul > li:hover,
+.md-typeset .grid.cards > ol > li:hover,
+.md-typeset .grid > .card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(129, 140, 248, 0.45);
+  background: rgba(129, 140, 248, 0.04);
+}
+[data-md-color-scheme="default"] .md-typeset .grid.cards > ul > li,
+[data-md-color-scheme="default"] .md-typeset .grid.cards > ol > li {
+  background: #ffffff;
+  border-color: rgba(11, 15, 26, 0.08);
+}
+.md-typeset .grid.cards h3,
+.md-typeset .grid.cards .twemoji + p strong {
+  font-size: 0.95rem;
+}
+
+/* Inline code -------------------------------------------------------- */
+.md-typeset code {
+  font-size: 0.85em;
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  border: 1px solid var(--ab-border);
+}
+.md-typeset pre > code {
+  border: none;
+  border-radius: 0;
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+.md-typeset .highlight {
+  border-radius: 10px;
+  border: 1px solid var(--ab-border);
+  overflow: hidden;
+}
+.md-typeset .highlight pre {
+  margin: 0;
+  border-radius: 0;
+}
+
+/* Tables ------------------------------------------------------------- */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--ab-border);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.8rem;
+  box-shadow: none;
+}
+.md-typeset table:not([class]) th {
+  background: rgba(129, 140, 248, 0.08);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.md-typeset table:not([class]) tr:nth-child(2n) {
+  background: rgba(226, 232, 240, 0.02);
+}
+
+/* Admonitions: tighter & more opinionated --------------------------- */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 10px;
+  border-left-width: 3px;
+  box-shadow: none;
+  border: 1px solid var(--ab-border);
+  border-left-width: 3px;
+}
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-left-color: var(--ab-accent);
+}
+.md-typeset .admonition.tip,
+.md-typeset details.tip {
+  border-left-color: var(--ab-accent-2);
+}
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-left-color: var(--ab-accent-3);
+}
+
+/* Footer ----------------------------------------------------------- */
+.md-footer-meta {
+  background: #050810;
+}
+.md-footer-meta__inner {
+  padding: 1rem 0.8rem;
+}
+.md-footer__inner {
+  background: #080b15;
+  border-top: 1px solid var(--ab-border);
+}
+
+/* Mobile tweaks --------------------------------------------------- */
+@media (max-width: 76.1875em) {
+  .ab-hero {
+    padding: 2.2rem 1.2rem 2.4rem;
+    margin: -1rem -0.5rem 1.5rem;
+  }
+  .ab-hero h1 {
+    font-size: 2.1rem;
+  }
+}
