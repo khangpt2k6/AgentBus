@@ -100,6 +100,15 @@ func (c *Client) ReplaySession(ctx context.Context, sess SessionRef, opts Replay
 		pageSize = 256
 	}
 
+	// Push the session filter to the broker — drastically reduces wire
+	// bytes on a busy topic. The broker's scan_limit defaults to 16K; bump
+	// pageSize-derived budget here if MaxEvents is large.
+	filter := &pb.SessionFilter{
+		Tenant:    sess.Tenant,
+		Project:   sess.Project,
+		SessionId: sess.SessionID,
+	}
+
 	var out []DecodedEvent
 	offset := opts.FromOffset
 	if offset < 0 {
@@ -107,24 +116,30 @@ func (c *Client) ReplaySession(ctx context.Context, sess SessionRef, opts Replay
 	}
 	for {
 		page, err := c.api.Fetch(ctx, &pb.FetchRequest{
-			Topic:      topic,
-			Partition:  partition,
-			FromOffset: offset,
-			MaxCount:   pageSize,
+			Topic:         topic,
+			Partition:     partition,
+			FromOffset:    offset,
+			MaxCount:      pageSize,
+			SessionFilter: filter,
 		})
 		if err != nil {
 			return out, fmt.Errorf("agentbus: replay fetch: %w", err)
 		}
 		if len(page.Messages) == 0 {
-			// Caught up to tail.
+			// Either no more matches OR broker hit its scan budget without
+			// finding more. If NextOffset advanced past where we started,
+			// progress was made — loop again. Otherwise we're done.
+			if page.NextOffset > offset && page.NextOffset < page.Tail {
+				offset = page.NextOffset
+				continue
+			}
 			return out, nil
 		}
 		for _, m := range page.Messages {
+			// Broker already filtered, but decode is still needed to
+			// populate envelope fields for the caller.
 			ev, ok := DecodeEvent(m.Payload)
 			if !ok {
-				continue
-			}
-			if !sessionMatches(ev, sess) {
 				continue
 			}
 			ev.Topic = topic

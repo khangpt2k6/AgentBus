@@ -2,9 +2,12 @@ package grpcapi
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/json"
 	"io"
 	"time"
 
+	"github.com/khangpt2k6/AgentBus/internal/agentstream"
 	"github.com/khangpt2k6/AgentBus/internal/broker"
 	"github.com/khangpt2k6/AgentBus/internal/consumer"
 	"github.com/khangpt2k6/AgentBus/internal/metrics"
@@ -18,6 +21,49 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// envelopePeek is the minimal subset of the agent envelope used for
+// server-side session filtering. Keeping it tiny avoids the cost of fully
+// decoding the payload on every scanned message.
+type envelopePeek struct {
+	Tenant    string `json:"tenant"`
+	Project   string `json:"project"`
+	SessionID string `json:"session_id"`
+}
+
+// newSpanID generates a fresh 8-byte OTEL SpanID. Used when we synthesize a
+// parent SpanContext (session-derived trace) so child spans get a unique id.
+func newSpanID() trace.SpanID {
+	var id trace.SpanID
+	_, _ = rand.Read(id[:])
+	if !id.IsValid() {
+		id[7] = 1
+	}
+	return id
+}
+
+func sessionFilterMatches(payload []byte, filter *goqueuev1.SessionFilter) bool {
+	if filter == nil {
+		return true
+	}
+	if filter.Tenant == "" && filter.Project == "" && filter.SessionId == "" {
+		return true
+	}
+	var p envelopePeek
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return false
+	}
+	if filter.Tenant != "" && filter.Tenant != p.Tenant {
+		return false
+	}
+	if filter.Project != "" && filter.Project != p.Project {
+		return false
+	}
+	if filter.SessionId != "" && filter.SessionId != p.SessionID {
+		return false
+	}
+	return true
+}
 
 type Server struct {
 	goqueuev1.UnimplementedBrokerServiceServer
@@ -33,6 +79,24 @@ func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal
 }
 
 func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
+	// Peek the envelope BEFORE starting the span so we can anchor the span
+	// to the session's derived trace_id when no upstream trace is propagated.
+	// Producers that already propagate OTEL context keep their own trace —
+	// we only synthesize one when the caller has none, so observers can
+	// still group events by session in Jaeger/Tempo.
+	if ev, ok := agentstream.PeekEnvelope(req.Payload); ok {
+		if !trace.SpanContextFromContext(ctx).IsValid() {
+			traceID := agentstream.SessionTraceID(ev.Tenant, ev.Project, ev.SessionID)
+			if traceID.IsValid() {
+				ctx = trace.ContextWithSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
+					TraceID:    traceID,
+					SpanID:     newSpanID(),
+					TraceFlags: trace.FlagsSampled,
+					Remote:     false,
+				}))
+			}
+		}
+	}
 	ctx, span := otel.Tracer("goqueue.grpcapi").Start(ctx, "BrokerService.Publish")
 	defer span.End()
 	span.SetAttributes(
@@ -41,6 +105,11 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 		attribute.Int("payload_bytes", len(req.Payload)),
 		attribute.Int64("requested_partition", int64(req.Partition)),
 	)
+	// Attach agent attributes for searchability in trace backends. Done
+	// after Start so the producer's request span carries them too.
+	if ev, ok := agentstream.PeekEnvelope(req.Payload); ok {
+		span.SetAttributes(agentstream.AttributesFor(ev)...)
+	}
 
 	if req.Topic == "" {
 		span.SetStatus(otelcodes.Error, "topic required")
@@ -216,21 +285,75 @@ func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goque
 		maxCount = 4096
 	}
 
-	msgs := s.broker.FetchPartition(req.Topic, int(req.Partition), req.FromOffset, maxCount)
 	head, tail, _ := s.broker.TopicPartitionInfo(req.Topic, int(req.Partition))
 
-	out := make([]*goqueuev1.ConsumeMessage, 0, len(msgs))
-	for _, m := range msgs {
-		out = append(out, &goqueuev1.ConsumeMessage{
-			Offset:            m.Offset,
-			Payload:           m.Payload,
-			TimestampUnixNano: m.Timestamp.UnixNano(),
-			Partition:         req.Partition,
-		})
+	// Fast path: no filter, return up to maxCount raw messages.
+	if req.SessionFilter == nil {
+		msgs := s.broker.FetchPartition(req.Topic, int(req.Partition), req.FromOffset, maxCount)
+		out := make([]*goqueuev1.ConsumeMessage, 0, len(msgs))
+		for _, m := range msgs {
+			out = append(out, &goqueuev1.ConsumeMessage{
+				Offset:            m.Offset,
+				Payload:           m.Payload,
+				TimestampUnixNano: m.Timestamp.UnixNano(),
+				Partition:         req.Partition,
+			})
+		}
+		nextOffset := req.FromOffset + int64(len(msgs))
+		span.SetAttributes(attribute.Int("returned", len(msgs)))
+		span.SetStatus(otelcodes.Ok, "ok")
+		return &goqueuev1.FetchResponse{
+			Messages: out, NextOffset: nextOffset, Head: head, Tail: tail,
+		}, nil
 	}
 
-	nextOffset := req.FromOffset + int64(len(msgs))
-	span.SetAttributes(attribute.Int("returned", len(msgs)))
+	// Filtered path: scan in larger pages until we collect maxCount matches
+	// or hit the scan budget. nextOffset is the offset to resume from on
+	// the next page, NOT FromOffset + len(matches) — callers must use it
+	// instead of trying to derive their own.
+	scanLimit := int(req.ScanLimit)
+	if scanLimit <= 0 {
+		scanLimit = 16384
+	}
+	if scanLimit > 65536 {
+		scanLimit = 65536
+	}
+	pageSize := 1024
+	if pageSize > scanLimit {
+		pageSize = scanLimit
+	}
+
+	out := make([]*goqueuev1.ConsumeMessage, 0, maxCount)
+	offset := req.FromOffset
+	scanned := 0
+	for len(out) < maxCount && scanned < scanLimit && offset < tail {
+		msgs := s.broker.FetchPartition(req.Topic, int(req.Partition), offset, pageSize)
+		if len(msgs) == 0 {
+			break
+		}
+		for _, m := range msgs {
+			scanned++
+			if !sessionFilterMatches(m.Payload, req.SessionFilter) {
+				continue
+			}
+			out = append(out, &goqueuev1.ConsumeMessage{
+				Offset:            m.Offset,
+				Payload:           m.Payload,
+				TimestampUnixNano: m.Timestamp.UnixNano(),
+				Partition:         req.Partition,
+			})
+			if len(out) >= maxCount {
+				break
+			}
+		}
+		offset += int64(len(msgs))
+	}
+	nextOffset := offset
+	span.SetAttributes(
+		attribute.Int("returned", len(out)),
+		attribute.Int("scanned", scanned),
+		attribute.Bool("filtered", true),
+	)
 	span.SetStatus(otelcodes.Ok, "ok")
 	return &goqueuev1.FetchResponse{
 		Messages:   out,
