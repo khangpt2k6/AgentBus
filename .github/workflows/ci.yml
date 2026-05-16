@@ -45,8 +45,11 @@ jobs:
         uses: bufbuild/buf-setup-action@v1.50.0
 
       - name: Verify protobuf generation is up to date
+        # Use the pinned buf from buf-setup-action (NOT `go run @latest`),
+        # combined with pinned plugin versions in buf.gen.yaml, so regen
+        # is fully reproducible.
         run: |
-          go run github.com/bufbuild/buf/cmd/buf@latest generate
+          buf generate
           git diff --exit-code
 
       - name: Verify go.mod and go.sum are tidy
