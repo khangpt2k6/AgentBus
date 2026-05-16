@@ -269,6 +269,148 @@ func (x *ConsumeMessage) GetPartition() int32 {
 	return 0
 }
 
+type FetchRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Topic      string                 `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
+	Partition  int32                  `protobuf:"varint,2,opt,name=partition,proto3" json:"partition,omitempty"`
+	FromOffset int64                  `protobuf:"varint,3,opt,name=from_offset,json=fromOffset,proto3" json:"from_offset,omitempty"`
+	// Maximum messages to return. Server caps at 4096.
+	MaxCount      int32 `protobuf:"varint,4,opt,name=max_count,json=maxCount,proto3" json:"max_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchRequest) Reset() {
+	*x = FetchRequest{}
+	mi := &file_goqueue_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchRequest) ProtoMessage() {}
+
+func (x *FetchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchRequest.ProtoReflect.Descriptor instead.
+func (*FetchRequest) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FetchRequest) GetTopic() string {
+	if x != nil {
+		return x.Topic
+	}
+	return ""
+}
+
+func (x *FetchRequest) GetPartition() int32 {
+	if x != nil {
+		return x.Partition
+	}
+	return 0
+}
+
+func (x *FetchRequest) GetFromOffset() int64 {
+	if x != nil {
+		return x.FromOffset
+	}
+	return 0
+}
+
+func (x *FetchRequest) GetMaxCount() int32 {
+	if x != nil {
+		return x.MaxCount
+	}
+	return 0
+}
+
+type FetchResponse struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Messages []*ConsumeMessage      `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	// next_offset is the offset to pass on the next page to continue reading.
+	// Equals from_offset + len(messages) on success.
+	NextOffset int64 `protobuf:"varint,2,opt,name=next_offset,json=nextOffset,proto3" json:"next_offset,omitempty"`
+	// head is the oldest offset still retained for this partition (older
+	// messages have been evicted from the ring buffer).
+	Head int64 `protobuf:"varint,3,opt,name=head,proto3" json:"head,omitempty"`
+	// tail is the next-write offset (one past the latest persisted message).
+	Tail          int64 `protobuf:"varint,4,opt,name=tail,proto3" json:"tail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchResponse) Reset() {
+	*x = FetchResponse{}
+	mi := &file_goqueue_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchResponse) ProtoMessage() {}
+
+func (x *FetchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchResponse.ProtoReflect.Descriptor instead.
+func (*FetchResponse) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FetchResponse) GetMessages() []*ConsumeMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *FetchResponse) GetNextOffset() int64 {
+	if x != nil {
+		return x.NextOffset
+	}
+	return 0
+}
+
+func (x *FetchResponse) GetHead() int64 {
+	if x != nil {
+		return x.Head
+	}
+	return 0
+}
+
+func (x *FetchResponse) GetTail() int64 {
+	if x != nil {
+		return x.Tail
+	}
+	return 0
+}
+
 var File_goqueue_proto protoreflect.FileDescriptor
 
 const file_goqueue_proto_rawDesc = "" +
@@ -291,10 +433,23 @@ const file_goqueue_proto_rawDesc = "" +
 	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\fR\apayload\x12.\n" +
 	"\x13timestamp_unix_nano\x18\x03 \x01(\x03R\x11timestampUnixNano\x12\x1c\n" +
-	"\tpartition\x18\x04 \x01(\x05R\tpartition2\x98\x01\n" +
+	"\tpartition\x18\x04 \x01(\x05R\tpartition\"\x80\x01\n" +
+	"\fFetchRequest\x12\x14\n" +
+	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1c\n" +
+	"\tpartition\x18\x02 \x01(\x05R\tpartition\x12\x1f\n" +
+	"\vfrom_offset\x18\x03 \x01(\x03R\n" +
+	"fromOffset\x12\x1b\n" +
+	"\tmax_count\x18\x04 \x01(\x05R\bmaxCount\"\x90\x01\n" +
+	"\rFetchResponse\x126\n" +
+	"\bmessages\x18\x01 \x03(\v2\x1a.goqueue.v1.ConsumeMessageR\bmessages\x12\x1f\n" +
+	"\vnext_offset\x18\x02 \x01(\x03R\n" +
+	"nextOffset\x12\x12\n" +
+	"\x04head\x18\x03 \x01(\x03R\x04head\x12\x12\n" +
+	"\x04tail\x18\x04 \x01(\x03R\x04tail2\xd6\x01\n" +
 	"\rBrokerService\x12B\n" +
 	"\aPublish\x12\x1a.goqueue.v1.PublishRequest\x1a\x1b.goqueue.v1.PublishResponse\x12C\n" +
-	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01B0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
+	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01\x12<\n" +
+	"\x05Fetch\x12\x18.goqueue.v1.FetchRequest\x1a\x19.goqueue.v1.FetchResponseB0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
 
 var (
 	file_goqueue_proto_rawDescOnce sync.Once
@@ -308,23 +463,28 @@ func file_goqueue_proto_rawDescGZIP() []byte {
 	return file_goqueue_proto_rawDescData
 }
 
-var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_goqueue_proto_goTypes = []any{
 	(*PublishRequest)(nil),  // 0: goqueue.v1.PublishRequest
 	(*PublishResponse)(nil), // 1: goqueue.v1.PublishResponse
 	(*ConsumeRequest)(nil),  // 2: goqueue.v1.ConsumeRequest
 	(*ConsumeMessage)(nil),  // 3: goqueue.v1.ConsumeMessage
+	(*FetchRequest)(nil),    // 4: goqueue.v1.FetchRequest
+	(*FetchResponse)(nil),   // 5: goqueue.v1.FetchResponse
 }
 var file_goqueue_proto_depIdxs = []int32{
-	0, // 0: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
-	2, // 1: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
-	1, // 2: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
-	3, // 3: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	3, // 0: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
+	0, // 1: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
+	2, // 2: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
+	4, // 3: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
+	1, // 4: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
+	3, // 5: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
+	5, // 6: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_goqueue_proto_init() }
@@ -338,7 +498,7 @@ func file_goqueue_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_goqueue_proto_rawDesc), len(file_goqueue_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

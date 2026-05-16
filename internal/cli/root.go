@@ -32,6 +32,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newPublishBatchCmd(opts))
 	root.AddCommand(newConsumeCmd(opts))
 	root.AddCommand(newFetchCmd(opts))
+	root.AddCommand(newSessionCmd(opts))
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print CLI version",

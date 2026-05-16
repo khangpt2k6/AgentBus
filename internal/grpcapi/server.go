@@ -176,6 +176,70 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 	}
 }
 
+// Fetch returns a single page of historical messages from (topic, partition)
+// starting at from_offset. Unlike Consume, it doesn't touch consumer-group
+// state and doesn't stream — callers paginate by passing the response's
+// next_offset on the next call. Powers session replay and time-travel reads.
+func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goqueuev1.FetchResponse, error) {
+	_, span := otel.Tracer("goqueue.grpcapi").Start(ctx, "BrokerService.Fetch")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("topic", req.Topic),
+		attribute.Int64("partition", int64(req.Partition)),
+		attribute.Int64("from_offset", req.FromOffset),
+		attribute.Int64("max_count", int64(req.MaxCount)),
+	)
+
+	if req.Topic == "" {
+		span.SetStatus(otelcodes.Error, "topic required")
+		return nil, status.Error(codes.InvalidArgument, "topic is required")
+	}
+	if req.Partition < 0 {
+		span.SetStatus(otelcodes.Error, "partition required")
+		return nil, status.Error(codes.InvalidArgument, "partition must be >= 0")
+	}
+	if int(req.Partition) >= s.broker.PartitionCount(req.Topic) {
+		// Topic may not exist yet — return empty rather than error so callers
+		// can poll safely.
+		head, tail, err := s.broker.TopicPartitionInfo(req.Topic, int(req.Partition))
+		if err != nil {
+			return &goqueuev1.FetchResponse{NextOffset: req.FromOffset}, nil
+		}
+		return &goqueuev1.FetchResponse{NextOffset: req.FromOffset, Head: head, Tail: tail}, nil
+	}
+
+	maxCount := int(req.MaxCount)
+	if maxCount <= 0 {
+		maxCount = 256
+	}
+	if maxCount > 4096 {
+		maxCount = 4096
+	}
+
+	msgs := s.broker.FetchPartition(req.Topic, int(req.Partition), req.FromOffset, maxCount)
+	head, tail, _ := s.broker.TopicPartitionInfo(req.Topic, int(req.Partition))
+
+	out := make([]*goqueuev1.ConsumeMessage, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, &goqueuev1.ConsumeMessage{
+			Offset:            m.Offset,
+			Payload:           m.Payload,
+			TimestampUnixNano: m.Timestamp.UnixNano(),
+			Partition:         req.Partition,
+		})
+	}
+
+	nextOffset := req.FromOffset + int64(len(msgs))
+	span.SetAttributes(attribute.Int("returned", len(msgs)))
+	span.SetStatus(otelcodes.Ok, "ok")
+	return &goqueuev1.FetchResponse{
+		Messages:   out,
+		NextOffset: nextOffset,
+		Head:       head,
+		Tail:       tail,
+	}, nil
+}
+
 func Register(grpcServer *grpc.Server, srv *Server) {
 	goqueuev1.RegisterBrokerServiceServer(grpcServer, srv)
 }

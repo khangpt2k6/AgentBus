@@ -32,41 +32,7 @@ It is not a Kafka replacement. It is focused on AI-native streaming where low op
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    Producers["AI Agents / Tools"]
-    Consumers["Consumer Groups"]
-
-    subgraph Clients["Client APIs"]
-        TCP["TCP"]
-        GRPC["gRPC"]
-        CLI["CLI"]
-    end
-
-    subgraph Core["Agent Bus Core"]
-        Router["Session Router<br/>tenant / project / session"]
-        Parts["Partitioned Topics<br/>per-session ordering"]
-        Retry["Retry + DLQ Policy"]
-        Router --> Parts --> Retry
-    end
-
-    WAL[("WAL<br/>append + replay")]
-
-    subgraph Observe["Observability"]
-        Prom["Prometheus"]
-        Otel["OpenTelemetry"]
-        Dash["Grafana / WASM Dashboard"]
-    end
-
-    Producers --> Clients
-    Consumers --> Clients
-    Clients --> Core
-    Core <--> WAL
-    Core -.metrics.-> Prom
-    Core -.traces.-> Otel
-    Prom --> Dash
-    Otel --> Dash
-```
+![Agent Bus architecture: agent tools publish events through TCP, gRPC, and CLI clients into the Agent Bus Core (session router, partition topics, consumer groups), with observability and durability layers attached.](<Agent tools.png>)
 
 | Layer | Responsibility |
 |---|---|
@@ -180,6 +146,28 @@ goqueue publish-agent --grpc --addr localhost:9095 \
   --type tool.call --step retrieve-context --attempt 1 \
   --payload '{"tool":"search","query":"latest order status"}'
 ```
+
+### Replay a failed agent run
+
+When a multi-agent workflow fails, dump the whole conversation by session ID:
+
+```bash
+goqueue session replay --grpc --addr localhost:9095 \
+  --tenant acme --project support-bot --session sess-42
+```
+
+```
+[14:02:11.394] off=21084  tool.call      retrieve-context  agent=planner
+    {"tool":"search","query":"latest order"}
+[14:02:11.811] off=21085  tool.result    retrieve-context  agent=planner
+    {"results":[],"latency_ms":417}
+[14:02:14.118] off=21088  tool.call      retrieve-context  (attempt 3)  agent=planner
+    {"tool":"search","db":"cold-storage"}
+[14:02:14.613] off=21090  handoff                          agent=planner
+    {"from_agent":"planner","to_agent":"escalator","reason":"3 failed attempts"}
+```
+
+Live tail with `goqueue session tail`. Full guide: [docs/debug-agent-run.md](docs/debug-agent-run.md). Self-hosted, no vendor required.
 
 ### Retry or route a failed agent event to DLQ
 
