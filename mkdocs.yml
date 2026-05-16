@@ -1,0 +1,89 @@
+site_name: Agent Bus
+site_description: Session-ordered event bus for AI agents — ordering, replay, and observability in a single Go binary.
+site_url: https://khangpt2k6.github.io/GoQueue/
+repo_url: https://github.com/khangpt2k6/GoQueue
+repo_name: khangpt2k6/GoQueue
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - search.suggest
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Concepts:
+      - Sessions & Ordering: concepts/sessions.md
+      - Retry & DLQ: concepts/retry-dlq.md
+      - WAL & Replay: concepts/wal-replay.md
+  - Deploy:
+      - Docker: deploy/docker.md
+      - systemd (VM): deploy/systemd.md
+  - Observability: observability.md
+  - Reference:
+      - CLI: reference/cli.md
+  - Design Notes:
+      - Distributed v1: distributed-v1-design.md
+      - Benchmarking: benchmarking.md
+      - AI Agent Pivot: ai-agent-pivot.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/khangpt2k6/GoQueue
+
+exclude_docs: |
+  canva-diagram-guide.html

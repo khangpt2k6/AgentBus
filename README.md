@@ -87,39 +87,74 @@ flowchart TB
 
 ---
 
+## Install
+
+Pick whichever fits your platform.
+
+### One-line installer (Linux / macOS)
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/khangpt2k6/GoQueue/main/install.sh | sh
+```
+
+Installs `broker` and `goqueue` to `/usr/local/bin` (falls back to `$HOME/.local/bin`). Pin a version with `sh -s -- --version v0.1.0`.
+
+### Docker
+
+```bash
+docker run --rm -p 9090:9090 -p 9095:9095 -p 2112:2112 \
+  ghcr.io/khangpt2k6/goqueue:latest \
+  --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112
+```
+
+### Manual download
+
+Grab the archive for your OS/arch from [Releases](https://github.com/khangpt2k6/GoQueue/releases), verify with `checksums.txt`, extract, and put `broker` + `goqueue` on your `PATH`.
+
+### Build from source
+
+```bash
+git clone https://github.com/khangpt2k6/GoQueue.git
+cd GoQueue
+go build -o bin/broker  ./cmd/broker
+go build -o bin/goqueue ./cmd/goqueue
+```
+
+---
+
 ## Quick Start
 
 ### Run the broker
 
 ```bash
-go run ./cmd/broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/agentbus.wal
+broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/agentbus.wal
 ```
 
 ### Publish and consume (TCP)
 
 ```bash
-go run ./cmd/goqueue publish --addr localhost:9090 --topic orders "hello tcp"
-go run ./cmd/goqueue consume --addr localhost:9090 --topic orders --group payment-service
+goqueue publish --addr localhost:9090 --topic orders "hello tcp"
+goqueue consume --addr localhost:9090 --topic orders --group payment-service
 ```
 
 ### Publish and consume (gRPC)
 
 ```bash
-go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders "hello grpc"
-go run ./cmd/goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service --partition -1
+goqueue publish --grpc --addr localhost:9095 --topic orders "hello grpc"
+goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service --partition -1
 ```
 
 ### Key-based routing
 
 ```bash
-go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 "order-a"
-go run ./cmd/goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 "order-b"
+goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 "order-a"
+goqueue publish --grpc --addr localhost:9095 --topic orders --key user-42 "order-b"
 ```
 
 ### Publish an agent event (session-ordered)
 
 ```bash
-go run ./cmd/goqueue publish-agent --grpc --addr localhost:9095 \
+goqueue publish-agent --grpc --addr localhost:9095 \
   --tenant acme --project support-bot --session sess-42 --agent planner \
   --type tool.call --step retrieve-context --attempt 1 \
   --payload '{"tool":"search","query":"latest order status"}'
@@ -128,7 +163,7 @@ go run ./cmd/goqueue publish-agent --grpc --addr localhost:9095 \
 ### Retry or route a failed agent event to DLQ
 
 ```bash
-go run ./cmd/goqueue retry-agent --grpc --addr localhost:9095 \
+goqueue retry-agent --grpc --addr localhost:9095 \
   --topic agent-events --max-attempts 3 --delay 2s \
   --event '{"version":"v1","type":"tool.call","tenant":"acme","project":"support-bot","session_id":"sess-42","agent_id":"planner","attempt":1,"created_at":"2026-04-03T10:00:00Z","payload":{"tool":"search","query":"latest order status"}}'
 ```
