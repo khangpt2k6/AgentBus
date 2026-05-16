@@ -47,6 +47,15 @@ func (b *Broker) PublishWithKey(topicName, key string, payload []byte) (partitio
 	return partition, offset, nil
 }
 
+// RouteKey returns the partition that PublishWithKey would route to for the
+// given (topic, key). Side effect: ensures the topic exists with default
+// partition count if it doesn't yet. This lets callers durably persist a
+// message (e.g. to a WAL) before mutating in-memory broker state.
+func (b *Broker) RouteKey(topicName, key string) int {
+	set := b.getOrCreate(topicName)
+	return choosePartition(set, key)
+}
+
 func (b *Broker) PublishToPartition(topicName string, partition int, payload []byte) (int64, error) {
 	set := b.getOrCreate(topicName)
 	if partition < 0 || partition >= len(set.partitions) {

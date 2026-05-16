@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"hash/crc32"
 	"io"
 	"os"
 	"strings"
@@ -11,8 +12,21 @@ import (
 	"time"
 )
 
+// crcTable uses CRC32-Castagnoli (CRC32C) — same polynomial as iSCSI, ext4,
+// and modern hardware (SSE4.2 has a single-instruction implementation).
+// Detects most flip-bit corruption that a noisy disk or partial write leaves
+// behind, in roughly free time on modern CPUs.
+var crcTable = crc32.MakeTable(crc32.Castagnoli)
+
 var ErrCorruptRecord = errors.New("wal: corrupt record")
 var ErrInvalidSyncMode = errors.New("wal: invalid sync mode")
+var ErrPayloadTooLarge = errors.New("wal: payload exceeds maximum size")
+
+// MaxPayloadSize bounds per-record payload to defend replay against tampered
+// or otherwise malformed records that encode a giant length. Without this,
+// a corrupt header with payloadLen = 0xFFFFFFFF would trigger a 4GiB
+// allocation attempt during replay.
+const MaxPayloadSize = 64 << 20 // 64 MiB
 
 // Record stores one append-only WAL entry.
 type Record struct {
@@ -44,7 +58,13 @@ var DefaultReplayOptions = ReplayOptions{
 	AllowPartialTail: true,
 }
 
-// Log is a very small append-only WAL implementation.
+// Log is an append-only WAL implementation with group-commit fsync.
+//
+// Concurrent writers are coalesced into a single fsync per "generation".
+// While one goroutine performs the fsync syscall (mutex released), other
+// writers may continue appending bytes into the next generation's buffer.
+// This amortizes a single ~ms fsync cost across many concurrent appends,
+// turning N sequential fsyncs into roughly ceil(N / batch_size).
 type Log struct {
 	mu sync.Mutex
 	f  *os.File
@@ -53,6 +73,14 @@ type Log struct {
 	syncMode     SyncMode
 	syncInterval time.Duration
 	lastSync     time.Time
+
+	// Group commit state (guarded by mu).
+	syncCond   *sync.Cond
+	pendingGen uint64 // generation incoming writes are tagged with
+	syncedGen  uint64 // last generation whose fsync has completed
+	syncing    bool   // a goroutine is mid Flush+fsync for some gen
+	syncErr    error  // result of the last completed sync round
+	fatal      bool   // an unrecoverable IO error has poisoned the log
 }
 
 func Open(path string) (*Log, error) {
@@ -75,13 +103,16 @@ func OpenWithOptions(path string, opts Options) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Log{
+	l := &Log{
 		f:            f,
 		w:            bufio.NewWriterSize(f, 1<<20),
 		syncMode:     mode,
 		syncInterval: opts.SyncInterval,
 		lastSync:     time.Now(),
-	}, nil
+		pendingGen:   1,
+	}
+	l.syncCond = sync.NewCond(&l.mu)
+	return l, nil
 }
 
 func (l *Log) Append(topic string, payload []byte) error {
@@ -94,9 +125,6 @@ func (l *Log) Append(topic string, payload []byte) error {
 }
 
 func (l *Log) AppendRecord(rec Record) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	if rec.Partition == 0 && rec.Topic == "" {
 		return ErrCorruptRecord
 	}
@@ -115,10 +143,13 @@ func (l *Log) AppendRecord(rec Record) error {
 	if len(keyBytes) > 0xFFFF {
 		return ErrCorruptRecord
 	}
+	if len(rec.Payload) > MaxPayloadSize {
+		return ErrPayloadTooLarge
+	}
 
 	header := make([]byte, 24)
 	copy(header[0:2], []byte{'G', 'W'})
-	header[2] = 2
+	header[2] = 3 // version 3: V2 layout + trailing 4-byte CRC32C
 	header[3] = 0
 	binary.BigEndian.PutUint64(header[4:12], uint64(rec.Timestamp))
 	binary.BigEndian.PutUint32(header[12:16], uint32(rec.Partition))
@@ -126,58 +157,155 @@ func (l *Log) AppendRecord(rec Record) error {
 	binary.BigEndian.PutUint16(header[18:20], uint16(len(keyBytes)))
 	binary.BigEndian.PutUint32(header[20:24], uint32(len(rec.Payload)))
 
+	// CRC covers everything between the magic and the CRC itself: version
+	// byte through end of payload. Computed before taking the WAL mutex so
+	// the hot path under lock is minimal.
+	h := crc32.New(crcTable)
+	h.Write(header[2:])
+	h.Write(topicBytes)
+	h.Write(keyBytes)
+	h.Write(rec.Payload)
+	var crcBytes [4]byte
+	binary.BigEndian.PutUint32(crcBytes[:], h.Sum32())
+
+	l.mu.Lock()
+	if l.fatal {
+		err := l.syncErr
+		l.mu.Unlock()
+		return err
+	}
 	if _, err := l.w.Write(header); err != nil {
+		l.poisonLocked(err)
+		l.mu.Unlock()
 		return err
 	}
 	if _, err := l.w.Write(topicBytes); err != nil {
+		l.poisonLocked(err)
+		l.mu.Unlock()
 		return err
 	}
 	if _, err := l.w.Write(keyBytes); err != nil {
+		l.poisonLocked(err)
+		l.mu.Unlock()
 		return err
 	}
 	if _, err := l.w.Write(rec.Payload); err != nil {
+		l.poisonLocked(err)
+		l.mu.Unlock()
 		return err
 	}
-	if err := l.w.Flush(); err != nil {
+	if _, err := l.w.Write(crcBytes[:]); err != nil {
+		l.poisonLocked(err)
+		l.mu.Unlock()
 		return err
 	}
-	return l.maybeSyncLocked()
+
+	myGen := l.pendingGen
+	needSync := l.shouldSyncLocked()
+	if !needSync {
+		l.mu.Unlock()
+		return nil
+	}
+	return l.groupCommitLocked(myGen)
 }
 
-func (l *Log) maybeSyncLocked() error {
+// shouldSyncLocked decides whether the current append must trigger an fsync
+// for SyncAlways, or whether the configured interval has elapsed for SyncInterval.
+func (l *Log) shouldSyncLocked() bool {
 	switch l.syncMode {
 	case SyncAlways:
-		if err := l.f.Sync(); err != nil {
+		return true
+	case SyncInterval:
+		return time.Since(l.lastSync) >= l.syncInterval
+	}
+	return false
+}
+
+// groupCommitLocked is invoked with l.mu held. It returns with l.mu released.
+// Multiple concurrent callers are coalesced: only one performs Flush+Sync per
+// generation, and the rest piggyback on that completed round.
+func (l *Log) groupCommitLocked(myGen uint64) error {
+	for {
+		if l.fatal {
+			err := l.syncErr
+			l.mu.Unlock()
 			return err
 		}
-		l.lastSync = time.Now()
-	case SyncInterval:
-		if time.Since(l.lastSync) >= l.syncInterval {
-			if err := l.f.Sync(); err != nil {
-				return err
-			}
-			l.lastSync = time.Now()
+		if l.syncedGen >= myGen {
+			err := l.syncErr
+			l.mu.Unlock()
+			return err
 		}
+		if l.syncing {
+			l.syncCond.Wait()
+			continue
+		}
+
+		// Become the syncer for the current pending generation. Flush bufio
+		// while holding the lock (bufio.Writer is not concurrent-safe), then
+		// release the lock during the slow fsync syscall so subsequent
+		// Append callers can fill the next generation's buffer.
+		l.syncing = true
+		syncingGen := l.pendingGen
+		if err := l.w.Flush(); err != nil {
+			l.poisonLocked(err)
+			l.syncing = false
+			l.syncCond.Broadcast()
+			l.mu.Unlock()
+			return err
+		}
+		l.pendingGen++ // future writes belong to the next generation
+		l.mu.Unlock()
+
+		syncErr := l.f.Sync()
+
+		l.mu.Lock()
+		if syncErr != nil {
+			l.poisonLocked(syncErr)
+			l.syncing = false
+			l.syncCond.Broadcast()
+			l.mu.Unlock()
+			return syncErr
+		}
+		l.syncedGen = syncingGen
+		l.syncErr = nil
+		l.lastSync = time.Now()
+		l.syncing = false
+		l.syncCond.Broadcast()
+		// Loop: re-check whether myGen has now been covered (it has, if
+		// myGen <= syncingGen, which is always true here).
 	}
-	return nil
+}
+
+func (l *Log) poisonLocked(err error) {
+	l.fatal = true
+	l.syncErr = err
 }
 
 func (l *Log) Close() error {
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	for l.syncing {
+		l.syncCond.Wait()
+	}
 	if l.w != nil {
 		if err := l.w.Flush(); err != nil {
+			l.mu.Unlock()
 			return err
 		}
 	}
 	if l.f != nil {
 		if l.syncMode != SyncNone {
 			if err := l.f.Sync(); err != nil {
+				l.mu.Unlock()
 				return err
 			}
 		}
-		return l.f.Close()
+		f := l.f
+		l.f = nil
+		l.mu.Unlock()
+		return f.Close()
 	}
+	l.mu.Unlock()
 	return nil
 }
 
@@ -256,18 +384,42 @@ func readV2Record(r *bufio.Reader, opts ReplayOptions) (*Record, error) {
 		}
 		return nil, err
 	}
-	if header[0] != 2 {
+	version := header[0]
+	if version != 2 && version != 3 {
 		return nil, ErrCorruptRecord
 	}
 	topicLen := int(binary.BigEndian.Uint16(header[14:16]))
 	keyLen := int(binary.BigEndian.Uint16(header[16:18]))
 	payloadLen := int(binary.BigEndian.Uint32(header[18:22]))
+	// Bound allocation before touching memory — a corrupt header could
+	// otherwise request gigabytes.
+	if payloadLen < 0 || payloadLen > MaxPayloadSize {
+		return nil, ErrCorruptRecord
+	}
 	body := make([]byte, topicLen+keyLen+payloadLen)
 	if _, err := io.ReadFull(r, body); err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) && opts.AllowPartialTail {
 			return nil, nil
 		}
 		return nil, err
+	}
+	// V3 records carry a CRC32C trailer covering header (less magic) + body.
+	// V2 records have none — they predate the checksum field.
+	if version == 3 {
+		var crcBuf [4]byte
+		if _, err := io.ReadFull(r, crcBuf[:]); err != nil {
+			if errors.Is(err, io.ErrUnexpectedEOF) && opts.AllowPartialTail {
+				return nil, nil
+			}
+			return nil, err
+		}
+		want := binary.BigEndian.Uint32(crcBuf[:])
+		h := crc32.New(crcTable)
+		h.Write(header[:])
+		h.Write(body)
+		if h.Sum32() != want {
+			return nil, ErrCorruptRecord
+		}
 	}
 	topicEnd := topicLen
 	keyEnd := topicLen + keyLen
@@ -295,7 +447,7 @@ func readV1Record(r *bufio.Reader, opts ReplayOptions, prefix []byte) (*Record, 
 	copy(header[2:], headerRest[:])
 	topicLen := int(binary.BigEndian.Uint16(header[8:10]))
 	payloadLen := int(binary.BigEndian.Uint32(header[10:14]))
-	if topicLen < 0 || payloadLen < 0 {
+	if topicLen < 0 || payloadLen < 0 || payloadLen > MaxPayloadSize {
 		return nil, ErrCorruptRecord
 	}
 	body := make([]byte, topicLen+payloadLen)

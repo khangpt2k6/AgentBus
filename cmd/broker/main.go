@@ -87,6 +87,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("load consumer offsets: %v", err)
 	}
+	defer func() {
+		if err := groups.Close(); err != nil {
+			log.Printf("close consumer offsets: %v", err)
+		}
+	}()
 	var tcpSrv *broker.TCPServer // declared early so /api/stats closure can capture it
 	leader := *raftLeader
 	if strings.TrimSpace(leader) == "" {

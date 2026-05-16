@@ -3,9 +3,12 @@ package wal
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 )
@@ -194,6 +197,83 @@ func TestParseSyncMode(t *testing.T) {
 	}
 	if _, err := ParseSyncMode("invalid"); !errors.Is(err, ErrInvalidSyncMode) {
 		t.Fatalf("expected ErrInvalidSyncMode, got %v", err)
+	}
+}
+
+// TestConcurrentAppendDurability runs many concurrent writers in SyncAlways mode
+// and verifies that every record is replayable after Close. With group commit,
+// concurrent fsyncs are coalesced, but no record may be lost.
+func TestConcurrentAppendDurability(t *testing.T) {
+	const writers = 32
+	const perWriter = 50
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "concurrent.wal")
+	log, err := OpenWithOptions(path, Options{SyncMode: SyncAlways})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	for w := 0; w < writers; w++ {
+		wg.Add(1)
+		go func(writerID int) {
+			defer wg.Done()
+			for i := 0; i < perWriter; i++ {
+				payload := []byte(fmt.Sprintf("w%d-i%d", writerID, i))
+				if err := log.AppendRecord(Record{
+					Topic:     "concurrent",
+					Partition: int32(writerID),
+					Payload:   payload,
+				}); err != nil {
+					t.Errorf("append w=%d i=%d: %v", writerID, i, err)
+					return
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+
+	if err := log.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	expected := writers * perWriter
+	got := make([]string, 0, expected)
+	if err := Replay(path, func(r Record) error {
+		got = append(got, string(r.Payload))
+		return nil
+	}); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if len(got) != expected {
+		t.Fatalf("replayed %d records, want %d", len(got), expected)
+	}
+
+	// Each (writer, index) pair must appear exactly once. Order across writers
+	// is non-deterministic; order within a writer must be preserved (i ascending).
+	sort.Strings(got)
+	dedup := make(map[string]struct{}, expected)
+	for _, p := range got {
+		if _, dup := dedup[p]; dup {
+			t.Fatalf("duplicate payload %q", p)
+		}
+		dedup[p] = struct{}{}
+	}
+
+	// Verify per-writer ordering by replaying again in file order.
+	perWriterSeen := make(map[int]int, writers)
+	if err := Replay(path, func(r Record) error {
+		w := int(r.Partition)
+		expectedIdx := perWriterSeen[w]
+		want := fmt.Sprintf("w%d-i%d", w, expectedIdx)
+		if string(r.Payload) != want {
+			return fmt.Errorf("writer %d out of order: got %q, want %q", w, string(r.Payload), want)
+		}
+		perWriterSeen[w] = expectedIdx + 1
+		return nil
+	}); err != nil {
+		t.Fatalf("ordering check: %v", err)
 	}
 }
 

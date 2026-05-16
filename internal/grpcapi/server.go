@@ -47,26 +47,24 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 		return nil, status.Error(codes.InvalidArgument, "topic is required")
 	}
 	start := time.Now()
-	var (
-		partition int
-		offset    int64
-		err       error
-	)
+	// Resolve partition upfront (validates explicit, derives from key otherwise)
+	// so we can write the WAL with the correct partition BEFORE mutating
+	// in-memory broker state. WAL-first ordering prevents the case where a
+	// failed fsync leaves consumers having seen a message the producer thinks
+	// failed.
+	var partition int
 	if req.Partition >= 0 {
-		partition = int(req.Partition)
-		offset, err = s.broker.PublishToPartition(req.Topic, partition, req.Payload)
-		if err != nil {
+		// Ensure topic exists with default config, then validate partition.
+		s.broker.EnsureTopic(req.Topic, 0)
+		if int(req.Partition) >= s.broker.PartitionCount(req.Topic) {
+			err := status.Errorf(codes.InvalidArgument, "invalid partition %d", req.Partition)
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "invalid partition")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid partition: %v", err)
+			return nil, err
 		}
+		partition = int(req.Partition)
 	} else {
-		partition, offset, err = s.broker.PublishWithKey(req.Topic, req.Key, req.Payload)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, "publish failed")
-			return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
-		}
+		partition = s.broker.RouteKey(req.Topic, req.Key)
 	}
 	if s.wal != nil {
 		if err := s.wal.AppendRecord(wal.Record{
@@ -80,6 +78,12 @@ func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*g
 			span.SetStatus(otelcodes.Error, "wal append failed")
 			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
 		}
+	}
+	offset, err := s.broker.PublishToPartition(req.Topic, partition, req.Payload)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "publish failed")
+		return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
 	}
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
