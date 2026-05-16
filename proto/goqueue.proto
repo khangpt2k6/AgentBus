@@ -44,6 +44,25 @@ message FetchRequest {
   int64 from_offset = 3;
   // Maximum messages to return. Server caps at 4096.
   int32 max_count = 4;
+  // Optional server-side filter. When set, the broker decodes each
+  // candidate message as an agent envelope and returns only matches.
+  // Reduces wire bytes drastically for session replay on busy topics.
+  // Note: filtering decodes JSON server-side, so it costs CPU per
+  // scanned message; broker may scan up to scan_limit messages to
+  // produce one page of matches.
+  SessionFilter session_filter = 5;
+  // Hard upper bound on messages the broker will scan to fill the
+  // requested max_count. Default 16384, max 65536. Has no effect when
+  // session_filter is absent.
+  int32 scan_limit = 6;
+}
+
+// SessionFilter selects events whose envelope matches the given triple.
+// All non-empty fields must match (logical AND). Empty fields are wildcards.
+message SessionFilter {
+  string tenant = 1;
+  string project = 2;
+  string session_id = 3;
 }
 
 message FetchResponse {

@@ -67,6 +67,8 @@ nav:
   - Getting Started: getting-started.md
   - Integrate (Go SDK): integrate.md
   - Debug an agent run: debug-agent-run.md
+  - Webhook subscriber: webhook.md
+  - OpenTelemetry tracing: otel-tracing.md
   - Concepts:
       - Sessions & Ordering: concepts/sessions.md
       - Retry & DLQ: concepts/retry-dlq.md

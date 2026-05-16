@@ -275,7 +275,18 @@ type FetchRequest struct {
 	Partition  int32                  `protobuf:"varint,2,opt,name=partition,proto3" json:"partition,omitempty"`
 	FromOffset int64                  `protobuf:"varint,3,opt,name=from_offset,json=fromOffset,proto3" json:"from_offset,omitempty"`
 	// Maximum messages to return. Server caps at 4096.
-	MaxCount      int32 `protobuf:"varint,4,opt,name=max_count,json=maxCount,proto3" json:"max_count,omitempty"`
+	MaxCount int32 `protobuf:"varint,4,opt,name=max_count,json=maxCount,proto3" json:"max_count,omitempty"`
+	// Optional server-side filter. When set, the broker decodes each
+	// candidate message as an agent envelope and returns only matches.
+	// Reduces wire bytes drastically for session replay on busy topics.
+	// Note: filtering decodes JSON server-side, so it costs CPU per
+	// scanned message; broker may scan up to scan_limit messages to
+	// produce one page of matches.
+	SessionFilter *SessionFilter `protobuf:"bytes,5,opt,name=session_filter,json=sessionFilter,proto3" json:"session_filter,omitempty"`
+	// Hard upper bound on messages the broker will scan to fill the
+	// requested max_count. Default 16384, max 65536. Has no effect when
+	// session_filter is absent.
+	ScanLimit     int32 `protobuf:"varint,6,opt,name=scan_limit,json=scanLimit,proto3" json:"scan_limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -338,6 +349,82 @@ func (x *FetchRequest) GetMaxCount() int32 {
 	return 0
 }
 
+func (x *FetchRequest) GetSessionFilter() *SessionFilter {
+	if x != nil {
+		return x.SessionFilter
+	}
+	return nil
+}
+
+func (x *FetchRequest) GetScanLimit() int32 {
+	if x != nil {
+		return x.ScanLimit
+	}
+	return 0
+}
+
+// SessionFilter selects events whose envelope matches the given triple.
+// All non-empty fields must match (logical AND). Empty fields are wildcards.
+type SessionFilter struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tenant        string                 `protobuf:"bytes,1,opt,name=tenant,proto3" json:"tenant,omitempty"`
+	Project       string                 `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionFilter) Reset() {
+	*x = SessionFilter{}
+	mi := &file_goqueue_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionFilter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionFilter) ProtoMessage() {}
+
+func (x *SessionFilter) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionFilter.ProtoReflect.Descriptor instead.
+func (*SessionFilter) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SessionFilter) GetTenant() string {
+	if x != nil {
+		return x.Tenant
+	}
+	return ""
+}
+
+func (x *SessionFilter) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *SessionFilter) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
 type FetchResponse struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Messages []*ConsumeMessage      `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
@@ -355,7 +442,7 @@ type FetchResponse struct {
 
 func (x *FetchResponse) Reset() {
 	*x = FetchResponse{}
-	mi := &file_goqueue_proto_msgTypes[5]
+	mi := &file_goqueue_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -367,7 +454,7 @@ func (x *FetchResponse) String() string {
 func (*FetchResponse) ProtoMessage() {}
 
 func (x *FetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[5]
+	mi := &file_goqueue_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -380,7 +467,7 @@ func (x *FetchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchResponse.ProtoReflect.Descriptor instead.
 func (*FetchResponse) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{5}
+	return file_goqueue_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FetchResponse) GetMessages() []*ConsumeMessage {
@@ -433,13 +520,21 @@ const file_goqueue_proto_rawDesc = "" +
 	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\fR\apayload\x12.\n" +
 	"\x13timestamp_unix_nano\x18\x03 \x01(\x03R\x11timestampUnixNano\x12\x1c\n" +
-	"\tpartition\x18\x04 \x01(\x05R\tpartition\"\x80\x01\n" +
+	"\tpartition\x18\x04 \x01(\x05R\tpartition\"\xe1\x01\n" +
 	"\fFetchRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1c\n" +
 	"\tpartition\x18\x02 \x01(\x05R\tpartition\x12\x1f\n" +
 	"\vfrom_offset\x18\x03 \x01(\x03R\n" +
 	"fromOffset\x12\x1b\n" +
-	"\tmax_count\x18\x04 \x01(\x05R\bmaxCount\"\x90\x01\n" +
+	"\tmax_count\x18\x04 \x01(\x05R\bmaxCount\x12@\n" +
+	"\x0esession_filter\x18\x05 \x01(\v2\x19.goqueue.v1.SessionFilterR\rsessionFilter\x12\x1d\n" +
+	"\n" +
+	"scan_limit\x18\x06 \x01(\x05R\tscanLimit\"`\n" +
+	"\rSessionFilter\x12\x16\n" +
+	"\x06tenant\x18\x01 \x01(\tR\x06tenant\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\"\x90\x01\n" +
 	"\rFetchResponse\x126\n" +
 	"\bmessages\x18\x01 \x03(\v2\x1a.goqueue.v1.ConsumeMessageR\bmessages\x12\x1f\n" +
 	"\vnext_offset\x18\x02 \x01(\x03R\n" +
@@ -463,28 +558,30 @@ func file_goqueue_proto_rawDescGZIP() []byte {
 	return file_goqueue_proto_rawDescData
 }
 
-var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_goqueue_proto_goTypes = []any{
 	(*PublishRequest)(nil),  // 0: goqueue.v1.PublishRequest
 	(*PublishResponse)(nil), // 1: goqueue.v1.PublishResponse
 	(*ConsumeRequest)(nil),  // 2: goqueue.v1.ConsumeRequest
 	(*ConsumeMessage)(nil),  // 3: goqueue.v1.ConsumeMessage
 	(*FetchRequest)(nil),    // 4: goqueue.v1.FetchRequest
-	(*FetchResponse)(nil),   // 5: goqueue.v1.FetchResponse
+	(*SessionFilter)(nil),   // 5: goqueue.v1.SessionFilter
+	(*FetchResponse)(nil),   // 6: goqueue.v1.FetchResponse
 }
 var file_goqueue_proto_depIdxs = []int32{
-	3, // 0: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
-	0, // 1: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
-	2, // 2: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
-	4, // 3: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
-	1, // 4: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
-	3, // 5: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
-	5, // 6: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	5, // 0: goqueue.v1.FetchRequest.session_filter:type_name -> goqueue.v1.SessionFilter
+	3, // 1: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
+	0, // 2: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
+	2, // 3: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
+	4, // 4: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
+	1, // 5: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
+	3, // 6: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
+	6, // 7: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
+	5, // [5:8] is the sub-list for method output_type
+	2, // [2:5] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_goqueue_proto_init() }
@@ -498,7 +595,7 @@ func file_goqueue_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_goqueue_proto_rawDesc), len(file_goqueue_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
