@@ -132,10 +132,10 @@ func (s *TCPServer) handlePublishWithKey(conn net.Conn, frame *protocol.Frame) e
 			Payload: []byte("invalid keyed payload"),
 		})
 	}
-	partition, offset, err := s.broker.PublishWithKey(frame.Topic, key, payload)
-	if err != nil {
-		return err
-	}
+	// WAL-first ordering: persist to durable log before mutating in-memory
+	// state, so a failed fsync cannot leave consumers having already observed
+	// a message the producer thinks failed.
+	partition := s.broker.RouteKey(frame.Topic, key)
 	if s.wal != nil {
 		if err := s.wal.AppendRecord(wal.Record{
 			Timestamp: time.Now().UnixNano(),
@@ -146,6 +146,10 @@ func (s *TCPServer) handlePublishWithKey(conn net.Conn, frame *protocol.Frame) e
 		}); err != nil {
 			return err
 		}
+	}
+	offset, err := s.broker.PublishToPartition(frame.Topic, partition, payload)
+	if err != nil {
+		return err
 	}
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
@@ -184,10 +188,7 @@ func (s *TCPServer) handleBatchPublish(conn net.Conn, frame *protocol.Frame) err
 		lastOffset  int64
 	)
 	for _, p := range payloads {
-		offset, err := s.broker.PublishToPartition(frame.Topic, 0, p)
-		if err != nil {
-			return err
-		}
+		// WAL-first: durable record before in-memory publish.
 		if s.wal != nil {
 			if err := s.wal.AppendRecord(wal.Record{
 				Timestamp: time.Now().UnixNano(),
@@ -197,6 +198,10 @@ func (s *TCPServer) handleBatchPublish(conn net.Conn, frame *protocol.Frame) err
 			}); err != nil {
 				return err
 			}
+		}
+		offset, err := s.broker.PublishToPartition(frame.Topic, 0, p)
+		if err != nil {
+			return err
 		}
 		if firstOffset < 0 {
 			firstOffset = offset
@@ -252,10 +257,7 @@ func (s *TCPServer) handleFetch(conn net.Conn, frame *protocol.Frame) error {
 
 func (s *TCPServer) handlePublish(conn net.Conn, frame *protocol.Frame) error {
 	start := time.Now()
-	offset, err := s.broker.PublishToPartition(frame.Topic, 0, frame.Payload)
-	if err != nil {
-		return err
-	}
+	// WAL-first: durable record before in-memory publish.
 	if s.wal != nil {
 		if err := s.wal.AppendRecord(wal.Record{
 			Timestamp: time.Now().UnixNano(),
@@ -265,6 +267,10 @@ func (s *TCPServer) handlePublish(conn net.Conn, frame *protocol.Frame) error {
 		}); err != nil {
 			return err
 		}
+	}
+	offset, err := s.broker.PublishToPartition(frame.Topic, 0, frame.Payload)
+	if err != nil {
+		return err
 	}
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
