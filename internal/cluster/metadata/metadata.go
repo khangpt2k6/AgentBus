@@ -137,8 +137,17 @@ func (m *Metadata) IsLeader() bool {
 	return m.raft.State() == raft.Leader
 }
 
-// Leader returns the current leader's transport address, or "" if unknown.
+// Leader returns the logical NodeID of the current leader, or "" if unknown.
+// We return ID rather than transport address so dashboards and CLIs display
+// the operator-meaningful name (e.g. "n1") instead of "127.0.0.1:7001".
 func (m *Metadata) Leader() string {
+	_, id := m.raft.LeaderWithID()
+	return string(id)
+}
+
+// LeaderAddr returns the leader's Raft transport address. Useful when a
+// follower needs to redirect a client to the current leader's network endpoint.
+func (m *Metadata) LeaderAddr() string {
 	addr, _ := m.raft.LeaderWithID()
 	return string(addr)
 }
