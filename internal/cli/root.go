@@ -34,6 +34,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newFetchCmd(opts))
 	root.AddCommand(newSessionCmd(opts))
 	root.AddCommand(newWebhookCmd(opts))
+	root.AddCommand(newClusterCmd(opts))
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print CLI version",
