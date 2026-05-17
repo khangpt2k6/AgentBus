@@ -24,6 +24,7 @@ func newClusterCmd(_ *options) *cobra.Command {
 		Short: "Inspect AgentBus cluster state",
 	}
 	c.AddCommand(newClusterStatusCmd())
+	c.AddCommand(newClusterRouteCmd())
 	return c
 }
 
