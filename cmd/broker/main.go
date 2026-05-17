@@ -20,6 +20,7 @@ import (
 
 	"github.com/khangpt2k6/AgentBus/internal/api"
 	"github.com/khangpt2k6/AgentBus/internal/broker"
+	"github.com/khangpt2k6/AgentBus/internal/cluster"
 	"github.com/khangpt2k6/AgentBus/internal/consumer"
 	"github.com/khangpt2k6/AgentBus/internal/grpcapi"
 	"github.com/khangpt2k6/AgentBus/internal/metrics"
@@ -44,6 +45,11 @@ func main() {
 	raftLeader := flag.String("raft-leader-id", "", "current raft leader id label")
 	raftTerm := flag.Int64("raft-term", 1, "raft term value")
 	adminToken := flag.String("raft-admin-token", "", "optional admin token for raft state updates")
+	clusterEnabled := flag.Bool("cluster", false, "enable distributed cluster mode")
+	clusterPeers := flag.String("peers", "", "comma-separated id@host:port peer list (e.g. n1@127.0.0.1:7001,n2@127.0.0.1:7002)")
+	clusterRaftBind := flag.String("raft-bind", "127.0.0.1:7001", "Raft transport listen address (cluster mode)")
+	clusterGossipBind := flag.String("gossip-bind", "127.0.0.1:8001", "Gossip listen address (cluster mode)")
+	clusterRaftDir := flag.String("raft-dir", "data/raft", "directory for Raft state (cluster mode)")
 	flag.Parse()
 
 	if err := os.MkdirAll("data", 0o755); err != nil {
@@ -115,6 +121,57 @@ func main() {
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	var cl *cluster.Cluster
+	if *clusterEnabled {
+		peers, err := cluster.ParsePeers(*clusterPeers)
+		if err != nil {
+			log.Fatalf("invalid --peers: %v", err)
+		}
+		cl, err = cluster.Start(cluster.Config{
+			NodeID:     *nodeID,
+			RaftBind:   *clusterRaftBind,
+			GossipBind: *clusterGossipBind,
+			RaftDir:    *clusterRaftDir,
+			Peers:      peers,
+		}, nil)
+		if err != nil {
+			log.Fatalf("cluster start: %v", err)
+		}
+		log.Printf("cluster mode enabled: node_id=%s raft=%s gossip=%s peers=%d",
+			*nodeID, *clusterRaftBind, *clusterGossipBind, len(peers))
+
+		// Bridge real Raft state into the existing raftRuntimeState + Prometheus
+		// gauges every 2s.
+		go func() {
+			t := time.NewTicker(2 * time.Second)
+			defer t.Stop()
+			prevLeader := ""
+			for {
+				select {
+				case <-rootCtx.Done():
+					return
+				case <-t.C:
+					st := cl.Status()
+					role := "follower"
+					if st.IsLeader {
+						role = "leader"
+					}
+					state.Update(raftStateUpdateRequest{
+						Role:     role,
+						LeaderID: st.MetadataLeader,
+						Term:     state.Get().Term,
+					})
+					if st.MetadataLeader != prevLeader && st.MetadataLeader != "" {
+						m.IncRaftLeaderChange(state.Get().NodeID)
+						prevLeader = st.MetadataLeader
+					}
+					cur := state.Get()
+					m.SetRaftState(cur.NodeID, cur.Role, cur.LeaderID, cur.Term)
+				}
+			}
+		}()
+	}
 
 	ready := &atomic.Bool{}
 	mux := http.NewServeMux()
@@ -391,6 +448,12 @@ func main() {
 	}
 
 	ready.Store(false)
+
+	if cl != nil {
+		if err := cl.Shutdown(); err != nil {
+			log.Printf("cluster shutdown: %v", err)
+		}
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
