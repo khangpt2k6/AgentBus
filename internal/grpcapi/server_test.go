@@ -13,8 +13,10 @@ import (
 	"github.com/khangpt2k6/AgentBus/internal/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/AgentBus/proto"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 func TestPublishWritesPartitionMetadataToWAL(t *testing.T) {
@@ -26,7 +28,7 @@ func TestPublishWritesPartitionMetadataToWAL(t *testing.T) {
 	t.Cleanup(func() { _ = logFile.Close() })
 
 	srv := NewServer(broker.New(), consumer.NewManager(), nil, logFile)
-	resp, err := srv.Publish(context.Background(), &goqueuev1.PublishRequest{
+	resp, err := srv.Publish(context.Background(), &pb.PublishRequest{
 		Topic:   "orders",
 		Key:     "user-42",
 		Payload: []byte("hello"),
@@ -67,7 +69,7 @@ func TestConsumeStreamsAndCommitsOffsets(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- srv.Consume(&goqueuev1.ConsumeRequest{
+		errCh <- srv.Consume(&pb.ConsumeRequest{
 			Topic:     "orders",
 			Group:     "billing",
 			Partition: 0,
@@ -114,7 +116,7 @@ func TestPublishAgentEventUpdatesMetrics(t *testing.T) {
 	srv := NewServer(broker.New(), consumer.NewManager(), m, nil)
 
 	payload := `{"version":"v1","type":"tool.call","tenant":"acme","project":"support","session_id":"sess-1","agent_id":"planner","attempt":2,"created_at":"2026-04-03T10:00:00Z","payload":{"tool":"search"}}`
-	if _, err := srv.Publish(context.Background(), &goqueuev1.PublishRequest{
+	if _, err := srv.Publish(context.Background(), &pb.PublishRequest{
 		Topic:   "agent-events.dlq",
 		Payload: []byte(payload),
 	}); err != nil {
@@ -173,7 +175,7 @@ func matchLabels(pairs []*dto.LabelPair, want map[string]string) bool {
 type testConsumeStream struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	ch     chan *goqueuev1.ConsumeMessage
+	ch     chan *pb.ConsumeMessage
 	mu     sync.Mutex
 }
 
@@ -181,11 +183,11 @@ func newTestConsumeStream(ctx context.Context, cancel context.CancelFunc) *testC
 	return &testConsumeStream{
 		ctx:    ctx,
 		cancel: cancel,
-		ch:     make(chan *goqueuev1.ConsumeMessage, 8),
+		ch:     make(chan *pb.ConsumeMessage, 8),
 	}
 }
 
-func (s *testConsumeStream) waitForMessage(timeout time.Duration) (*goqueuev1.ConsumeMessage, bool) {
+func (s *testConsumeStream) waitForMessage(timeout time.Duration) (*pb.ConsumeMessage, bool) {
 	select {
 	case msg := <-s.ch:
 		return msg, true
@@ -205,7 +207,75 @@ func (s *testConsumeStream) SetTrailer(metadata.MD) {}
 func (s *testConsumeStream) SendMsg(any) error      { return nil }
 func (s *testConsumeStream) RecvMsg(any) error      { return nil }
 
-func (s *testConsumeStream) Send(msg *goqueuev1.ConsumeMessage) error {
+func (s *testConsumeStream) Send(msg *pb.ConsumeMessage) error {
 	s.ch <- msg
 	return nil
+}
+
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	return NewServer(broker.New(), consumer.NewManager(), nil, nil)
+}
+
+type stubRouteChecker struct {
+	isLocal bool
+	hint    string
+}
+
+func (s stubRouteChecker) RouteSession(_, _, _ string) (bool, string) {
+	return s.isLocal, s.hint
+}
+
+func TestPublishAgent_RedirectsWhenNotLocal(t *testing.T) {
+	s := newTestServer(t)
+	s.SetRouteChecker(stubRouteChecker{isLocal: false, hint: "n2-host:9095"})
+
+	req := &pb.PublishAgentRequest{
+		Event: &pb.AgentEvent{
+			Tenant:    "acme",
+			Project:   "support",
+			SessionId: "sess-1",
+			Type:      "tool.call",
+			AgentId:   "planner",
+			Payload:   []byte("{}"),
+		},
+	}
+	_, err := s.PublishAgent(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected NOT_LEADER error")
+	}
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.FailedPrecondition {
+		t.Fatalf("got code %v, want FailedPrecondition", st.Code())
+	}
+	details := st.Details()
+	if len(details) == 0 {
+		t.Fatal("expected NotLeaderError detail")
+	}
+	hint, ok := details[0].(*pb.NotLeaderError)
+	if !ok {
+		t.Fatalf("detail type = %T, want *NotLeaderError", details[0])
+	}
+	if hint.LeaderAddr != "n2-host:9095" {
+		t.Errorf("LeaderAddr = %q", hint.LeaderAddr)
+	}
+}
+
+func TestPublishAgent_LocalProceeds(t *testing.T) {
+	s := newTestServer(t)
+	s.SetRouteChecker(stubRouteChecker{isLocal: true})
+
+	req := &pb.PublishAgentRequest{
+		Event: &pb.AgentEvent{
+			Tenant:    "acme",
+			Project:   "support",
+			SessionId: "sess-1",
+			Type:      "tool.call",
+			AgentId:   "planner",
+			Payload:   []byte("{}"),
+		},
+	}
+	if _, err := s.PublishAgent(context.Background(), req); err != nil {
+		t.Fatalf("local PublishAgent: %v", err)
+	}
 }
