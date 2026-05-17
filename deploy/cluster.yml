@@ -1,0 +1,92 @@
+# 3-node AgentBus cluster for local demos.
+# Run from the repo root:
+#   docker compose -f deploy/cluster.yml up --build
+#
+# After ~5s, each node's /api/stats shows real Raft state. Try:
+#   goqueue cluster status --metrics-url=http://localhost:12112
+#   goqueue cluster status --metrics-url=http://localhost:12113
+#   goqueue cluster status --metrics-url=http://localhost:12114
+#
+# Exactly one of the three nodes should show Role: leader.
+
+services:
+  n1:
+    build:
+      context: ..
+      dockerfile: docker/broker.Dockerfile
+    command:
+      - --cluster
+      - --node-id=n1
+      - --raft-bind=0.0.0.0:7001
+      - --gossip-bind=0.0.0.0:8001
+      - --raft-dir=/data/raft
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
+      - --tcp-addr=:9090
+      - --grpc-addr=:9095
+      - --metrics-addr=:2112
+      - --wal-path=/data/wal
+    ports:
+      - "19090:9090"
+      - "19095:9095"
+      - "12112:2112"
+    volumes:
+      - n1-data:/data
+    networks:
+      - agentbus
+
+  n2:
+    build:
+      context: ..
+      dockerfile: docker/broker.Dockerfile
+    command:
+      - --cluster
+      - --node-id=n2
+      - --raft-bind=0.0.0.0:7001
+      - --gossip-bind=0.0.0.0:8001
+      - --raft-dir=/data/raft
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
+      - --tcp-addr=:9090
+      - --grpc-addr=:9095
+      - --metrics-addr=:2112
+      - --wal-path=/data/wal
+    ports:
+      - "29090:9090"
+      - "29095:9095"
+      - "12113:2112"
+    volumes:
+      - n2-data:/data
+    networks:
+      - agentbus
+
+  n3:
+    build:
+      context: ..
+      dockerfile: docker/broker.Dockerfile
+    command:
+      - --cluster
+      - --node-id=n3
+      - --raft-bind=0.0.0.0:7001
+      - --gossip-bind=0.0.0.0:8001
+      - --raft-dir=/data/raft
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
+      - --tcp-addr=:9090
+      - --grpc-addr=:9095
+      - --metrics-addr=:2112
+      - --wal-path=/data/wal
+    ports:
+      - "39090:9090"
+      - "39095:9095"
+      - "12114:2112"
+    volumes:
+      - n3-data:/data
+    networks:
+      - agentbus
+
+volumes:
+  n1-data: {}
+  n2-data: {}
+  n3-data: {}
+
+networks:
+  agentbus:
+    driver: bridge
