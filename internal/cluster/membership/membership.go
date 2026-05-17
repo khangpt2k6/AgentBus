@@ -113,6 +113,30 @@ func (m *Membership) Alive() []string {
 	return out
 }
 
+// MemberInfo is what callers see about another node — just its ID and
+// the address gossip is using to talk to it. For richer metadata
+// (client/gRPC address, etc.) callers consult the metadata FSM.
+type MemberInfo struct {
+	NodeID string
+	Addr   string
+}
+
+// Member looks up a single node by ID. Returns (MemberInfo, true) if the
+// node is currently alive in this node's gossip view; ({}, false) otherwise.
+func (m *Membership) Member(nodeID string) (MemberInfo, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.dead || m.ml == nil {
+		return MemberInfo{}, false
+	}
+	for _, n := range m.ml.Members() {
+		if n.Name == nodeID {
+			return MemberInfo{NodeID: n.Name, Addr: n.Address()}, true
+		}
+	}
+	return MemberInfo{}, false
+}
+
 // Events returns the channel of lifecycle events. Buffered; callers must
 // drain it or events are dropped.
 func (m *Membership) Events() <-chan Event { return m.events }
