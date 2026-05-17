@@ -110,7 +110,7 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 </tbody>
 </table>
 
-> **Status:** Single-node broker today. The distributed v1 **foundation** (3-node cluster forms, gossips, elects a real metadata Raft leader) ships on the [`feat/cluster-v1`](https://github.com/khangpt2k6/AgentBus/tree/feat/cluster-v1) branch — see [docs/cluster.md](docs/cluster.md) for usage and [docs/superpowers/specs/2026-05-16-distributed-v1-design.md](docs/superpowers/specs/2026-05-16-distributed-v1-design.md) for the full design through M5 (routing, ISR replication, failover).
+> **Status:** Single-node broker today. The distributed v1 **foundation + routing** (3-node cluster forms, gossips, elects a real metadata Raft leader, **and routes session traffic across nodes via consistent hashing with transparent SDK redirect**) ships on the [`feat/cluster-v1`](https://github.com/khangpt2k6/AgentBus/tree/feat/cluster-v1) branch — see [docs/cluster.md](docs/cluster.md) for usage and [docs/superpowers/specs/2026-05-16-distributed-v1-design.md](docs/superpowers/specs/2026-05-16-distributed-v1-design.md) for the full design. Up next: ISR replication (M4) and seamless failover (M5).
 
 ---
 
