@@ -71,6 +71,12 @@ jobs:
       - name: Unit tests
         run: go test ./internal/... -count=1
 
+      - name: Cluster integration test (3-node in-process)
+        # Gated behind the cluster_integration build tag so it is not paid
+        # by every unit-test run, but it MUST pass for any merge that
+        # touches internal/cluster/.
+        run: go test ./internal/cluster/ -tags=cluster_integration -run TestThreeNode -count=1 -timeout 60s
+
       - name: Race tests
         run: go test -race ./internal/... -count=1
 
