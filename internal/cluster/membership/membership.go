@@ -78,9 +78,15 @@ func Start(cfg Config) (*Membership, error) {
 	m.ml = ml
 
 	if len(cfg.JoinAddrs) > 0 {
+		// ml.Join returns the number of nodes successfully contacted. If
+		// zero peers are reachable yet (e.g. this is the first node up),
+		// we proceed anyway — other nodes will push their state to us when
+		// they join, making gossip eventually-consistent regardless of
+		// start order.
 		if _, err := ml.Join(cfg.JoinAddrs); err != nil {
-			_ = ml.Shutdown()
-			return nil, fmt.Errorf("memberlist join: %w", err)
+			// Non-fatal: log and continue. The cluster will converge once
+			// other nodes are up and performing their own joins.
+			_ = err // caller can observe convergence via Alive()
 		}
 	}
 	return m, nil

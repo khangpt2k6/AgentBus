@@ -11,10 +11,14 @@ import (
 )
 
 // Peer identifies one node in the cluster by its stable NodeID and the
-// TCP address its Raft transport listens on.
+// TCP address its Raft transport listens on. GossipAddr is the UDP/TCP
+// address memberlist should dial to join; if empty, RaftAddr is used
+// (valid only when raft and gossip share the same host:port, which is
+// not the case in multi-port test setups).
 type Peer struct {
-	NodeID   string
-	RaftAddr string
+	NodeID     string
+	RaftAddr   string
+	GossipAddr string // optional; falls back to RaftAddr when empty
 }
 
 // Config bundles every knob the cluster subsystems need. Populated from
