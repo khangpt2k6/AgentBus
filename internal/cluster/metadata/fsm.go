@@ -16,38 +16,46 @@ import (
 type Op string
 
 const (
-	OpAddMember      Op = "add_member"
+	OpAddMember      Op = "add_member"      // legacy: NodeID + Addr only (raft addr)
+	OpRegisterMember Op = "register_member" // full record: NodeID + Addr + ClientAddr
 	OpRemoveMember   Op = "remove_member"
 	OpSetShardLeader Op = "set_shard_leader"
+	OpSetShardCount  Op = "set_shard_count" // Shard carries the count
 )
 
 // Command is the JSON envelope serialized into every Raft log entry.
-// Keeping the wire format JSON keeps debugging easy; switch to protobuf
-// only if FSM throughput becomes a bottleneck (it won't in v1).
 type Command struct {
-	Op     Op     `json:"op"`
-	NodeID string `json:"node_id,omitempty"`
-	Addr   string `json:"addr,omitempty"`
-	Shard  uint32 `json:"shard,omitempty"`
+	Op         Op     `json:"op"`
+	NodeID     string `json:"node_id,omitempty"`
+	Addr       string `json:"addr,omitempty"`
+	ClientAddr string `json:"client_addr,omitempty"`
+	Shard      uint32 `json:"shard,omitempty"`
+}
+
+// Member is a registered cluster node with all the addresses needed to
+// route clients and replicate data.
+type Member struct {
+	NodeID     string
+	RaftAddr   string
+	ClientAddr string
 }
 
 // FSM is the in-memory projection of all committed Raft log entries.
 type FSM struct {
 	mu           sync.RWMutex
-	members      map[string]string // nodeID -> raft addr
-	shardLeaders map[uint32]string // shardID -> nodeID
+	members      map[string]Member
+	shardLeaders map[uint32]string
+	shardCount   uint32
 }
 
-// NewFSM creates an empty FSM ready for use.
 func NewFSM() *FSM {
 	return &FSM{
-		members:      make(map[string]string),
+		members:      make(map[string]Member),
 		shardLeaders: make(map[uint32]string),
 	}
 }
 
 // Apply is called by Raft for every committed log entry on every node.
-// Must be deterministic and side-effect-free outside the FSM itself.
 func (f *FSM) Apply(log *raft.Log) interface{} {
 	var cmd Command
 	if err := json.Unmarshal(log.Data, &cmd); err != nil {
@@ -60,10 +68,23 @@ func (f *FSM) Apply(log *raft.Log) interface{} {
 		if cmd.NodeID == "" {
 			return fmt.Errorf("add_member: empty node_id")
 		}
-		f.members[cmd.NodeID] = cmd.Addr
+		existing := f.members[cmd.NodeID]
+		f.members[cmd.NodeID] = Member{
+			NodeID:     cmd.NodeID,
+			RaftAddr:   cmd.Addr,
+			ClientAddr: existing.ClientAddr,
+		}
+	case OpRegisterMember:
+		if cmd.NodeID == "" {
+			return fmt.Errorf("register_member: empty node_id")
+		}
+		f.members[cmd.NodeID] = Member{
+			NodeID:     cmd.NodeID,
+			RaftAddr:   cmd.Addr,
+			ClientAddr: cmd.ClientAddr,
+		}
 	case OpRemoveMember:
 		delete(f.members, cmd.NodeID)
-		// Drop any shard leadership held by the removed node.
 		for s, nid := range f.shardLeaders {
 			if nid == cmd.NodeID {
 				delete(f.shardLeaders, s)
@@ -74,21 +95,33 @@ func (f *FSM) Apply(log *raft.Log) interface{} {
 			return fmt.Errorf("set_shard_leader: empty node_id")
 		}
 		f.shardLeaders[cmd.Shard] = cmd.NodeID
+	case OpSetShardCount:
+		f.shardCount = cmd.Shard
 	default:
 		return fmt.Errorf("unknown op %q", cmd.Op)
 	}
 	return nil
 }
 
-// Members returns a copy of the members map for safe read by callers.
+// Members returns a copy of the raft-addr map for safe read by callers.
+// Preserves the legacy NodeID -> RaftAddr shape used by existing callers
+// (cluster.Cluster.Status()). For full records, use MemberAt.
 func (f *FSM) Members() map[string]string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	out := make(map[string]string, len(f.members))
 	for k, v := range f.members {
-		out[k] = v
+		out[k] = v.RaftAddr
 	}
 	return out
+}
+
+// MemberAt returns the full Member record for nodeID.
+func (f *FSM) MemberAt(nodeID string) (Member, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	m, ok := f.members[nodeID]
+	return m, ok
 }
 
 // ShardLeader returns the nodeID currently leading shardID, or "" if unset.
@@ -98,19 +131,40 @@ func (f *FSM) ShardLeader(shardID uint32) string {
 	return f.shardLeaders[shardID]
 }
 
-// snapshotPayload is the on-disk format of an FSM snapshot.
-type snapshotPayload struct {
-	Members      map[string]string `json:"members"`
-	ShardLeaders map[uint32]string `json:"shard_leaders"`
+// ShardCount returns the configured cluster-wide shard count.
+func (f *FSM) ShardCount() uint32 {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.shardCount
 }
 
-// Snapshot is invoked by Raft when it decides to compact the log.
+// AllShardLeaders returns a copy of the shard-leader map.
+func (f *FSM) AllShardLeaders() map[uint32]string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make(map[uint32]string, len(f.shardLeaders))
+	for k, v := range f.shardLeaders {
+		out[k] = v
+	}
+	return out
+}
+
+// snapshotPayload v2.
+type snapshotPayload struct {
+	Version      int               `json:"v"`
+	Members      map[string]Member `json:"members"`
+	ShardLeaders map[uint32]string `json:"shard_leaders"`
+	ShardCount   uint32            `json:"shard_count"`
+}
+
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	payload := snapshotPayload{
-		Members:      make(map[string]string, len(f.members)),
+		Version:      2,
+		Members:      make(map[string]Member, len(f.members)),
 		ShardLeaders: make(map[uint32]string, len(f.shardLeaders)),
+		ShardCount:   f.shardCount,
 	}
 	for k, v := range f.members {
 		payload.Members[k] = v
@@ -125,19 +179,46 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	return &fsmSnapshot{data: b}, nil
 }
 
-// Restore loads a snapshot into the FSM, replacing all in-memory state.
+// Restore loads a snapshot. Tolerates v1 layout (members as map[string]string).
 func (f *FSM) Restore(rc io.ReadCloser) error {
 	defer rc.Close()
-	var payload snapshotPayload
-	if err := json.NewDecoder(rc).Decode(&payload); err != nil {
+	data, err := io.ReadAll(rc)
+	if err != nil {
 		return err
 	}
+	var probe struct {
+		Version int `json:"v"`
+	}
+	_ = json.Unmarshal(data, &probe)
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.members = payload.Members
-	f.shardLeaders = payload.ShardLeaders
+	switch probe.Version {
+	case 2:
+		var p snapshotPayload
+		if err := json.Unmarshal(data, &p); err != nil {
+			return err
+		}
+		f.members = p.Members
+		f.shardLeaders = p.ShardLeaders
+		f.shardCount = p.ShardCount
+	default:
+		var p struct {
+			Members      map[string]string `json:"members"`
+			ShardLeaders map[uint32]string `json:"shard_leaders"`
+		}
+		if err := json.Unmarshal(data, &p); err != nil {
+			return err
+		}
+		f.members = make(map[string]Member, len(p.Members))
+		for nid, raftAddr := range p.Members {
+			f.members[nid] = Member{NodeID: nid, RaftAddr: raftAddr}
+		}
+		f.shardLeaders = p.ShardLeaders
+		f.shardCount = 0
+	}
 	if f.members == nil {
-		f.members = make(map[string]string)
+		f.members = make(map[string]Member)
 	}
 	if f.shardLeaders == nil {
 		f.shardLeaders = make(map[uint32]string)
