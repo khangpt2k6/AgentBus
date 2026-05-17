@@ -118,7 +118,7 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 
 - Single-node broker runtime today.
 - Docker Compose can spin up multiple nodes for local topology and observability demos.
-- `raft-*` fields are state labels for the dashboard, not real consensus replication. The distributed-v1 design lives in [docs/distributed-v1-design.md](docs/distributed-v1-design.md).
+- `raft-*` fields are state labels for the dashboard, not real consensus replication. The distributed-v1 design lives in [docs/superpowers/specs/2026-05-16-distributed-v1-design.md](docs/superpowers/specs/2026-05-16-distributed-v1-design.md).
 
 ---
 
