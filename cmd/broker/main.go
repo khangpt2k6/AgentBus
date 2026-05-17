@@ -337,6 +337,30 @@ func main() {
 		})
 	})
 
+	mux.HandleFunc("/api/route", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		q := r.URL.Query()
+		tenant, project, session := q.Get("tenant"), q.Get("project"), q.Get("session")
+		if cl == nil {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"cluster_enabled": false,
+				"reason":          "broker is running in single-node mode; routing is a no-op",
+			})
+			return
+		}
+		dec := cl.Router().RouteSession(tenant, project, session)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"cluster_enabled": true,
+			"tenant":          tenant,
+			"project":         project,
+			"session":         session,
+			"shard_id":        dec.ShardID,
+			"leader_node_id":  dec.LeaderNodeID,
+			"leader_client":   dec.LeaderClientAddr,
+			"is_local":        dec.IsLocal,
+		})
+	})
 	mux.HandleFunc("/api/fetch", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Content-Type", "application/json")
