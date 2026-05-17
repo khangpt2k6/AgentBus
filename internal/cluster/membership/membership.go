@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 
@@ -17,7 +18,8 @@ import (
 type Config struct {
 	NodeID     string
 	GossipBind string
-	JoinAddrs  []string // empty = bootstrap; non-empty = join existing
+	JoinAddrs  []string  // empty = bootstrap; non-empty = join existing
+	LogOutput  io.Writer // optional; defaults to os.Stderr. Receives non-fatal warnings (e.g. failed join attempts).
 }
 
 // EventType discriminates between node lifecycle signals.
@@ -48,6 +50,10 @@ type Membership struct {
 func Start(cfg Config) (*Membership, error) {
 	if cfg.NodeID == "" {
 		return nil, fmt.Errorf("NodeID is required")
+	}
+	logOut := cfg.LogOutput
+	if logOut == nil {
+		logOut = os.Stderr
 	}
 	host, portStr, err := net.SplitHostPort(cfg.GossipBind)
 	if err != nil {
@@ -82,11 +88,10 @@ func Start(cfg Config) (*Membership, error) {
 		// zero peers are reachable yet (e.g. this is the first node up),
 		// we proceed anyway — other nodes will push their state to us when
 		// they join, making gossip eventually-consistent regardless of
-		// start order.
-		if _, err := ml.Join(cfg.JoinAddrs); err != nil {
-			// Non-fatal: log and continue. The cluster will converge once
-			// other nodes are up and performing their own joins.
-			_ = err // caller can observe convergence via Alive()
+		// start order. Surface the warning so operators can distinguish
+		// "still converging" from "every peer address unreachable".
+		if n, err := ml.Join(cfg.JoinAddrs); err != nil {
+			fmt.Fprintf(logOut, "membership: join contacted %d/%d peers (will retry via gossip): %v\n", n, len(cfg.JoinAddrs), err)
 		}
 	}
 	return m, nil
