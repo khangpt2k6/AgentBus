@@ -41,10 +41,13 @@ func Start(cfg Config, logOut io.Writer) (*Cluster, error) {
 		if p.NodeID == cfg.NodeID {
 			continue
 		}
-		// Translate raft address host to use the gossip port. In v1 we
-		// assume the same host serves both transports; production may
-		// add an explicit GossipAddr per peer.
-		join = append(join, p.RaftAddr)
+		// Use GossipAddr when set; fall back to RaftAddr for single-port
+		// deployments where both transports share the same address.
+		addr := p.GossipAddr
+		if addr == "" {
+			addr = p.RaftAddr
+		}
+		join = append(join, addr)
 	}
 	mem, err := membership.Start(membership.Config{
 		NodeID:     cfg.NodeID,
