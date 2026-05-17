@@ -153,14 +153,10 @@ func main() {
 					return
 				case <-t.C:
 					st := cl.Status()
-					role := "follower"
-					if st.IsLeader {
-						role = "leader"
-					}
 					state.Update(raftStateUpdateRequest{
-						Role:     role,
+						Role:     st.Role,
 						LeaderID: st.MetadataLeader,
-						Term:     state.Get().Term,
+						Term:     int64(st.Term),
 					})
 					if st.MetadataLeader != prevLeader && st.MetadataLeader != "" {
 						m.IncRaftLeaderChange(state.Get().NodeID)

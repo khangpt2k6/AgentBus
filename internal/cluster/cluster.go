@@ -23,6 +23,8 @@ type Status struct {
 	AliveMembers   []string
 	MetadataLeader string
 	IsLeader       bool
+	Role           string // "leader" | "follower" | "candidate" | "shutdown"
+	Term           uint64
 	FSMembers      map[string]string
 }
 
@@ -94,6 +96,8 @@ func (c *Cluster) Status() Status {
 		AliveMembers:   c.mem.Alive(),
 		MetadataLeader: c.meta.Leader(),
 		IsLeader:       c.meta.IsLeader(),
+		Role:           c.meta.State(),
+		Term:           c.meta.Term(),
 		FSMembers:      c.meta.FSM().Members(),
 	}
 }
