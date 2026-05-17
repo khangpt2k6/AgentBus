@@ -50,6 +50,7 @@ func main() {
 	clusterRaftBind := flag.String("raft-bind", "127.0.0.1:7001", "Raft transport listen address (cluster mode)")
 	clusterGossipBind := flag.String("gossip-bind", "127.0.0.1:8001", "Gossip listen address (cluster mode)")
 	clusterRaftDir := flag.String("raft-dir", "data/raft", "directory for Raft state (cluster mode)")
+	clusterAdvClientAddr := flag.String("advertise-client-addr", "", "client-dialable gRPC address (cluster mode); defaults to --grpc-addr with 127.0.0.1 host if missing")
 	flag.Parse()
 
 	if err := os.MkdirAll("data", 0o755); err != nil {
@@ -128,11 +129,24 @@ func main() {
 		if err != nil {
 			log.Fatalf("invalid --peers: %v", err)
 		}
+		clientAddr := *clusterAdvClientAddr
+		if clientAddr == "" {
+			// Default: replace empty host in --grpc-addr (":9095" → "127.0.0.1:9095").
+			// For docker-compose deployments, the operator should pass --advertise-client-addr=n1:9095.
+			host, port, err := net.SplitHostPort(*grpcAddr)
+			if err == nil {
+				if host == "" {
+					host = "127.0.0.1"
+				}
+				clientAddr = host + ":" + port
+			}
+		}
 		cl, err = cluster.Start(cluster.Config{
 			NodeID:     *nodeID,
 			RaftBind:   *clusterRaftBind,
 			GossipBind: *clusterGossipBind,
 			RaftDir:    *clusterRaftDir,
+			ClientAddr: clientAddr,
 			Peers:      peers,
 		}, nil)
 		if err != nil {
@@ -406,8 +420,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("grpc listen: %v", err)
 	}
+	gApi := grpcapi.NewServer(b, groups, m, logFile)
+	if cl != nil {
+		gApi.SetRouteChecker(routeAdapter{cl: cl})
+	}
 	grpcSrv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
-	grpcapi.Register(grpcSrv, grpcapi.NewServer(b, groups, m, logFile))
+	grpcapi.Register(grpcSrv, gApi)
 
 	tcpSrv = broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	ready.Store(true)
@@ -532,6 +550,13 @@ func (s *raftRuntimeState) Get() raftRuntimeState {
 		LeaderID: s.LeaderID,
 		Term:     s.Term,
 	}
+}
+
+type routeAdapter struct{ cl *cluster.Cluster }
+
+func (r routeAdapter) RouteSession(tenant, project, session string) (bool, string) {
+	dec := r.cl.Router().RouteSession(tenant, project, session)
+	return dec.IsLocal, dec.LeaderClientAddr
 }
 
 func (s *raftRuntimeState) Update(in raftStateUpdateRequest) {
