@@ -3,6 +3,9 @@ module github.com/khangpt2k6/AgentBus
 go 1.26.1
 
 require (
+	github.com/hashicorp/memberlist v0.5.4
+	github.com/hashicorp/raft v1.7.3
+	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/maxence-charriere/go-app/v10 v10.1.11
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
