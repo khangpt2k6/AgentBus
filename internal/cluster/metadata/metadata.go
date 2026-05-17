@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
@@ -155,6 +156,38 @@ func (m *Metadata) LeaderAddr() string {
 // LeaderCh forwards Raft's leadership notification channel.
 // Receivers get `true` when this node becomes leader, `false` when it loses.
 func (m *Metadata) LeaderCh() <-chan bool { return m.raft.LeaderCh() }
+
+// Term returns the current Raft term as seen by this node. Increments on
+// every leader election. Read from raft.Stats() so it reflects post-election
+// state, not the bootstrap-time value.
+func (m *Metadata) Term() uint64 {
+	stats := m.raft.Stats()
+	if v, ok := stats["term"]; ok {
+		n, err := strconv.ParseUint(v, 10, 64)
+		if err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+// State returns a human-readable Raft state: "leader", "follower",
+// "candidate", or "shutdown". Used so the dashboard doesn't collapse
+// candidate→follower during an active election.
+func (m *Metadata) State() string {
+	switch m.raft.State() {
+	case raft.Leader:
+		return "leader"
+	case raft.Candidate:
+		return "candidate"
+	case raft.Follower:
+		return "follower"
+	case raft.Shutdown:
+		return "shutdown"
+	default:
+		return "unknown"
+	}
+}
 
 // Apply submits a serialized Command to the Raft log. Returns once it has
 // been committed and applied by the FSM, or an error.
