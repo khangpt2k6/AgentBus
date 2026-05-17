@@ -25,9 +25,11 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 	const N = 3
 	raftPorts := make([]int, N)
 	gossipPorts := make([]int, N)
+	grpcPorts := make([]int, N)
 	for i := 0; i < N; i++ {
 		raftPorts[i] = freePort(t)
 		gossipPorts[i] = freePort(t)
+		grpcPorts[i] = freePort(t)
 	}
 
 	peers := make([]Peer, N)
@@ -45,6 +47,7 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 			NodeID:     fmt.Sprintf("n%d", i+1),
 			RaftBind:   fmt.Sprintf("127.0.0.1:%d", raftPorts[i]),
 			GossipBind: fmt.Sprintf("127.0.0.1:%d", gossipPorts[i]),
+			ClientAddr: fmt.Sprintf("127.0.0.1:%d", grpcPorts[i]),
 			RaftDir:    t.TempDir(),
 			Peers:      peers,
 		}
@@ -56,7 +59,6 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 		defer c.Shutdown()
 	}
 
-	// Wait for gossip convergence: all nodes see all peers.
 	if !waitFor(10*time.Second, func() bool {
 		for _, c := range clusters {
 			if len(c.Membership().Alive()) != N {
@@ -65,13 +67,9 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 		}
 		return true
 	}) {
-		for i, c := range clusters {
-			t.Logf("n%d Alive=%v", i+1, c.Membership().Alive())
-		}
 		t.Fatal("gossip did not converge within 10s")
 	}
 
-	// Wait for exactly one metadata Raft leader to emerge.
 	if !waitFor(10*time.Second, func() bool {
 		leaders := 0
 		for _, c := range clusters {
@@ -81,10 +79,38 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 		}
 		return leaders == 1
 	}) {
-		for i, c := range clusters {
-			t.Logf("n%d IsLeader=%v Leader=%q", i+1, c.Metadata().IsLeader(), c.Metadata().Leader())
-		}
 		t.Fatal("metadata Raft did not elect a single leader within 10s")
+	}
+
+	// M3 expectation: within another ~15s, the assigner has populated
+	// shard leadership for all 32 shards across the 3 nodes.
+	if !waitFor(20*time.Second, func() bool {
+		for _, c := range clusters {
+			if c.Metadata().IsLeader() {
+				if c.Metadata().FSM().ShardCount() != 32 {
+					return false
+				}
+				return len(c.Metadata().FSM().AllShardLeaders()) == 32
+			}
+		}
+		return false
+	}) {
+		for i, c := range clusters {
+			t.Logf("n%d ShardCount=%d AssignedLeaders=%d",
+				i+1,
+				c.Metadata().FSM().ShardCount(),
+				len(c.Metadata().FSM().AllShardLeaders()),
+			)
+		}
+		t.Fatal("assigner did not populate shard leadership within 20s")
+	}
+
+	// Every node's router should route a sample session somewhere non-empty.
+	for i, c := range clusters {
+		dec := c.Router().RouteSession("acme", "support-bot", "sessA")
+		if dec.LeaderNodeID == "" {
+			t.Errorf("n%d router returned empty LeaderNodeID for sessA", i+1)
+		}
 	}
 }
 

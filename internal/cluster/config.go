@@ -28,6 +28,7 @@ type Config struct {
 	RaftBind   string
 	GossipBind string
 	RaftDir    string
+	ClientAddr string // gRPC address clients should dial; used in redirect hints
 	Peers      []Peer
 }
 
