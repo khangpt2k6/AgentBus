@@ -25,6 +25,7 @@ services:
       - --grpc-addr=:9095
       - --metrics-addr=:2112
       - --wal-path=/data/wal
+      - --advertise-client-addr=n1:9095
     ports:
       - "19090:9090"
       - "19095:9095"
@@ -49,6 +50,7 @@ services:
       - --grpc-addr=:9095
       - --metrics-addr=:2112
       - --wal-path=/data/wal
+      - --advertise-client-addr=n2:9095
     ports:
       - "29090:9090"
       - "29095:9095"
@@ -73,6 +75,7 @@ services:
       - --grpc-addr=:9095
       - --metrics-addr=:2112
       - --wal-path=/data/wal
+      - --advertise-client-addr=n3:9095
     ports:
       - "39090:9090"
       - "39095:9095"
