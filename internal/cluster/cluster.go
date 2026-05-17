@@ -53,6 +53,7 @@ func Start(cfg Config, logOut io.Writer) (*Cluster, error) {
 		NodeID:     cfg.NodeID,
 		GossipBind: cfg.GossipBind,
 		JoinAddrs:  join,
+		LogOutput:  logOut,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("membership start: %w", err)
