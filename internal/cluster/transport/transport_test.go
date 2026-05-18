@@ -123,3 +123,44 @@ func TestServer_CatchUpStreamsFromOffset(t *testing.T) {
 		t.Fatalf("catchup offsets = %v, want [2 3 4]", got)
 	}
 }
+
+func TestClient_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	mgr, err := shardwal.NewManager(dir, "follower-2")
+	if err != nil {
+		t.Fatalf("manager: %v", err)
+	}
+	defer mgr.Close()
+	srv := NewServer(mgr)
+	gs := grpc.NewServer()
+	pb.RegisterClusterServiceServer(gs, srv)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go gs.Serve(lis)
+	defer gs.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cl, err := Dial(lis.Addr().String())
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer cl.Close()
+
+	stream, err := cl.OpenReplicate(ctx)
+	if err != nil {
+		t.Fatalf("open replicate: %v", err)
+	}
+	if err := stream.Send(&pb.AppendEntry{ShardId: 3, Offset: 0, Payload: []byte("x")}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	ack, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("recv: %v", err)
+	}
+	if ack.LastOffset != 0 {
+		t.Fatalf("ack offset = %d, want 0", ack.LastOffset)
+	}
+}
