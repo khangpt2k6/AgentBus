@@ -69,7 +69,14 @@ func sessionFilterMatches(payload []byte, filter *goqueuev1.SessionFilter) bool 
 // router. Defined as an interface so single-node mode and tests don't
 // import the cluster package.
 type RouteChecker interface {
-	RouteSession(tenant, project, sessionID string) (isLocal bool, leaderClientAddr string)
+	RouteSession(tenant, project, sessionID string) (isLocal bool, shardID uint32, leaderClientAddr string)
+}
+
+// ShardWALHook is the minimum surface PublishAgent needs from shardwal:
+// append a payload to a shard and (optionally) wait for quorum durability.
+type ShardWALHook interface {
+	Append(shardID uint32, payload []byte) (offset uint64, err error)
+	WaitQuorum(ctx context.Context, shardID uint32, offset uint64) error
 }
 
 type Server struct {
@@ -80,6 +87,7 @@ type Server struct {
 	metrics    *metrics.Metrics
 	wal        *wal.Log
 	routeCheck RouteChecker
+	shardWAL   ShardWALHook
 }
 
 func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal.Log) *Server {
@@ -88,6 +96,9 @@ func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal
 
 // SetRouteChecker enables cluster-mode routing checks. Pass nil to disable.
 func (s *Server) SetRouteChecker(rc RouteChecker) { s.routeCheck = rc }
+
+// SetShardWALHook enables cluster-mode shard-WAL writes. Pass nil to disable.
+func (s *Server) SetShardWALHook(h ShardWALHook) { s.shardWAL = h }
 
 func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
 	// Peek the envelope BEFORE starting the span so we can anchor the span
@@ -379,12 +390,13 @@ func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goque
 // codes.FailedPrecondition with a NotLeaderError status detail so the client
 // can redirect to the current shard leader.
 func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRequest) (*goqueuev1.PublishAgentResponse, error) {
+	var shardID uint32
 	if s.routeCheck != nil {
 		tenant := req.GetEvent().GetTenant()
 		project := req.GetEvent().GetProject()
 		session := req.GetEvent().GetSessionId()
 		if tenant != "" && project != "" && session != "" {
-			isLocal, hint := s.routeCheck.RouteSession(tenant, project, session)
+			isLocal, sid, hint := s.routeCheck.RouteSession(tenant, project, session)
 			if !isLocal {
 				st := status.New(codes.FailedPrecondition, "not the leader of this session's shard")
 				withDetails, derr := st.WithDetails(&goqueuev1.NotLeaderError{LeaderAddr: hint})
@@ -393,6 +405,7 @@ func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRe
 				}
 				return nil, st.Err()
 			}
+			shardID = sid
 		}
 	}
 
@@ -415,6 +428,20 @@ func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRe
 	key := agentstream.SessionKey(ev.GetTenant(), ev.GetProject(), ev.GetSessionId())
 	topic := "agent-events"
 	partition := s.broker.RouteKey(topic, key)
+	// Cluster-mode local path: append to shardwal first, then wait for
+	// quorum. The broker.Broker write below stays as-is so subscribers still
+	// see the event in-memory.
+	if s.shardWAL != nil {
+		walOffset, err := s.shardWAL.Append(shardID, encoded)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "shardwal append: %v", err)
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := s.shardWAL.WaitQuorum(waitCtx, shardID, walOffset); err != nil {
+			return nil, status.Errorf(codes.DeadlineExceeded, "quorum not reached: %v", err)
+		}
+	}
 	if s.wal != nil {
 		if err := s.wal.AppendRecord(wal.Record{
 			Timestamp: time.Now().UnixNano(),

@@ -728,6 +728,186 @@ func (x *NotLeaderError) GetLeaderAddr() string {
 	return ""
 }
 
+type AppendEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ShardId       uint32                 `protobuf:"varint,1,opt,name=shard_id,json=shardId,proto3" json:"shard_id,omitempty"`
+	Offset        uint64                 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	Payload       []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
+	LeaderNodeId  string                 `protobuf:"bytes,4,opt,name=leader_node_id,json=leaderNodeId,proto3" json:"leader_node_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendEntry) Reset() {
+	*x = AppendEntry{}
+	mi := &file_goqueue_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendEntry) ProtoMessage() {}
+
+func (x *AppendEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendEntry.ProtoReflect.Descriptor instead.
+func (*AppendEntry) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *AppendEntry) GetShardId() uint32 {
+	if x != nil {
+		return x.ShardId
+	}
+	return 0
+}
+
+func (x *AppendEntry) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *AppendEntry) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *AppendEntry) GetLeaderNodeId() string {
+	if x != nil {
+		return x.LeaderNodeId
+	}
+	return ""
+}
+
+type AppendAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ShardId       uint32                 `protobuf:"varint,1,opt,name=shard_id,json=shardId,proto3" json:"shard_id,omitempty"`
+	LastOffset    uint64                 `protobuf:"varint,2,opt,name=last_offset,json=lastOffset,proto3" json:"last_offset,omitempty"`
+	NodeId        string                 `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendAck) Reset() {
+	*x = AppendAck{}
+	mi := &file_goqueue_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendAck) ProtoMessage() {}
+
+func (x *AppendAck) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendAck.ProtoReflect.Descriptor instead.
+func (*AppendAck) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *AppendAck) GetShardId() uint32 {
+	if x != nil {
+		return x.ShardId
+	}
+	return 0
+}
+
+func (x *AppendAck) GetLastOffset() uint64 {
+	if x != nil {
+		return x.LastOffset
+	}
+	return 0
+}
+
+func (x *AppendAck) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+type CatchUpRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ShardId       uint32                 `protobuf:"varint,1,opt,name=shard_id,json=shardId,proto3" json:"shard_id,omitempty"`
+	FromOffset    uint64                 `protobuf:"varint,2,opt,name=from_offset,json=fromOffset,proto3" json:"from_offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CatchUpRequest) Reset() {
+	*x = CatchUpRequest{}
+	mi := &file_goqueue_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CatchUpRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CatchUpRequest) ProtoMessage() {}
+
+func (x *CatchUpRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CatchUpRequest.ProtoReflect.Descriptor instead.
+func (*CatchUpRequest) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CatchUpRequest) GetShardId() uint32 {
+	if x != nil {
+		return x.ShardId
+	}
+	return 0
+}
+
+func (x *CatchUpRequest) GetFromOffset() uint64 {
+	if x != nil {
+		return x.FromOffset
+	}
+	return 0
+}
+
 var File_goqueue_proto protoreflect.FileDescriptor
 
 const file_goqueue_proto_rawDesc = "" +
@@ -787,12 +967,29 @@ const file_goqueue_proto_rawDesc = "" +
 	"\tpartition\x18\x02 \x01(\x05R\tpartition\"1\n" +
 	"\x0eNotLeaderError\x12\x1f\n" +
 	"\vleader_addr\x18\x01 \x01(\tR\n" +
-	"leaderAddr2\xa9\x02\n" +
+	"leaderAddr\"\x80\x01\n" +
+	"\vAppendEntry\x12\x19\n" +
+	"\bshard_id\x18\x01 \x01(\rR\ashardId\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x18\n" +
+	"\apayload\x18\x03 \x01(\fR\apayload\x12$\n" +
+	"\x0eleader_node_id\x18\x04 \x01(\tR\fleaderNodeId\"`\n" +
+	"\tAppendAck\x12\x19\n" +
+	"\bshard_id\x18\x01 \x01(\rR\ashardId\x12\x1f\n" +
+	"\vlast_offset\x18\x02 \x01(\x04R\n" +
+	"lastOffset\x12\x17\n" +
+	"\anode_id\x18\x03 \x01(\tR\x06nodeId\"L\n" +
+	"\x0eCatchUpRequest\x12\x19\n" +
+	"\bshard_id\x18\x01 \x01(\rR\ashardId\x12\x1f\n" +
+	"\vfrom_offset\x18\x02 \x01(\x04R\n" +
+	"fromOffset2\xa9\x02\n" +
 	"\rBrokerService\x12B\n" +
 	"\aPublish\x12\x1a.goqueue.v1.PublishRequest\x1a\x1b.goqueue.v1.PublishResponse\x12C\n" +
 	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01\x12<\n" +
 	"\x05Fetch\x12\x18.goqueue.v1.FetchRequest\x1a\x19.goqueue.v1.FetchResponse\x12Q\n" +
-	"\fPublishAgent\x12\x1f.goqueue.v1.PublishAgentRequest\x1a .goqueue.v1.PublishAgentResponseB0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
+	"\fPublishAgent\x12\x1f.goqueue.v1.PublishAgentRequest\x1a .goqueue.v1.PublishAgentResponse2\x93\x01\n" +
+	"\x0eClusterService\x12?\n" +
+	"\tReplicate\x12\x17.goqueue.v1.AppendEntry\x1a\x15.goqueue.v1.AppendAck(\x010\x01\x12@\n" +
+	"\aCatchUp\x12\x1a.goqueue.v1.CatchUpRequest\x1a\x17.goqueue.v1.AppendEntry0\x01B0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
 
 var (
 	file_goqueue_proto_rawDescOnce sync.Once
@@ -806,7 +1003,7 @@ func file_goqueue_proto_rawDescGZIP() []byte {
 	return file_goqueue_proto_rawDescData
 }
 
-var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_goqueue_proto_goTypes = []any{
 	(*PublishRequest)(nil),       // 0: goqueue.v1.PublishRequest
 	(*PublishResponse)(nil),      // 1: goqueue.v1.PublishResponse
@@ -819,24 +1016,31 @@ var file_goqueue_proto_goTypes = []any{
 	(*PublishAgentRequest)(nil),  // 8: goqueue.v1.PublishAgentRequest
 	(*PublishAgentResponse)(nil), // 9: goqueue.v1.PublishAgentResponse
 	(*NotLeaderError)(nil),       // 10: goqueue.v1.NotLeaderError
+	(*AppendEntry)(nil),          // 11: goqueue.v1.AppendEntry
+	(*AppendAck)(nil),            // 12: goqueue.v1.AppendAck
+	(*CatchUpRequest)(nil),       // 13: goqueue.v1.CatchUpRequest
 }
 var file_goqueue_proto_depIdxs = []int32{
-	5, // 0: goqueue.v1.FetchRequest.session_filter:type_name -> goqueue.v1.SessionFilter
-	3, // 1: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
-	7, // 2: goqueue.v1.PublishAgentRequest.event:type_name -> goqueue.v1.AgentEvent
-	0, // 3: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
-	2, // 4: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
-	4, // 5: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
-	8, // 6: goqueue.v1.BrokerService.PublishAgent:input_type -> goqueue.v1.PublishAgentRequest
-	1, // 7: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
-	3, // 8: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
-	6, // 9: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
-	9, // 10: goqueue.v1.BrokerService.PublishAgent:output_type -> goqueue.v1.PublishAgentResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	5,  // 0: goqueue.v1.FetchRequest.session_filter:type_name -> goqueue.v1.SessionFilter
+	3,  // 1: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
+	7,  // 2: goqueue.v1.PublishAgentRequest.event:type_name -> goqueue.v1.AgentEvent
+	0,  // 3: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
+	2,  // 4: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
+	4,  // 5: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
+	8,  // 6: goqueue.v1.BrokerService.PublishAgent:input_type -> goqueue.v1.PublishAgentRequest
+	11, // 7: goqueue.v1.ClusterService.Replicate:input_type -> goqueue.v1.AppendEntry
+	13, // 8: goqueue.v1.ClusterService.CatchUp:input_type -> goqueue.v1.CatchUpRequest
+	1,  // 9: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
+	3,  // 10: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
+	6,  // 11: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
+	9,  // 12: goqueue.v1.BrokerService.PublishAgent:output_type -> goqueue.v1.PublishAgentResponse
+	12, // 13: goqueue.v1.ClusterService.Replicate:output_type -> goqueue.v1.AppendAck
+	11, // 14: goqueue.v1.ClusterService.CatchUp:output_type -> goqueue.v1.AppendEntry
+	9,  // [9:15] is the sub-list for method output_type
+	3,  // [3:9] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_goqueue_proto_init() }
@@ -850,9 +1054,9 @@ func file_goqueue_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_goqueue_proto_rawDesc), len(file_goqueue_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_goqueue_proto_goTypes,
 		DependencyIndexes: file_goqueue_proto_depIdxs,
