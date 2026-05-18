@@ -1,15 +1,15 @@
-# Cluster Mode (Distributed v1 — Foundation + Routing + ISR Replication)
+# Cluster Mode (Distributed v1: Foundation + Routing + ISR Replication)
 
-> **Status:** M0–M4 shipped on `feat/cluster-v1` — cluster forms, gossips, elects a metadata Raft leader, routes session traffic via consistent hashing with transparent SDK redirect, **and replicates every shard write to all alive followers under `acks=quorum` semantics.** Killing a non-leader loses zero messages.
+> **Status:** M0 through M4 shipped on `feat/cluster-v1`. Cluster forms, gossips, elects a metadata Raft leader, routes session traffic via consistent hashing with transparent SDK redirect, **and replicates every shard write to all alive followers under `acks=quorum` semantics.** Killing a non-leader loses zero messages.
 
 ## What's shipped through M4
 
-- **Gossip membership** (SWIM via `hashicorp/memberlist`) — nodes find each other and detect failures within ~3s.
-- **Metadata Raft** (via `hashicorp/raft` + BoltDB) — strongly-consistent cluster state: members, shard count, shard→leader map.
-- **Session routing** — each `tenant/project/session` hashes deterministically to one of 32 shards; each shard has one elected leader. A leader-driven assigner round-robins shards onto alive nodes and reassigns dead leaders within ~2s.
-- **NOT_LEADER redirect** — publishes that arrive at the wrong node return a gRPC `FailedPrecondition` with a `NotLeaderError` detail carrying the leader's gRPC address. The AgentBus SDK transparently retries against the leader; end users see one call.
-- **ISR replication (M4)** — every agent-event write to a shard leader is replicated to all alive followers via long-lived inter-node gRPC streams. `acks=quorum` (cluster-mode default) blocks the publish ack until a majority of replicas have the record durably on disk, so killing any single node loses zero messages.
-- **Operator tooling** — `goqueue cluster status` (real Raft state) and `goqueue cluster route` (show where a session would land).
+- **Gossip membership** (SWIM via `hashicorp/memberlist`): nodes find each other and detect failures within ~3s.
+- **Metadata Raft** (via `hashicorp/raft` + BoltDB): strongly-consistent cluster state covering members, shard count, and shard-to-leader map.
+- **Session routing**: each `tenant/project/session` hashes deterministically to one of 32 shards; each shard has one elected leader. A leader-driven assigner round-robins shards onto alive nodes and reassigns dead leaders within ~2s.
+- **NOT_LEADER redirect**: publishes that arrive at the wrong node return a gRPC `FailedPrecondition` with a `NotLeaderError` detail carrying the leader's gRPC address. The AgentBus SDK transparently retries against the leader; end users see one call.
+- **ISR replication (M4):** every agent-event write to a shard leader is replicated to all alive followers via long-lived inter-node gRPC streams. `acks=quorum` (cluster-mode default) blocks the publish ack until a majority of replicas have the record durably on disk, so killing any single node loses zero messages.
+- **Operator tooling**: `goqueue cluster status` (real Raft state) and `goqueue cluster route` (show where a session would land).
 
 ## Running a local 3-node cluster
 
@@ -77,11 +77,50 @@ goqueue cluster route \
 # Local:   false
 ```
 
-All three nodes will report the *same* `Shard` and `Leader` for a given session, but only the leader shows `Local: true`. Publishing through the SDK is transparent — `client.PublishAgent(...)` to *any* node returns success because the SDK absorbs the redirect.
+All three nodes will report the *same* `Shard` and `Leader` for a given session, but only the leader shows `Local: true`. Publishing through the SDK is transparent: `client.PublishAgent(...)` to *any* node returns success because the SDK absorbs the redirect.
 
 ## Per-shard storage layout
 
-Each broker keeps one append-only file per shard at `--shardwal-dir/shard-N.wal` (default `data/shardwal/shard-N.wal`). Records are length-prefixed payloads with a CRC32C trailer — same correctness primitives as the main WAL. The shard leader's HWM = min ack'd offset across self + alive followers; under `acks=quorum`, `PublishAgent` waits for HWM ≥ the new offset before responding.
+Each broker keeps one append-only file per shard at `--shardwal-dir/shard-N.wal` (default `data/shardwal/shard-N.wal`). Records are length-prefixed payloads with a CRC32C trailer (same correctness primitives as the main WAL). The shard leader's HWM = min ack'd offset across self + alive followers; under `acks=quorum`, `PublishAgent` waits for HWM ≥ the new offset before responding.
+
+## Demo: kill a non-leader, observe zero loss
+
+```bash
+# Bring up the 3-node cluster.
+docker compose -f deploy/cluster.yml up --build -d
+sleep 12
+
+# Pick a session and find out which node leads its shard.
+goqueue cluster route --metrics-url=http://localhost:12112 \
+  --tenant acme --project support --session demo
+
+# Publish 5 events from any node (SDK redirects transparently).
+for i in 1 2 3 4 5; do
+  goqueue publish-agent --grpc --addr localhost:19095 \
+    --tenant acme --project support --session demo --agent planner \
+    --type tool.call --payload "{\"i\":$i}"
+done
+
+# Identify a non-leader node (any node other than the one in cluster route).
+# Then kill it.
+docker compose -f deploy/cluster.yml stop n3   # adjust to a non-leader
+
+# Publish 5 more. They still succeed under acks=quorum because the
+# surviving follower is still in the ISR.
+for i in 6 7 8 9 10; do
+  goqueue publish-agent --grpc --addr localhost:19095 \
+    --tenant acme --project support --session demo --agent planner \
+    --type tool.call --payload "{\"i\":$i}"
+done
+
+# Bring the killed node back. Its shardwal catches up automatically.
+docker compose -f deploy/cluster.yml start n3
+sleep 8
+
+docker compose -f deploy/cluster.yml down -v
+```
+
+Expected result: all 10 publishes succeeded. The surviving follower had every record on disk before the leader acked. Once the killed node restarts, its replicator session reopens against the leader and the shardwal tail catches up.
 
 ## What's NOT yet shipped
 
