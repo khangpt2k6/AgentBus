@@ -27,6 +27,7 @@ import (
 	"github.com/khangpt2k6/AgentBus/internal/telemetry"
 	"github.com/khangpt2k6/AgentBus/internal/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	pb "github.com/khangpt2k6/AgentBus/proto"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 )
@@ -51,6 +52,7 @@ func main() {
 	clusterGossipBind := flag.String("gossip-bind", "127.0.0.1:8001", "Gossip listen address (cluster mode)")
 	clusterRaftDir := flag.String("raft-dir", "data/raft", "directory for Raft state (cluster mode)")
 	clusterAdvClientAddr := flag.String("advertise-client-addr", "", "client-dialable gRPC address (cluster mode); defaults to --grpc-addr with 127.0.0.1 host if missing")
+	clusterShardWALDir := flag.String("shardwal-dir", "data/shardwal", "directory for per-shard WAL files (cluster mode)")
 	flag.Parse()
 
 	if err := os.MkdirAll("data", 0o755); err != nil {
@@ -142,12 +144,13 @@ func main() {
 			}
 		}
 		cl, err = cluster.Start(cluster.Config{
-			NodeID:     *nodeID,
-			RaftBind:   *clusterRaftBind,
-			GossipBind: *clusterGossipBind,
-			RaftDir:    *clusterRaftDir,
-			ClientAddr: clientAddr,
-			Peers:      peers,
+			NodeID:      *nodeID,
+			RaftBind:    *clusterRaftBind,
+			GossipBind:  *clusterGossipBind,
+			RaftDir:     *clusterRaftDir,
+			ShardWALDir: *clusterShardWALDir,
+			ClientAddr:  clientAddr,
+			Peers:       peers,
 		}, nil)
 		if err != nil {
 			log.Fatalf("cluster start: %v", err)
@@ -423,9 +426,13 @@ func main() {
 	gApi := grpcapi.NewServer(b, groups, m, logFile)
 	if cl != nil {
 		gApi.SetRouteChecker(routeAdapter{cl: cl})
+		gApi.SetShardWALHook(shardWALAdapter{cl: cl})
 	}
 	grpcSrv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	grpcapi.Register(grpcSrv, gApi)
+	if cl != nil {
+		pb.RegisterClusterServiceServer(grpcSrv, cl.TransportServer())
+	}
 
 	tcpSrv = broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	ready.Store(true)
@@ -554,9 +561,23 @@ func (s *raftRuntimeState) Get() raftRuntimeState {
 
 type routeAdapter struct{ cl *cluster.Cluster }
 
-func (r routeAdapter) RouteSession(tenant, project, session string) (bool, string) {
+func (r routeAdapter) RouteSession(tenant, project, session string) (bool, uint32, string) {
 	dec := r.cl.Router().RouteSession(tenant, project, session)
-	return dec.IsLocal, dec.LeaderClientAddr
+	return dec.IsLocal, dec.ShardID, dec.LeaderClientAddr
+}
+
+type shardWALAdapter struct{ cl *cluster.Cluster }
+
+func (a shardWALAdapter) Append(shardID uint32, payload []byte) (uint64, error) {
+	sh, err := a.cl.ShardWAL().Shard(shardID)
+	if err != nil {
+		return 0, err
+	}
+	return sh.Append(payload)
+}
+
+func (a shardWALAdapter) WaitQuorum(ctx context.Context, shardID uint32, offset uint64) error {
+	return a.cl.ShardWAL().HWM(shardID).WaitFor(ctx, offset+1)
 }
 
 func (s *raftRuntimeState) Update(in raftStateUpdateRequest) {
