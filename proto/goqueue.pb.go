@@ -498,6 +498,236 @@ func (x *FetchResponse) GetTail() int64 {
 	return 0
 }
 
+// AgentEvent is a structured agent event envelope for the PublishAgent RPC.
+type AgentEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tenant        string                 `protobuf:"bytes,1,opt,name=tenant,proto3" json:"tenant,omitempty"`
+	Project       string                 `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,4,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	Type          string                 `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
+	Payload       []byte                 `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentEvent) Reset() {
+	*x = AgentEvent{}
+	mi := &file_goqueue_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentEvent) ProtoMessage() {}
+
+func (x *AgentEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentEvent.ProtoReflect.Descriptor instead.
+func (*AgentEvent) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *AgentEvent) GetTenant() string {
+	if x != nil {
+		return x.Tenant
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *AgentEvent) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+type PublishAgentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Event         *AgentEvent            `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishAgentRequest) Reset() {
+	*x = PublishAgentRequest{}
+	mi := &file_goqueue_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishAgentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishAgentRequest) ProtoMessage() {}
+
+func (x *PublishAgentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishAgentRequest.ProtoReflect.Descriptor instead.
+func (*PublishAgentRequest) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PublishAgentRequest) GetEvent() *AgentEvent {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+type PublishAgentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Offset        int64                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
+	Partition     int32                  `protobuf:"varint,2,opt,name=partition,proto3" json:"partition,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishAgentResponse) Reset() {
+	*x = PublishAgentResponse{}
+	mi := &file_goqueue_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishAgentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishAgentResponse) ProtoMessage() {}
+
+func (x *PublishAgentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishAgentResponse.ProtoReflect.Descriptor instead.
+func (*PublishAgentResponse) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *PublishAgentResponse) GetOffset() int64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *PublishAgentResponse) GetPartition() int32 {
+	if x != nil {
+		return x.Partition
+	}
+	return 0
+}
+
+// NotLeaderError is returned as a status detail (alongside
+// FailedPrecondition) when a client publishes to a node that does not
+// own the target shard.
+type NotLeaderError struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// gRPC address (host:port) of the current leader. May be empty if the
+	// leader is unknown or unreachable — the SDK should back off and retry.
+	LeaderAddr    string `protobuf:"bytes,1,opt,name=leader_addr,json=leaderAddr,proto3" json:"leader_addr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotLeaderError) Reset() {
+	*x = NotLeaderError{}
+	mi := &file_goqueue_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotLeaderError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotLeaderError) ProtoMessage() {}
+
+func (x *NotLeaderError) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotLeaderError.ProtoReflect.Descriptor instead.
+func (*NotLeaderError) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *NotLeaderError) GetLeaderAddr() string {
+	if x != nil {
+		return x.LeaderAddr
+	}
+	return ""
+}
+
 var File_goqueue_proto protoreflect.FileDescriptor
 
 const file_goqueue_proto_rawDesc = "" +
@@ -540,11 +770,29 @@ const file_goqueue_proto_rawDesc = "" +
 	"\vnext_offset\x18\x02 \x01(\x03R\n" +
 	"nextOffset\x12\x12\n" +
 	"\x04head\x18\x03 \x01(\x03R\x04head\x12\x12\n" +
-	"\x04tail\x18\x04 \x01(\x03R\x04tail2\xd6\x01\n" +
+	"\x04tail\x18\x04 \x01(\x03R\x04tail\"\xa6\x01\n" +
+	"\n" +
+	"AgentEvent\x12\x16\n" +
+	"\x06tenant\x18\x01 \x01(\tR\x06tenant\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12\x19\n" +
+	"\bagent_id\x18\x04 \x01(\tR\aagentId\x12\x12\n" +
+	"\x04type\x18\x05 \x01(\tR\x04type\x12\x18\n" +
+	"\apayload\x18\x06 \x01(\fR\apayload\"C\n" +
+	"\x13PublishAgentRequest\x12,\n" +
+	"\x05event\x18\x01 \x01(\v2\x16.goqueue.v1.AgentEventR\x05event\"L\n" +
+	"\x14PublishAgentResponse\x12\x16\n" +
+	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x1c\n" +
+	"\tpartition\x18\x02 \x01(\x05R\tpartition\"1\n" +
+	"\x0eNotLeaderError\x12\x1f\n" +
+	"\vleader_addr\x18\x01 \x01(\tR\n" +
+	"leaderAddr2\xa9\x02\n" +
 	"\rBrokerService\x12B\n" +
 	"\aPublish\x12\x1a.goqueue.v1.PublishRequest\x1a\x1b.goqueue.v1.PublishResponse\x12C\n" +
 	"\aConsume\x12\x1a.goqueue.v1.ConsumeRequest\x1a\x1a.goqueue.v1.ConsumeMessage0\x01\x12<\n" +
-	"\x05Fetch\x12\x18.goqueue.v1.FetchRequest\x1a\x19.goqueue.v1.FetchResponseB0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
+	"\x05Fetch\x12\x18.goqueue.v1.FetchRequest\x1a\x19.goqueue.v1.FetchResponse\x12Q\n" +
+	"\fPublishAgent\x12\x1f.goqueue.v1.PublishAgentRequest\x1a .goqueue.v1.PublishAgentResponseB0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
 
 var (
 	file_goqueue_proto_rawDescOnce sync.Once
@@ -558,30 +806,37 @@ func file_goqueue_proto_rawDescGZIP() []byte {
 	return file_goqueue_proto_rawDescData
 }
 
-var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_goqueue_proto_goTypes = []any{
-	(*PublishRequest)(nil),  // 0: goqueue.v1.PublishRequest
-	(*PublishResponse)(nil), // 1: goqueue.v1.PublishResponse
-	(*ConsumeRequest)(nil),  // 2: goqueue.v1.ConsumeRequest
-	(*ConsumeMessage)(nil),  // 3: goqueue.v1.ConsumeMessage
-	(*FetchRequest)(nil),    // 4: goqueue.v1.FetchRequest
-	(*SessionFilter)(nil),   // 5: goqueue.v1.SessionFilter
-	(*FetchResponse)(nil),   // 6: goqueue.v1.FetchResponse
+	(*PublishRequest)(nil),       // 0: goqueue.v1.PublishRequest
+	(*PublishResponse)(nil),      // 1: goqueue.v1.PublishResponse
+	(*ConsumeRequest)(nil),       // 2: goqueue.v1.ConsumeRequest
+	(*ConsumeMessage)(nil),       // 3: goqueue.v1.ConsumeMessage
+	(*FetchRequest)(nil),         // 4: goqueue.v1.FetchRequest
+	(*SessionFilter)(nil),        // 5: goqueue.v1.SessionFilter
+	(*FetchResponse)(nil),        // 6: goqueue.v1.FetchResponse
+	(*AgentEvent)(nil),           // 7: goqueue.v1.AgentEvent
+	(*PublishAgentRequest)(nil),  // 8: goqueue.v1.PublishAgentRequest
+	(*PublishAgentResponse)(nil), // 9: goqueue.v1.PublishAgentResponse
+	(*NotLeaderError)(nil),       // 10: goqueue.v1.NotLeaderError
 }
 var file_goqueue_proto_depIdxs = []int32{
 	5, // 0: goqueue.v1.FetchRequest.session_filter:type_name -> goqueue.v1.SessionFilter
 	3, // 1: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
-	0, // 2: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
-	2, // 3: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
-	4, // 4: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
-	1, // 5: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
-	3, // 6: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
-	6, // 7: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
-	5, // [5:8] is the sub-list for method output_type
-	2, // [2:5] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	7, // 2: goqueue.v1.PublishAgentRequest.event:type_name -> goqueue.v1.AgentEvent
+	0, // 3: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
+	2, // 4: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
+	4, // 5: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
+	8, // 6: goqueue.v1.BrokerService.PublishAgent:input_type -> goqueue.v1.PublishAgentRequest
+	1, // 7: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
+	3, // 8: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
+	6, // 9: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
+	9, // 10: goqueue.v1.BrokerService.PublishAgent:output_type -> goqueue.v1.PublishAgentResponse
+	7, // [7:11] is the sub-list for method output_type
+	3, // [3:7] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_goqueue_proto_init() }
@@ -595,7 +850,7 @@ func file_goqueue_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_goqueue_proto_rawDesc), len(file_goqueue_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

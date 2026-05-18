@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BrokerService_Publish_FullMethodName = "/goqueue.v1.BrokerService/Publish"
-	BrokerService_Consume_FullMethodName = "/goqueue.v1.BrokerService/Consume"
-	BrokerService_Fetch_FullMethodName   = "/goqueue.v1.BrokerService/Fetch"
+	BrokerService_Publish_FullMethodName      = "/goqueue.v1.BrokerService/Publish"
+	BrokerService_Consume_FullMethodName      = "/goqueue.v1.BrokerService/Consume"
+	BrokerService_Fetch_FullMethodName        = "/goqueue.v1.BrokerService/Fetch"
+	BrokerService_PublishAgent_FullMethodName = "/goqueue.v1.BrokerService/PublishAgent"
 )
 
 // BrokerServiceClient is the client API for BrokerService service.
@@ -34,6 +35,10 @@ type BrokerServiceClient interface {
 	// it does not track consumer-group state and does not stream — it returns a
 	// single page. Use it for session replay, debugging, and time-travel reads.
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
+	// PublishAgent publishes a structured agent event. In cluster mode, returns
+	// FailedPrecondition with a NotLeaderError detail when this node does not
+	// own the target shard — the client must redirect to the indicated leader.
+	PublishAgent(ctx context.Context, in *PublishAgentRequest, opts ...grpc.CallOption) (*PublishAgentResponse, error)
 }
 
 type brokerServiceClient struct {
@@ -83,6 +88,16 @@ func (c *brokerServiceClient) Fetch(ctx context.Context, in *FetchRequest, opts 
 	return out, nil
 }
 
+func (c *brokerServiceClient) PublishAgent(ctx context.Context, in *PublishAgentRequest, opts ...grpc.CallOption) (*PublishAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PublishAgentResponse)
+	err := c.cc.Invoke(ctx, BrokerService_PublishAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BrokerServiceServer is the server API for BrokerService service.
 // All implementations must embed UnimplementedBrokerServiceServer
 // for forward compatibility.
@@ -93,6 +108,10 @@ type BrokerServiceServer interface {
 	// it does not track consumer-group state and does not stream — it returns a
 	// single page. Use it for session replay, debugging, and time-travel reads.
 	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
+	// PublishAgent publishes a structured agent event. In cluster mode, returns
+	// FailedPrecondition with a NotLeaderError detail when this node does not
+	// own the target shard — the client must redirect to the indicated leader.
+	PublishAgent(context.Context, *PublishAgentRequest) (*PublishAgentResponse, error)
 	mustEmbedUnimplementedBrokerServiceServer()
 }
 
@@ -111,6 +130,9 @@ func (UnimplementedBrokerServiceServer) Consume(*ConsumeRequest, grpc.ServerStre
 }
 func (UnimplementedBrokerServiceServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Fetch not implemented")
+}
+func (UnimplementedBrokerServiceServer) PublishAgent(context.Context, *PublishAgentRequest) (*PublishAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PublishAgent not implemented")
 }
 func (UnimplementedBrokerServiceServer) mustEmbedUnimplementedBrokerServiceServer() {}
 func (UnimplementedBrokerServiceServer) testEmbeddedByValue()                       {}
@@ -180,6 +202,24 @@ func _BrokerService_Fetch_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BrokerService_PublishAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BrokerServiceServer).PublishAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BrokerService_PublishAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BrokerServiceServer).PublishAgent(ctx, req.(*PublishAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BrokerService_ServiceDesc is the grpc.ServiceDesc for BrokerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -194,6 +234,10 @@ var BrokerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Fetch",
 			Handler:    _BrokerService_Fetch_Handler,
+		},
+		{
+			MethodName: "PublishAgent",
+			Handler:    _BrokerService_PublishAgent_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

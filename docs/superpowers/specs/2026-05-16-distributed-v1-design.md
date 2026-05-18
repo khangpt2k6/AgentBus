@@ -197,18 +197,18 @@ These are intentionally left open; we'll pick during the relevant milestone. Lis
 
 ## 9. Success criteria
 
-v1 is shipped when all of these are true:
+v1 is shipped when all of these are true. Items marked `[x]` shipped in the **foundation milestone** (M0–M2) on `feat/cluster-v1`. Items marked `[ ]` are scoped to Plan 2 (M3–M5: data plane routing, ISR replication, failover) and Plan 3 (M6: polish + demo video).
 
-- [ ] `--cluster` mode starts a 3-node cluster from `docker compose -f deploy/cluster.yml up`
-- [ ] `goqueue cluster status` shows cluster membership and current metadata Raft leader
-- [ ] Publishing to two different sessions lands them on different shards (verified by `goqueue cluster route`)
-- [ ] Killing the shard leader during a 200 msg/s stream results in zero message loss with `acks=quorum`
-- [ ] `goqueue session replay` after failover reconstructs the full session including events written across the failover
-- [ ] Single-node mode (`--cluster=false`) passes existing test suite unchanged
-- [ ] Multi-node integration test suite runs in CI and gates merges
-- [ ] README clearly distinguishes single-node from cluster mode and links to this spec
-- [ ] Demo video recorded and linked in README
-- [ ] `docs/distributed-v2-roadmap.md` documents the deferred work from §2 and §4
+- [x] `--cluster` mode starts a 3-node cluster from `docker compose -f deploy/cluster.yml up`
+- [x] `goqueue cluster status` shows cluster membership and current metadata Raft leader
+- [x] Publishing to two different sessions lands them on different shards (verified by `goqueue cluster route`) — *M3*
+- [ ] Killing the shard leader during a 200 msg/s stream results in zero message loss with `acks=quorum` — *M5*
+- [ ] `goqueue session replay` after failover reconstructs the full session including events written across the failover — *M5*
+- [x] Single-node mode (`--cluster=false`) passes existing test suite unchanged
+- [x] Multi-node integration test suite runs in CI and gates merges
+- [x] README clearly distinguishes single-node from cluster mode and links to this spec
+- [ ] Demo video recorded and linked in README — *M6*
+- [ ] `docs/distributed-v2-roadmap.md` documents the deferred work from §2 and §4 — *M6*
 
 ## 10. References
 

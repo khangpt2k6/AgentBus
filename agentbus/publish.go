@@ -113,8 +113,39 @@ func (c *Client) PublishAgentTo(ctx context.Context, topic string, ev AgentEvent
 	if err != nil {
 		return PublishResult{}, err
 	}
-	key := sessionKey(ev.Tenant, ev.Project, ev.SessionID)
-	return c.publishRaw(ctx, topic, key, -1, encoded)
+	res, firstErr := c.publishAgentOnce(ctx, c.api, ev, encoded)
+	if firstErr == nil {
+		return res, nil
+	}
+	hint, isRedirect := notLeaderHint(firstErr)
+	if !isRedirect || hint == "" {
+		return PublishResult{}, firstErr
+	}
+	conn, dialErr := dialLeader(ctx, hint)
+	if dialErr != nil {
+		return PublishResult{}, firstErr
+	}
+	defer conn.Close()
+	return c.publishAgentOnce(ctx, pb.NewBrokerServiceClient(conn), ev, encoded)
+}
+
+// publishAgentOnce calls the gRPC PublishAgent RPC on the given client using
+// the pre-encoded JSON envelope. It is the inner, non-redirecting call.
+func (c *Client) publishAgentOnce(ctx context.Context, qc pb.BrokerServiceClient, ev AgentEvent, encoded []byte) (PublishResult, error) {
+	resp, err := qc.PublishAgent(ctx, &pb.PublishAgentRequest{
+		Event: &pb.AgentEvent{
+			Tenant:    ev.Tenant,
+			Project:   ev.Project,
+			SessionId: ev.SessionID,
+			AgentId:   ev.AgentID,
+			Type:      ev.Type,
+			Payload:   encoded,
+		},
+	})
+	if err != nil {
+		return PublishResult{}, err
+	}
+	return PublishResult{Partition: resp.Partition, Offset: resp.Offset}, nil
 }
 
 func validateAgentEvent(ev AgentEvent) error {
