@@ -249,3 +249,152 @@ var BrokerService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "goqueue.proto",
 }
+
+const (
+	ClusterService_Replicate_FullMethodName = "/goqueue.v1.ClusterService/Replicate"
+	ClusterService_CatchUp_FullMethodName   = "/goqueue.v1.ClusterService/CatchUp"
+)
+
+// ClusterServiceClient is the client API for ClusterService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ClusterServiceClient interface {
+	// Replicate is a long-lived bidirectional stream from a shard leader to
+	// a follower. The leader sends AppendEntry; the follower acks with the
+	// last offset it has durably written.
+	Replicate(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AppendEntry, AppendAck], error)
+	// CatchUp is a one-shot server-streaming RPC used by a follower to
+	// backfill entries it is missing before joining the live Replicate
+	// stream.
+	CatchUp(ctx context.Context, in *CatchUpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AppendEntry], error)
+}
+
+type clusterServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewClusterServiceClient(cc grpc.ClientConnInterface) ClusterServiceClient {
+	return &clusterServiceClient{cc}
+}
+
+func (c *clusterServiceClient) Replicate(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AppendEntry, AppendAck], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ClusterService_ServiceDesc.Streams[0], ClusterService_Replicate_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AppendEntry, AppendAck]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ClusterService_ReplicateClient = grpc.BidiStreamingClient[AppendEntry, AppendAck]
+
+func (c *clusterServiceClient) CatchUp(ctx context.Context, in *CatchUpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AppendEntry], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ClusterService_ServiceDesc.Streams[1], ClusterService_CatchUp_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[CatchUpRequest, AppendEntry]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ClusterService_CatchUpClient = grpc.ServerStreamingClient[AppendEntry]
+
+// ClusterServiceServer is the server API for ClusterService service.
+// All implementations must embed UnimplementedClusterServiceServer
+// for forward compatibility.
+type ClusterServiceServer interface {
+	// Replicate is a long-lived bidirectional stream from a shard leader to
+	// a follower. The leader sends AppendEntry; the follower acks with the
+	// last offset it has durably written.
+	Replicate(grpc.BidiStreamingServer[AppendEntry, AppendAck]) error
+	// CatchUp is a one-shot server-streaming RPC used by a follower to
+	// backfill entries it is missing before joining the live Replicate
+	// stream.
+	CatchUp(*CatchUpRequest, grpc.ServerStreamingServer[AppendEntry]) error
+	mustEmbedUnimplementedClusterServiceServer()
+}
+
+// UnimplementedClusterServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedClusterServiceServer struct{}
+
+func (UnimplementedClusterServiceServer) Replicate(grpc.BidiStreamingServer[AppendEntry, AppendAck]) error {
+	return status.Error(codes.Unimplemented, "method Replicate not implemented")
+}
+func (UnimplementedClusterServiceServer) CatchUp(*CatchUpRequest, grpc.ServerStreamingServer[AppendEntry]) error {
+	return status.Error(codes.Unimplemented, "method CatchUp not implemented")
+}
+func (UnimplementedClusterServiceServer) mustEmbedUnimplementedClusterServiceServer() {}
+func (UnimplementedClusterServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeClusterServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ClusterServiceServer will
+// result in compilation errors.
+type UnsafeClusterServiceServer interface {
+	mustEmbedUnimplementedClusterServiceServer()
+}
+
+func RegisterClusterServiceServer(s grpc.ServiceRegistrar, srv ClusterServiceServer) {
+	// If the following call panics, it indicates UnimplementedClusterServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ClusterService_ServiceDesc, srv)
+}
+
+func _ClusterService_Replicate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ClusterServiceServer).Replicate(&grpc.GenericServerStream[AppendEntry, AppendAck]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ClusterService_ReplicateServer = grpc.BidiStreamingServer[AppendEntry, AppendAck]
+
+func _ClusterService_CatchUp_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(CatchUpRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ClusterServiceServer).CatchUp(m, &grpc.GenericServerStream[CatchUpRequest, AppendEntry]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ClusterService_CatchUpServer = grpc.ServerStreamingServer[AppendEntry]
+
+// ClusterService_ServiceDesc is the grpc.ServiceDesc for ClusterService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ClusterService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "goqueue.v1.ClusterService",
+	HandlerType: (*ClusterServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Replicate",
+			Handler:       _ClusterService_Replicate_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "CatchUp",
+			Handler:       _ClusterService_CatchUp_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "goqueue.proto",
+}

@@ -108,3 +108,38 @@ message NotLeaderError {
   // leader is unknown or unreachable — the SDK should back off and retry.
   string leader_addr = 1;
 }
+
+// ---- Cluster (inter-node) RPCs -------------------------------------------
+//
+// Used by AgentBus broker nodes to replicate per-shard logs to each other.
+// Not intended for client use; clients talk to BrokerService.
+
+service ClusterService {
+  // Replicate is a long-lived bidirectional stream from a shard leader to
+  // a follower. The leader sends AppendEntry; the follower acks with the
+  // last offset it has durably written.
+  rpc Replicate(stream AppendEntry) returns (stream AppendAck);
+
+  // CatchUp is a one-shot server-streaming RPC used by a follower to
+  // backfill entries it is missing before joining the live Replicate
+  // stream.
+  rpc CatchUp(CatchUpRequest) returns (stream AppendEntry);
+}
+
+message AppendEntry {
+  uint32 shard_id = 1;
+  uint64 offset   = 2;
+  bytes  payload  = 3;
+  string leader_node_id = 4;
+}
+
+message AppendAck {
+  uint32 shard_id    = 1;
+  uint64 last_offset = 2;
+  string node_id     = 3;
+}
+
+message CatchUpRequest {
+  uint32 shard_id    = 1;
+  uint64 from_offset = 2;
+}
