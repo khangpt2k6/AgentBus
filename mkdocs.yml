@@ -1,5 +1,5 @@
 site_name: AgentBus
-site_description: Session-ordered event bus for AI agents — replay, observability, and integration in a single Go binary.
+site_description: Session-ordered event bus for AI agents. Replay, observability, and integration in a single Go binary.
 site_author: khangpt2k6
 site_url: https://khangpt2k6.github.io/AgentBus/
 repo_url: https://github.com/khangpt2k6/AgentBus
@@ -116,6 +116,8 @@ nav:
       - systemd on a VM: deploy/systemd.md
   - Reference:
       - CLI: reference/cli.md
+  - Cluster mode:
+      - Operator guide: cluster.md
   - Design notes:
       - Distributed v1: distributed-v1-design.md
       - Benchmarking: benchmarking.md
@@ -133,3 +135,4 @@ extra:
 
 exclude_docs: |
   canva-diagram-guide.html
+  superpowers/
