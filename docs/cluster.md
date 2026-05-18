@@ -128,7 +128,7 @@ Expected result: all 10 publishes succeeded. The surviving follower had every re
 - **No producer-side sequence preservation across leader changes.** Publishes that race a leader change can land out-of-order in a session. M5 adds idempotent-producer semantics.
 - **No log segmentation / compaction.** Shard WAL files grow without bound. Operational concern; deferred to a future iteration.
 
-These ship in Plan 2c (M5 failover). See the [design spec](superpowers/specs/2026-05-16-distributed-v1-design.md) for the full roadmap.
+These ship in Plan 2c (M5 failover). See the [design spec on GitHub](https://github.com/khangpt2k6/AgentBus/blob/main/docs/superpowers/specs/2026-05-16-distributed-v1-design.md) for the full roadmap.
 
 ## Failure modes (M3 routing + M4 replication)
 
