@@ -65,18 +65,29 @@ func sessionFilterMatches(payload []byte, filter *goqueuev1.SessionFilter) bool 
 	return true
 }
 
+// RouteChecker is the minimum surface PublishAgent needs from the cluster
+// router. Defined as an interface so single-node mode and tests don't
+// import the cluster package.
+type RouteChecker interface {
+	RouteSession(tenant, project, sessionID string) (isLocal bool, leaderClientAddr string)
+}
+
 type Server struct {
 	goqueuev1.UnimplementedBrokerServiceServer
 
-	broker  *broker.Broker
-	groups  *consumer.Manager
-	metrics *metrics.Metrics
-	wal     *wal.Log
+	broker     *broker.Broker
+	groups     *consumer.Manager
+	metrics    *metrics.Metrics
+	wal        *wal.Log
+	routeCheck RouteChecker
 }
 
 func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal.Log) *Server {
 	return &Server{broker: b, groups: g, metrics: m, wal: l}
 }
+
+// SetRouteChecker enables cluster-mode routing checks. Pass nil to disable.
+func (s *Server) SetRouteChecker(rc RouteChecker) { s.routeCheck = rc }
 
 func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
 	// Peek the envelope BEFORE starting the span so we can anchor the span
@@ -361,6 +372,69 @@ func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goque
 		Head:       head,
 		Tail:       tail,
 	}, nil
+}
+
+// PublishAgent publishes a structured agent event. In cluster mode, if this
+// node does not own the target session's shard, it returns
+// codes.FailedPrecondition with a NotLeaderError status detail so the client
+// can redirect to the current shard leader.
+func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRequest) (*goqueuev1.PublishAgentResponse, error) {
+	if s.routeCheck != nil {
+		tenant := req.GetEvent().GetTenant()
+		project := req.GetEvent().GetProject()
+		session := req.GetEvent().GetSessionId()
+		if tenant != "" && project != "" && session != "" {
+			isLocal, hint := s.routeCheck.RouteSession(tenant, project, session)
+			if !isLocal {
+				st := status.New(codes.FailedPrecondition, "not the leader of this session's shard")
+				withDetails, derr := st.WithDetails(&goqueuev1.NotLeaderError{LeaderAddr: hint})
+				if derr == nil {
+					st = withDetails
+				}
+				return nil, st.Err()
+			}
+		}
+	}
+
+	ev := req.GetEvent()
+	if ev == nil {
+		return nil, status.Error(codes.InvalidArgument, "event is required")
+	}
+	env := agentstream.Event{
+		Type:      ev.GetType(),
+		Tenant:    ev.GetTenant(),
+		Project:   ev.GetProject(),
+		SessionID: ev.GetSessionId(),
+		AgentID:   ev.GetAgentId(),
+		Payload:   ev.GetPayload(),
+	}
+	encoded, err := env.Marshal()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid agent event: %v", err)
+	}
+	key := agentstream.SessionKey(ev.GetTenant(), ev.GetProject(), ev.GetSessionId())
+	topic := "agent-events"
+	partition := s.broker.RouteKey(topic, key)
+	if s.wal != nil {
+		if err := s.wal.AppendRecord(wal.Record{
+			Timestamp: time.Now().UnixNano(),
+			Topic:     topic,
+			Key:       key,
+			Partition: int32(partition),
+			Payload:   encoded,
+		}); err != nil {
+			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
+		}
+	}
+	offset, err := s.broker.PublishToPartition(topic, partition, encoded)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
+	}
+	if s.metrics != nil {
+		s.metrics.PublishedTotal.Inc()
+		s.metrics.ObserveAgentPayload(topic, encoded)
+	}
+	return &goqueuev1.PublishAgentResponse{Offset: offset, Partition: int32(partition)}, nil
 }
 
 func Register(grpcServer *grpc.Server, srv *Server) {

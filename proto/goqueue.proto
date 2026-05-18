@@ -11,6 +11,10 @@ service BrokerService {
   // it does not track consumer-group state and does not stream — it returns a
   // single page. Use it for session replay, debugging, and time-travel reads.
   rpc Fetch(FetchRequest) returns (FetchResponse);
+  // PublishAgent publishes a structured agent event. In cluster mode, returns
+  // FailedPrecondition with a NotLeaderError detail when this node does not
+  // own the target shard — the client must redirect to the indicated leader.
+  rpc PublishAgent(PublishAgentRequest) returns (PublishAgentResponse);
 }
 
 message PublishRequest {
@@ -75,4 +79,32 @@ message FetchResponse {
   int64 head = 3;
   // tail is the next-write offset (one past the latest persisted message).
   int64 tail = 4;
+}
+
+// AgentEvent is a structured agent event envelope for the PublishAgent RPC.
+message AgentEvent {
+  string tenant     = 1;
+  string project    = 2;
+  string session_id = 3;
+  string agent_id   = 4;
+  string type       = 5;
+  bytes  payload    = 6;
+}
+
+message PublishAgentRequest {
+  AgentEvent event = 1;
+}
+
+message PublishAgentResponse {
+  int64 offset    = 1;
+  int32 partition = 2;
+}
+
+// NotLeaderError is returned as a status detail (alongside
+// FailedPrecondition) when a client publishes to a node that does not
+// own the target shard.
+message NotLeaderError {
+  // gRPC address (host:port) of the current leader. May be empty if the
+  // leader is unknown or unreachable — the SDK should back off and retry.
+  string leader_addr = 1;
 }
