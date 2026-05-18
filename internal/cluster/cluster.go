@@ -11,8 +11,11 @@ import (
 	"github.com/khangpt2k6/AgentBus/internal/cluster/assigner"
 	"github.com/khangpt2k6/AgentBus/internal/cluster/membership"
 	"github.com/khangpt2k6/AgentBus/internal/cluster/metadata"
+	"github.com/khangpt2k6/AgentBus/internal/cluster/replicator"
 	"github.com/khangpt2k6/AgentBus/internal/cluster/ring"
 	"github.com/khangpt2k6/AgentBus/internal/cluster/router"
+	"github.com/khangpt2k6/AgentBus/internal/cluster/shardwal"
+	"github.com/khangpt2k6/AgentBus/internal/cluster/transport"
 )
 
 // Default shard count when the assigner first bootstraps a cluster.
@@ -28,6 +31,10 @@ type Cluster struct {
 	meta   *metadata.Metadata
 	ring   *ring.Ring
 	router *router.Router
+
+	shardwalMgr *shardwal.Manager
+	transport   *transport.Server
+	replicator  *replicator.Replicator
 
 	cancel context.CancelFunc
 }
@@ -93,17 +100,29 @@ func Start(cfg Config, logOut io.Writer) (*Cluster, error) {
 		return nil, fmt.Errorf("metadata start: %w", err)
 	}
 
+	shardwalMgr, err := shardwal.NewManager(cfg.ShardWALDir, cfg.NodeID)
+	if err != nil {
+		_ = meta.Shutdown()
+		_ = mem.Shutdown()
+		return nil, fmt.Errorf("shardwal manager: %w", err)
+	}
+	trSrv := transport.NewServer(shardwalMgr)
+	rep := replicator.New(shardwalMgr)
+
 	r := ring.New(128)
 	rt := router.New(cfg.NodeID, meta.FSM(), aliveAdapter{mem: mem}, r)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cluster{
-		cfg:    cfg,
-		mem:    mem,
-		meta:   meta,
-		ring:   r,
-		router: rt,
-		cancel: cancel,
+		cfg:         cfg,
+		mem:         mem,
+		meta:        meta,
+		ring:        r,
+		router:      rt,
+		shardwalMgr: shardwalMgr,
+		transport:   trSrv,
+		replicator:  rep,
+		cancel:      cancel,
 	}
 
 	go c.bootstrapAndAssign(ctx, logOut)
@@ -137,6 +156,7 @@ func (c *Cluster) bootstrapAndAssign(ctx context.Context, logOut io.Writer) {
 
 	go c.refreshRingLoop(ctx)
 	go c.retryRegisterLoop(ctx)
+	go c.refreshShardLeadershipLoop(ctx)
 
 	assigner.RunLoop(ctx, leaderChecker{m: c.meta}, c.meta.FSM(), aliveAdapter{mem: c.mem}, applierAdapter{m: c.meta})
 	_ = logOut
@@ -183,6 +203,68 @@ func (c *Cluster) refreshRingLoop(ctx context.Context) {
 	}
 }
 
+// refreshShardLeadershipLoop watches the FSM and tells the Replicator
+// which shards this node leads. Followers for each led shard = all alive
+// members in the FSM minus self.
+func (c *Cluster) refreshShardLeadershipLoop(ctx context.Context) {
+	t := time.NewTicker(1 * time.Second)
+	defer t.Stop()
+	owned := map[uint32]struct{}{}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			leaders := c.meta.FSM().AllShardLeaders()
+			want := map[uint32]struct{}{}
+			for shard, leader := range leaders {
+				if leader == c.cfg.NodeID {
+					want[shard] = struct{}{}
+				}
+			}
+			// Stop replicating shards we no longer lead.
+			for shard := range owned {
+				if _, ok := want[shard]; !ok {
+					c.replicator.Drop(shard)
+					delete(owned, shard)
+				}
+			}
+			// (Re)start replication for shards we now lead.
+			followerList := c.aliveFollowers()
+			addrs := c.followerAddrsFor(followerList)
+			for shard := range want {
+				c.replicator.Add(ctx, shard, addrs)
+				owned[shard] = struct{}{}
+			}
+		}
+	}
+}
+
+// aliveFollowers returns NodeIDs of currently-alive members other than self.
+func (c *Cluster) aliveFollowers() []string {
+	out := []string{}
+	for _, nid := range c.mem.Alive() {
+		if nid != c.cfg.NodeID {
+			out = append(out, nid)
+		}
+	}
+	return out
+}
+
+// followerAddrsFor maps NodeIDs to (NodeID, ClientAddr) tuples. NodeIDs
+// without a FSM record or empty ClientAddr are skipped.
+func (c *Cluster) followerAddrsFor(nodeIDs []string) []replicator.FollowerAddr {
+	out := make([]replicator.FollowerAddr, 0, len(nodeIDs))
+	for _, nid := range nodeIDs {
+		m, ok := c.meta.FSM().MemberAt(nid)
+		if !ok || m.ClientAddr == "" {
+			continue
+		}
+		out = append(out, replicator.FollowerAddr{NodeID: nid, Addr: m.ClientAddr})
+	}
+	return out
+}
+
 func (c *Cluster) refreshRingOnce() {
 	want := map[string]struct{}{}
 	for nid := range c.meta.FSM().Members() {
@@ -221,6 +303,15 @@ func (c *Cluster) Membership() *membership.Membership { return c.mem }
 // Metadata returns the Raft subsystem (read-only handle).
 func (c *Cluster) Metadata() *metadata.Metadata { return c.meta }
 
+// ShardWAL returns the shardwal Manager. Used by gRPC PublishAgent to
+// write incoming agent events to the right shard.
+func (c *Cluster) ShardWAL() *shardwal.Manager { return c.shardwalMgr }
+
+// TransportServer returns the inter-node gRPC handler. cmd/broker
+// registers it alongside the existing BrokerService on the main gRPC
+// listener.
+func (c *Cluster) TransportServer() *transport.Server { return c.transport }
+
 // Status returns a snapshot of current cluster state.
 func (c *Cluster) Status() Status {
 	return Status{
@@ -239,6 +330,12 @@ func (c *Cluster) Status() Status {
 func (c *Cluster) Shutdown() error {
 	if c.cancel != nil {
 		c.cancel()
+	}
+	if c.replicator != nil {
+		c.replicator.Close()
+	}
+	if c.shardwalMgr != nil {
+		_ = c.shardwalMgr.Close()
 	}
 	metaErr := c.meta.Shutdown()
 	memErr := c.mem.Shutdown()

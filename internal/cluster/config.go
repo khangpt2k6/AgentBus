@@ -24,12 +24,13 @@ type Peer struct {
 // Config bundles every knob the cluster subsystems need. Populated from
 // CLI flags in cmd/broker/main.go when --cluster is set.
 type Config struct {
-	NodeID     string
-	RaftBind   string
-	GossipBind string
-	RaftDir    string
-	ClientAddr string // gRPC address clients should dial; used in redirect hints
-	Peers      []Peer
+	NodeID      string
+	RaftBind    string
+	GossipBind  string
+	RaftDir     string
+	ShardWALDir string // where per-shard logs live (e.g. data/shardwal)
+	ClientAddr  string // gRPC address clients should dial; used in redirect hints
+	Peers       []Peer
 }
 
 // ParsePeers reads the --peers flag value, comma-separated "id@host:port".
@@ -80,6 +81,9 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.RaftDir) == "" {
 		return fmt.Errorf("RaftDir is required")
+	}
+	if len(c.Peers) > 0 && strings.TrimSpace(c.ShardWALDir) == "" {
+		return fmt.Errorf("ShardWALDir is required in cluster mode")
 	}
 	return nil
 }
