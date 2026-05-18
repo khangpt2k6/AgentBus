@@ -1,5 +1,5 @@
 <!--
-  Agent Bus — README
+  Agent Bus - README
   Animated header uses capsule-render + readme-typing-svg (public services).
 -->
 
@@ -42,12 +42,12 @@
 
 ## The Problem It Solves
 
-> **How do you run multi-agent AI event streams with stable ordering, replay, and incident-level observability — without heavyweight broker operations?**
+> **How do you run multi-agent AI event streams with stable ordering, replay, and incident-level observability, without heavyweight broker operations?**
 
 Multi-agent systems produce bursty streams of token chunks, tool calls, retries, and handoffs. Teams usually pick between two bad options:
 
-- **Lightweight queues** — easy to run, hard to replay and debug
-- **Heavyweight brokers** — powerful, expensive to operate at small scale
+- **Lightweight queues** - easy to run, hard to replay and debug
+- **Heavyweight brokers** - powerful, expensive to operate at small scale
 
 `Agent Bus` targets that gap.
 
@@ -110,15 +110,15 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 </tbody>
 </table>
 
-> **Status:** Single-node broker today. Distributed v1 on [`feat/cluster-v1`](https://github.com/khangpt2k6/AgentBus/tree/feat/cluster-v1) now ships **M0–M4**: 3-node cluster, gossip membership, real metadata Raft, consistent-hashing session routing **with ISR replication** — killing any single non-leader node loses zero messages under `acks=quorum`. See [docs/cluster.md](docs/cluster.md). Up next: term-tagged writes + zero-loss failover demo (M5).
+> **Status:** Single-node broker by default. The `--cluster` mode now ships **M0 through M4** on `main`: 3-node cluster, gossip membership, real metadata Raft (via `hashicorp/raft`), consistent-hashing session routing, **and ISR replication**. Killing any single non-leader node loses zero messages under `acks=quorum`. See [docs/cluster.md](docs/cluster.md). Up next: term-tagged writes + zero-loss leader-kill failover demo (M5).
 
 ---
 
 ## Current Scope
 
-- Single-node broker runtime today.
-- Docker Compose can spin up multiple nodes for local topology and observability demos.
-- `raft-*` fields are state labels for the dashboard, not real consensus replication. The distributed-v1 design lives in [docs/superpowers/specs/2026-05-16-distributed-v1-design.md](docs/superpowers/specs/2026-05-16-distributed-v1-design.md).
+- **Default mode:** single-node broker. Existing behavior, byte-identical.
+- **Cluster mode (`--cluster` opt-in):** real distributed broker. Forms a 3-node cluster via SWIM gossip, elects a metadata Raft leader (real consensus, not labels), routes each `tenant/project/session` to a shard via consistent hashing, and replicates every shard write to all alive followers under quorum acks.
+- Design spec: [docs/superpowers/specs/2026-05-16-distributed-v1-design.md](docs/superpowers/specs/2026-05-16-distributed-v1-design.md). Operator guide: [docs/cluster.md](docs/cluster.md).
 
 ---
 
@@ -200,14 +200,14 @@ Full guide: [docs/integrate.md](docs/integrate.md). Runnable examples in [`examp
 broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/agentbus.wal
 ```
 
-### Publish and consume — TCP
+### Publish and consume (TCP)
 
 ```bash
 goqueue publish --addr localhost:9090 --topic orders "hello tcp"
 goqueue consume --addr localhost:9090 --topic orders --group payment-service
 ```
 
-### Publish and consume — gRPC
+### Publish and consume (gRPC)
 
 ```bash
 goqueue publish --grpc --addr localhost:9095 --topic orders "hello grpc"
@@ -229,6 +229,31 @@ goqueue publish-agent --grpc --addr localhost:9095 \
   --type tool.call --step retrieve-context --attempt 1 \
   --payload '{"tool":"search","query":"latest order status"}'
 ```
+
+---
+
+## 🛰️ Cluster mode (alpha)
+
+Run a 3-node cluster locally with real Raft metadata and ISR replication:
+
+```bash
+docker compose -f deploy/cluster.yml up --build -d
+sleep 12
+
+# Cluster formed + leader elected:
+goqueue cluster status --metrics-url=http://localhost:12112
+
+# See which shard owns a session (deterministic hash):
+goqueue cluster route --metrics-url=http://localhost:12112 \
+  --tenant acme --project support-bot --session sess-42
+
+# Publish to ANY node; the SDK transparently follows the NOT_LEADER redirect:
+goqueue publish-agent --grpc --addr localhost:19095 \
+  --tenant acme --project support-bot --session sess-42 --agent planner \
+  --type tool.call --payload '{"tool":"search","query":"latest order"}'
+```
+
+Under `acks=quorum` (cluster-mode default), the publish ack waits for a majority of replicas to durably store the record. Killing any non-leader node loses zero messages. Full operator guide: [docs/cluster.md](docs/cluster.md).
 
 ---
 
@@ -402,7 +427,7 @@ bench                 reproducible benchmark harness
 
 ## 💡 Why This Project
 
-- Models the real concerns of an event bus — ordering, replay, lag, and visibility.
+- Models the real concerns of an event bus: ordering, replay, lag, and visibility.
 - Uses practical interfaces (TCP and gRPC) instead of a toy API.
 - Stays readable enough to extend and experiment with.
 - Has a clear path to a real distributed v1.
