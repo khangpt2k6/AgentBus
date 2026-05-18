@@ -4,10 +4,14 @@ package cluster
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
 	"time"
+
+	pb "github.com/khangpt2k6/AgentBus/proto"
+	"google.golang.org/grpc"
 )
 
 func freePort(t *testing.T) int {
@@ -21,7 +25,8 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
+func startCluster(t *testing.T) (clusters [3]*Cluster, cleanup func()) {
+	t.Helper()
 	const N = 3
 	raftPorts := make([]int, N)
 	gossipPorts := make([]int, N)
@@ -38,30 +43,64 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 			NodeID:     fmt.Sprintf("n%d", i+1),
 			RaftAddr:   fmt.Sprintf("127.0.0.1:%d", raftPorts[i]),
 			GossipAddr: fmt.Sprintf("127.0.0.1:%d", gossipPorts[i]),
+			ClientAddr: fmt.Sprintf("127.0.0.1:%d", grpcPorts[i]),
 		}
 	}
 
-	var clusters [N]*Cluster
+	var servers [N]*grpc.Server
+	var listeners [N]net.Listener
+
 	for i := 0; i < N; i++ {
 		cfg := Config{
-			NodeID:     fmt.Sprintf("n%d", i+1),
-			RaftBind:   fmt.Sprintf("127.0.0.1:%d", raftPorts[i]),
-			GossipBind: fmt.Sprintf("127.0.0.1:%d", gossipPorts[i]),
-			ClientAddr: fmt.Sprintf("127.0.0.1:%d", grpcPorts[i]),
-			RaftDir:    t.TempDir(),
-			Peers:      peers,
+			NodeID:      fmt.Sprintf("n%d", i+1),
+			RaftBind:    fmt.Sprintf("127.0.0.1:%d", raftPorts[i]),
+			GossipBind:  fmt.Sprintf("127.0.0.1:%d", gossipPorts[i]),
+			ClientAddr:  fmt.Sprintf("127.0.0.1:%d", grpcPorts[i]),
+			RaftDir:     t.TempDir(),
+			ShardWALDir: t.TempDir(),
+			Peers:       peers,
 		}
 		c, err := Start(cfg, &bytes.Buffer{})
 		if err != nil {
 			t.Fatalf("Start n%d: %v", i+1, err)
 		}
 		clusters[i] = c
-		defer c.Shutdown()
+
+		// Start a gRPC server on ClientAddr and register the cluster's transport
+		// server. The replicator needs an actual listener to connect to.
+		lis, err := net.Listen("tcp", cfg.ClientAddr)
+		if err != nil {
+			t.Fatalf("listen ClientAddr n%d: %v", i+1, err)
+		}
+		gs := grpc.NewServer()
+		pb.RegisterClusterServiceServer(gs, c.TransportServer())
+		go gs.Serve(lis) //nolint:errcheck
+		listeners[i] = lis
+		servers[i] = gs
 	}
+
+	cleanup = func() {
+		for _, c := range clusters {
+			if c != nil {
+				_ = c.Shutdown()
+			}
+		}
+		for _, gs := range servers {
+			if gs != nil {
+				gs.Stop()
+			}
+		}
+	}
+	return clusters, cleanup
+}
+
+func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
+	clusters, cleanup := startCluster(t)
+	defer cleanup()
 
 	if !waitFor(10*time.Second, func() bool {
 		for _, c := range clusters {
-			if len(c.Membership().Alive()) != N {
+			if len(c.Membership().Alive()) != 3 {
 				return false
 			}
 		}
@@ -69,21 +108,18 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 	}) {
 		t.Fatal("gossip did not converge within 10s")
 	}
-
 	if !waitFor(10*time.Second, func() bool {
-		leaders := 0
+		n := 0
 		for _, c := range clusters {
 			if c.Metadata().IsLeader() {
-				leaders++
+				n++
 			}
 		}
-		return leaders == 1
+		return n == 1
 	}) {
 		t.Fatal("metadata Raft did not elect a single leader within 10s")
 	}
 
-	// M3 expectation: within another ~15s, the assigner has populated
-	// shard leadership for all 32 shards across the 3 nodes.
 	if !waitFor(20*time.Second, func() bool {
 		for _, c := range clusters {
 			if c.Metadata().IsLeader() {
@@ -95,23 +131,186 @@ func TestThreeNodeCluster_FormsAndElects(t *testing.T) {
 		}
 		return false
 	}) {
-		for i, c := range clusters {
-			t.Logf("n%d ShardCount=%d AssignedLeaders=%d",
-				i+1,
-				c.Metadata().FSM().ShardCount(),
-				len(c.Metadata().FSM().AllShardLeaders()),
-			)
-		}
 		t.Fatal("assigner did not populate shard leadership within 20s")
 	}
 
-	// Every node's router should route a sample session somewhere non-empty.
 	for i, c := range clusters {
 		dec := c.Router().RouteSession("acme", "support-bot", "sessA")
 		if dec.LeaderNodeID == "" {
 			t.Errorf("n%d router returned empty LeaderNodeID for sessA", i+1)
 		}
 	}
+}
+
+func TestThreeNodeCluster_ReplicatesAgentEvents(t *testing.T) {
+	clusters, cleanup := startCluster(t)
+	defer cleanup()
+
+	// Wait for shard topology + assignment AND all nodes registered with ClientAddr.
+	if !waitFor(30*time.Second, func() bool {
+		for _, c := range clusters {
+			if c.Metadata().IsLeader() {
+				if len(c.Metadata().FSM().AllShardLeaders()) != 32 {
+					return false
+				}
+				// All 3 nodes must have ClientAddr registered.
+				for _, nc := range clusters {
+					m, ok := c.Metadata().FSM().MemberAt(nc.cfg.NodeID)
+					if !ok || m.ClientAddr == "" {
+						return false
+					}
+				}
+				return true
+			}
+		}
+		return false
+	}) {
+		t.Fatal("shards not assigned or nodes not fully registered within 30s")
+	}
+
+	tenant, project, session := "acme", "support", "sessA"
+	dec := clusters[0].Router().RouteSession(tenant, project, session)
+	if dec.LeaderNodeID == "" {
+		t.Fatal("no leader for test session")
+	}
+	shardID := dec.ShardID
+
+	var leader *Cluster
+	for _, c := range clusters {
+		if c.cfg.NodeID == dec.LeaderNodeID {
+			leader = c
+		}
+	}
+	if leader == nil {
+		t.Fatal("could not find leader cluster")
+	}
+
+	// Append 10 entries directly through the leader's shardwal. (This test
+	// focuses on replication; Plan 2a tested the gRPC handler.)
+	shard, _ := leader.ShardWAL().Shard(shardID)
+	for i := 0; i < 10; i++ {
+		payload, _ := json.Marshal(map[string]any{"i": i, "tenant": tenant, "session": session})
+		if _, err := shard.Append(payload); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+
+	followers := []*Cluster{}
+	for _, c := range clusters {
+		if c.cfg.NodeID != dec.LeaderNodeID {
+			followers = append(followers, c)
+		}
+	}
+
+	if !waitFor(5*time.Second, func() bool {
+		for _, f := range followers {
+			s, err := f.ShardWAL().Shard(shardID)
+			if err != nil || s.Tail() != 10 {
+				return false
+			}
+		}
+		return true
+	}) {
+		for _, f := range followers {
+			s, _ := f.ShardWAL().Shard(shardID)
+			t.Logf("follower %s shard %d tail=%d", f.cfg.NodeID, shardID, s.Tail())
+		}
+		t.Fatal("followers did not catch up within 5s")
+	}
+
+	if hwm := leader.ShardWAL().HWM(shardID).Mark(); hwm < 10 {
+		t.Fatalf("leader HWM = %d, want >= 10", hwm)
+	}
+}
+
+func TestThreeNodeCluster_NonLeaderKillPreservesData(t *testing.T) {
+	clusters, cleanup := startCluster(t)
+	defer cleanup()
+
+	if !waitFor(30*time.Second, func() bool {
+		for _, c := range clusters {
+			if c.Metadata().IsLeader() {
+				if len(c.Metadata().FSM().AllShardLeaders()) != 32 {
+					return false
+				}
+				// All 3 nodes must have ClientAddr registered.
+				for _, nc := range clusters {
+					m, ok := c.Metadata().FSM().MemberAt(nc.cfg.NodeID)
+					if !ok || m.ClientAddr == "" {
+						return false
+					}
+				}
+				return true
+			}
+		}
+		return false
+	}) {
+		t.Fatal("shards not assigned or nodes not fully registered within 30s")
+	}
+
+	tenant, project, session := "acme", "support", "sessB"
+	dec := clusters[0].Router().RouteSession(tenant, project, session)
+	shardID := dec.ShardID
+
+	var leader *Cluster
+	var followers []*Cluster
+	for _, c := range clusters {
+		if c.cfg.NodeID == dec.LeaderNodeID {
+			leader = c
+		} else {
+			followers = append(followers, c)
+		}
+	}
+	if leader == nil || len(followers) < 2 {
+		t.Fatalf("expected 1 leader + 2 followers, got leader=%v followers=%d", leader != nil, len(followers))
+	}
+
+	shard, _ := leader.ShardWAL().Shard(shardID)
+	for i := 0; i < 5; i++ {
+		if _, err := shard.Append([]byte(fmt.Sprintf("e%d", i))); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+	if !waitFor(5*time.Second, func() bool {
+		for _, f := range followers {
+			s, _ := f.ShardWAL().Shard(shardID)
+			if s.Tail() != 5 {
+				return false
+			}
+		}
+		return true
+	}) {
+		t.Fatal("initial replication did not converge")
+	}
+
+	// Kill one follower (Shutdown). Data should remain on surviving follower.
+	killed := followers[0]
+	_ = killed.Shutdown()
+	clusters[indexOf(clusters[:], killed)] = nil
+
+	for i := 5; i < 10; i++ {
+		if _, err := shard.Append([]byte(fmt.Sprintf("e%d", i))); err != nil {
+			t.Fatalf("append after kill: %v", err)
+		}
+	}
+
+	survivor := followers[1]
+	if !waitFor(5*time.Second, func() bool {
+		s, _ := survivor.ShardWAL().Shard(shardID)
+		return s.Tail() == 10
+	}) {
+		s, _ := survivor.ShardWAL().Shard(shardID)
+		t.Fatalf("survivor follower tail = %d, want 10", s.Tail())
+	}
+}
+
+func indexOf(cs []*Cluster, target *Cluster) int {
+	for i, c := range cs {
+		if c == target {
+			return i
+		}
+	}
+	return -1
 }
 
 func waitFor(timeout time.Duration, cond func() bool) bool {
