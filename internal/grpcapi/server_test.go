@@ -222,8 +222,24 @@ type stubRouteChecker struct {
 	hint    string
 }
 
-func (s stubRouteChecker) RouteSession(_, _, _ string) (bool, string) {
-	return s.isLocal, s.hint
+func (s stubRouteChecker) RouteSession(_, _, _ string) (bool, uint32, string) {
+	return s.isLocal, 0, s.hint
+}
+
+type stubShardWAL struct {
+	appended [][]byte
+	failWait bool
+}
+
+func (s *stubShardWAL) Append(shardID uint32, payload []byte) (uint64, error) {
+	s.appended = append(s.appended, append([]byte(nil), payload...))
+	return uint64(len(s.appended) - 1), nil
+}
+func (s *stubShardWAL) WaitQuorum(ctx context.Context, shardID uint32, offset uint64) error {
+	if s.failWait {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
 
 func TestPublishAgent_RedirectsWhenNotLocal(t *testing.T) {
@@ -277,5 +293,43 @@ func TestPublishAgent_LocalProceeds(t *testing.T) {
 	}
 	if _, err := s.PublishAgent(context.Background(), req); err != nil {
 		t.Fatalf("local PublishAgent: %v", err)
+	}
+}
+
+func TestPublishAgent_LocalWritesShardWAL(t *testing.T) {
+	s := newTestServer(t)
+	s.SetRouteChecker(stubRouteChecker{isLocal: true})
+	sw := &stubShardWAL{}
+	s.SetShardWALHook(sw)
+	req := &pb.PublishAgentRequest{
+		Event: &pb.AgentEvent{
+			Tenant: "acme", Project: "p", SessionId: "s", AgentId: "a", Type: "tool.call",
+			Payload: []byte("{}"),
+		},
+	}
+	if _, err := s.PublishAgent(context.Background(), req); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	if len(sw.appended) != 1 {
+		t.Fatalf("appended count = %d, want 1", len(sw.appended))
+	}
+}
+
+func TestPublishAgent_QuorumTimeoutReturnsDeadlineExceeded(t *testing.T) {
+	s := newTestServer(t)
+	s.SetRouteChecker(stubRouteChecker{isLocal: true})
+	s.SetShardWALHook(&stubShardWAL{failWait: true})
+	req := &pb.PublishAgentRequest{
+		Event: &pb.AgentEvent{
+			Tenant: "acme", Project: "p", SessionId: "s", AgentId: "a", Type: "tool.call",
+			Payload: []byte("{}"),
+		},
+	}
+	_, err := s.PublishAgent(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if st, _ := status.FromError(err); st.Code() != codes.DeadlineExceeded {
+		t.Fatalf("code = %v, want DeadlineExceeded", st.Code())
 	}
 }
