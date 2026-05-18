@@ -154,6 +154,23 @@ func (c *Cluster) bootstrapAndAssign(ctx context.Context, logOut io.Writer) {
 		_ = c.applyCmd(metadata.Command{Op: metadata.OpSetShardCount, Shard: defaultShardCount})
 	}
 
+	// If we are the leader, ensure all peers with a known ClientAddr are
+	// registered in the FSM. Peers that haven't applied their own
+	// OpRegisterMember yet (followers can't Apply) will be registered here.
+	if c.meta.IsLeader() {
+		for _, p := range c.cfg.Peers {
+			if p.NodeID == c.cfg.NodeID || p.ClientAddr == "" {
+				continue
+			}
+			_ = c.applyCmd(metadata.Command{
+				Op:         metadata.OpRegisterMember,
+				NodeID:     p.NodeID,
+				Addr:       p.RaftAddr,
+				ClientAddr: p.ClientAddr,
+			})
+		}
+	}
+
 	go c.refreshRingLoop(ctx)
 	go c.retryRegisterLoop(ctx)
 	go c.refreshShardLeadershipLoop(ctx)
@@ -210,6 +227,9 @@ func (c *Cluster) refreshShardLeadershipLoop(ctx context.Context) {
 	t := time.NewTicker(1 * time.Second)
 	defer t.Stop()
 	owned := map[uint32]struct{}{}
+	// Track the last follower set we started workers with, keyed by their
+	// addresses joined. Workers are only (re)started when the set changes.
+	lastFollowerKey := ""
 	for {
 		select {
 		case <-ctx.Done():
@@ -229,15 +249,40 @@ func (c *Cluster) refreshShardLeadershipLoop(ctx context.Context) {
 					delete(owned, shard)
 				}
 			}
-			// (Re)start replication for shards we now lead.
+			// Compute current follower set.
 			followerList := c.aliveFollowers()
 			addrs := c.followerAddrsFor(followerList)
+			followerKey := followerSetKey(addrs)
+			// (Re)start replication only for newly owned shards, or for all
+			// owned shards when the follower set has changed (e.g. a node
+			// joined or left). This avoids tearing down healthy streams on
+			// every tick.
+			followerChanged := followerKey != lastFollowerKey
+			if followerChanged {
+				lastFollowerKey = followerKey
+			}
 			for shard := range want {
-				c.replicator.Add(ctx, shard, addrs)
+				_, alreadyOwned := owned[shard]
+				if !alreadyOwned || followerChanged {
+					c.replicator.Add(ctx, shard, addrs)
+				}
 				owned[shard] = struct{}{}
 			}
 		}
 	}
+}
+
+// followerSetKey returns a stable string key for a follower address set,
+// used to detect when the set changes and workers need to be restarted.
+func followerSetKey(addrs []replicator.FollowerAddr) string {
+	if len(addrs) == 0 {
+		return ""
+	}
+	key := ""
+	for _, a := range addrs {
+		key += a.NodeID + "=" + a.Addr + ";"
+	}
+	return key
 }
 
 // aliveFollowers returns NodeIDs of currently-alive members other than self.

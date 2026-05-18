@@ -14,11 +14,14 @@ import (
 // TCP address its Raft transport listens on. GossipAddr is the UDP/TCP
 // address memberlist should dial to join; if empty, RaftAddr is used
 // (valid only when raft and gossip share the same host:port, which is
-// not the case in multi-port test setups).
+// not the case in multi-port test setups). ClientAddr is the gRPC address
+// that clients (and the replicator) dial to reach this node; if empty,
+// the leader will skip registering a client address for this peer.
 type Peer struct {
 	NodeID     string
 	RaftAddr   string
 	GossipAddr string // optional; falls back to RaftAddr when empty
+	ClientAddr string // optional; gRPC client address for this peer
 }
 
 // Config bundles every knob the cluster subsystems need. Populated from
