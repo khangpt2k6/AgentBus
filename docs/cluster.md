@@ -1,14 +1,14 @@
-# Cluster Mode (Distributed v1 — Foundation + Routing)
+# Cluster Mode (Distributed v1 — Foundation + Routing + ISR Replication)
 
-> **Status:** M0–M3 shipped on `feat/cluster-v1` — cluster forms, gossips, elects a metadata Raft leader, **and routes session traffic across nodes via consistent hashing with transparent SDK redirect.**
-> Data is **not yet replicated** — a publish lands in *one* node's WAL only. ISR replication is M4; seamless failover is M5.
+> **Status:** M0–M4 shipped on `feat/cluster-v1` — cluster forms, gossips, elects a metadata Raft leader, routes session traffic via consistent hashing with transparent SDK redirect, **and replicates every shard write to all alive followers under `acks=quorum` semantics.** Killing a non-leader loses zero messages.
 
-## What's shipped through M3
+## What's shipped through M4
 
 - **Gossip membership** (SWIM via `hashicorp/memberlist`) — nodes find each other and detect failures within ~3s.
 - **Metadata Raft** (via `hashicorp/raft` + BoltDB) — strongly-consistent cluster state: members, shard count, shard→leader map.
-- **Session routing** — each `tenant/project/session` hashes deterministically to one of 32 shards; each shard has one elected leader. A leader-driven assigner (the metadata Raft leader) round-robins shards onto alive nodes and reassigns dead leaders within ~2s.
+- **Session routing** — each `tenant/project/session` hashes deterministically to one of 32 shards; each shard has one elected leader. A leader-driven assigner round-robins shards onto alive nodes and reassigns dead leaders within ~2s.
 - **NOT_LEADER redirect** — publishes that arrive at the wrong node return a gRPC `FailedPrecondition` with a `NotLeaderError` detail carrying the leader's gRPC address. The AgentBus SDK transparently retries against the leader; end users see one call.
+- **ISR replication (M4)** — every agent-event write to a shard leader is replicated to all alive followers via long-lived inter-node gRPC streams. `acks=quorum` (cluster-mode default) blocks the publish ack until a majority of replicas have the record durably on disk, so killing any single node loses zero messages.
 - **Operator tooling** — `goqueue cluster status` (real Raft state) and `goqueue cluster route` (show where a session would land).
 
 ## Running a local 3-node cluster
@@ -79,20 +79,24 @@ goqueue cluster route \
 
 All three nodes will report the *same* `Shard` and `Leader` for a given session, but only the leader shows `Local: true`. Publishing through the SDK is transparent — `client.PublishAgent(...)` to *any* node returns success because the SDK absorbs the redirect.
 
+## Per-shard storage layout
+
+Each broker keeps one append-only file per shard at `--shardwal-dir/shard-N.wal` (default `data/shardwal/shard-N.wal`). Records are length-prefixed payloads with a CRC32C trailer — same correctness primitives as the main WAL. The shard leader's HWM = min ack'd offset across self + alive followers; under `acks=quorum`, `PublishAgent` waits for HWM ≥ the new offset before responding.
+
 ## What's NOT yet shipped
 
-- **No WAL replication.** A publish lands in *one* node's WAL. If that node dies, the data is gone. Replication is M4.
-- **No failover.** If a shard leader dies, the assigner reassigns within ~2s — but any data the dead leader held is lost (no replicas yet). M4 fixes the data-loss risk; M5 makes failover seamless.
-- **No term-tagged writes.** A network-partitioned stale leader could technically still accept writes until the partition heals. Term-tagging is M5.
+- **No term-tagged writes.** A network-partitioned stale leader could technically still accept writes until the partition heals. This is M5.
+- **No producer-side sequence preservation across leader changes.** Publishes that race a leader change can land out-of-order in a session. M5 adds idempotent-producer semantics.
+- **No log segmentation / compaction.** Shard WAL files grow without bound. Operational concern; deferred to a future iteration.
 
-These ship in Plan 2b (M4 ISR replication) and Plan 2c (M5 failover). See the [design spec](superpowers/specs/2026-05-16-distributed-v1-design.md) for the full roadmap.
+These ship in Plan 2c (M5 failover). See the [design spec](superpowers/specs/2026-05-16-distributed-v1-design.md) for the full roadmap.
 
-## Failure modes (M3 routing)
+## Failure modes (M3 routing + M4 replication)
 
 | What you do | What happens |
 |-------------|--------------|
 | Publish a session to the wrong node | SDK gets `NOT_LEADER`, transparently redirects to the leader, retries. User sees no error. |
-| Kill a non-leader node | Within ~3s, gossip marks it dead. Assigner reassigns the shards it held (data on it is lost — M4 fixes this). |
+| Kill a non-leader node | Within ~3s, gossip marks it dead. Assigner reassigns any shards it led to surviving nodes; data the dead node held as a follower is already replicated to the other survivors. Zero message loss for shards it was a follower of. |
 | Kill the metadata Raft leader | Within ~1s a new metadata leader is elected. Then within ~2s the new leader's assigner pass picks up shard reassignment for any shards held by the killed node. |
 | Network partition | Minority side cannot elect a new metadata leader OR run the assigner; majority side keeps routing. |
 

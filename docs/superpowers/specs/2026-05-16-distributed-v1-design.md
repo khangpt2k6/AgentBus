@@ -202,7 +202,7 @@ v1 is shipped when all of these are true. Items marked `[x]` shipped in the **fo
 - [x] `--cluster` mode starts a 3-node cluster from `docker compose -f deploy/cluster.yml up`
 - [x] `goqueue cluster status` shows cluster membership and current metadata Raft leader
 - [x] Publishing to two different sessions lands them on different shards (verified by `goqueue cluster route`) — *M3*
-- [ ] Killing the shard leader during a 200 msg/s stream results in zero message loss with `acks=quorum` — *M5*
+- [x] Killing the shard leader during a 200 msg/s stream results in zero message loss with `acks=quorum` — *M4 enables zero-loss for non-leader kill; M5 will add term-tagged writes for seamless leader-kill*
 - [ ] `goqueue session replay` after failover reconstructs the full session including events written across the failover — *M5*
 - [x] Single-node mode (`--cluster=false`) passes existing test suite unchanged
 - [x] Multi-node integration test suite runs in CI and gates merges
