@@ -3,7 +3,7 @@ module github.com/khangpt2k6/AgentBus
 go 1.26.1
 
 require (
-	github.com/hashicorp/go-hclog v1.6.2
+	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/memberlist v0.5.4
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
