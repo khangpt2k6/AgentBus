@@ -12,3 +12,8 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Do not push documentation and playwright tests
+docs/
+tests/playwright/
+docs/superpowers/
