@@ -25,3 +25,6 @@ Thumbs.db
 # Process notes and Playwright tests (not product deliverables)
 docs/superpowers/
 tests/playwright/
+
+# Compiled WASM dashboard (build with: go build -o web/app.wasm ./cmd/dashboard)
+*.wasm
