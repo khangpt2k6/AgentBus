@@ -102,9 +102,9 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 
 **Single-replica by design.** `replicaCount` defaults to 1 and the deployment uses `Recreate`. The WAL is a single-writer, ReadWriteOnce PVC. Bumping replicas does NOT shard topics or replicate - it would start two independent brokers fighting over the same volume mount. Multi-node sharding and replication live in cluster mode (alpha), not the default single-node deployment.
 
-**Recreate strategy.** Rolling updates would deadlock on `FailedAttachVolume` (new pod can't mount while old pod still holds the RWO PVC). `Recreate` causes a brief downtime per upgrade - acceptable for a stateful single-node service.
+**Recreate strategy.** Rolling updates would deadlock on `FailedAttachVolume` (a new pod cannot mount the volume while the old pod still holds the RWO PVC). `Recreate` causes a brief downtime per upgrade - acceptable for a stateful single-node service.
 
-**Liveness/readiness on `/readyz`.** Probes hit the metrics port. Broker logs gRPC errors to stdout - `kubectl logs` is your friend.
+**Liveness/readiness on `/readyz`.** Probes hit the metrics port. The broker logs gRPC errors to stdout, so use `kubectl logs` to inspect them.
 
 **No automount of SA token.** The broker doesn't talk to the Kubernetes API, so the ServiceAccount token isn't mounted. Saves a tiny attack surface.
 

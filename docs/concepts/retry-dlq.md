@@ -50,7 +50,7 @@ Override with `--dlq-topic` if you want a different sink (e.g. centralized DLQ a
 
 ## Observability
 
-Three counters tell you the whole story:
+Three counters describe how retries are behaving:
 
 | Metric | Meaning |
 |---|---|

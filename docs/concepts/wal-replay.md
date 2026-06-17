@@ -4,7 +4,7 @@ Agent Bus persists every accepted event to an append-only **Write-Ahead Log** be
 
 ## Why this matters
 
-In-memory queues are fast but forget on restart. Full databases are durable but expensive to operate. A WAL is the middle ground: one append per write, fast to replay, no external service to babysit.
+In-memory queues are fast but forget on restart. Full databases are durable but expensive to operate. A WAL is the middle ground: one append per write, fast to replay, and no external service to operate.
 
 ## Lifecycle
 

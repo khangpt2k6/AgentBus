@@ -57,7 +57,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 
 ## Why `Recreate` strategy
 
-The PVC for the WAL is ReadWriteOnce. A rolling update would try to start a new pod while the old one still holds the volume lock - it would deadlock on `FailedAttachVolume`. `Recreate` causes a brief downtime per upgrade but is the correct choice for a single-node, stateful workload. Don't change it unless you also change the persistence strategy.
+The PVC for the WAL is ReadWriteOnce. A rolling update would try to start a new pod while the old one still holds the volume lock - it would deadlock on `FailedAttachVolume`. `Recreate` causes a brief downtime per upgrade but is the correct choice for a single-node, stateful workload. Do not change it unless you also change the persistence strategy.
 
 ## Why `replicaCount: 1`
 
