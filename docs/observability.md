@@ -19,8 +19,27 @@ Agent-specific:
 | `goqueue_agent_events_published_total` | every accepted agent event (originals + retries) | sudden drop = upstream agents are silent |
 | `goqueue_agent_event_retries_total` | events re-published with `attempt+1` | sustained rate > X% of published = a tool/agent is broken |
 | `goqueue_agent_event_dlq_total` | events that hit `max-attempts` and went to DLQ | any non-zero rate is worth a look |
+| `goqueue_agent_events_throttled_total` | events rejected by the per-tenant rate limiter | a steady rate means one tenant is hitting its quota |
 
 Plus the standard broker counters (publishes, consumes, lag) - see `internal/metrics/`.
+
+## Noisy-agent isolation
+
+The broker can apply a per-tenant token-bucket rate limit on agent events. Each
+tenant gets its own bucket, so one tenant that floods the broker is throttled on
+its own quota and cannot starve another tenant's sessions. Throttled publishes
+are rejected with gRPC `ResourceExhausted` and counted by
+`goqueue_agent_events_throttled_total`.
+
+Enable it on the broker:
+
+```bash
+broker --agent-rate-limit=500 --agent-rate-burst=1000
+```
+
+`--agent-rate-limit` is the sustained rate in events per second per tenant.
+`--agent-rate-burst` is the maximum short burst (it defaults to the rate). A
+limit of 0 disables the feature, which is the default.
 
 ## Traces
 
