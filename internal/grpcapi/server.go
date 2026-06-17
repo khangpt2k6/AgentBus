@@ -11,6 +11,7 @@ import (
 	"github.com/khangpt2k6/AgentBus/internal/broker"
 	"github.com/khangpt2k6/AgentBus/internal/consumer"
 	"github.com/khangpt2k6/AgentBus/internal/metrics"
+	"github.com/khangpt2k6/AgentBus/internal/ratelimit"
 	"github.com/khangpt2k6/AgentBus/internal/wal"
 	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
 	"go.opentelemetry.io/otel"
@@ -82,12 +83,13 @@ type ShardWALHook interface {
 type Server struct {
 	goqueuev1.UnimplementedBrokerServiceServer
 
-	broker     *broker.Broker
-	groups     *consumer.Manager
-	metrics    *metrics.Metrics
-	wal        *wal.Log
-	routeCheck RouteChecker
-	shardWAL   ShardWALHook
+	broker      *broker.Broker
+	groups      *consumer.Manager
+	metrics     *metrics.Metrics
+	wal         *wal.Log
+	routeCheck  RouteChecker
+	shardWAL    ShardWALHook
+	rateLimiter *ratelimit.Limiter
 }
 
 func NewServer(b *broker.Broker, g *consumer.Manager, m *metrics.Metrics, l *wal.Log) *Server {
@@ -99,6 +101,10 @@ func (s *Server) SetRouteChecker(rc RouteChecker) { s.routeCheck = rc }
 
 // SetShardWALHook enables cluster-mode shard-WAL writes. Pass nil to disable.
 func (s *Server) SetShardWALHook(h ShardWALHook) { s.shardWAL = h }
+
+// SetRateLimiter installs a per-tenant rate limiter that isolates noisy agents.
+// Pass nil (or a disabled limiter) to turn rate limiting off.
+func (s *Server) SetRateLimiter(l *ratelimit.Limiter) { s.rateLimiter = l }
 
 func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
 	// Peek the envelope BEFORE starting the span so we can anchor the span
@@ -390,6 +396,23 @@ func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goque
 // codes.FailedPrecondition with a NotLeaderError status detail so the client
 // can redirect to the current shard leader.
 func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRequest) (*goqueuev1.PublishAgentResponse, error) {
+	// Noisy-agent isolation: shed load before doing any routing or WAL work.
+	// Each tenant has an independent token bucket, so a flooding tenant is
+	// throttled on its own quota and cannot starve other tenants' sessions.
+	if s.rateLimiter.Enabled() {
+		isoKey := req.GetEvent().GetTenant()
+		if isoKey == "" {
+			isoKey = "(no-tenant)"
+		}
+		if !s.rateLimiter.Allow(isoKey) {
+			if s.metrics != nil {
+				s.metrics.IncAgentThrottled()
+			}
+			return nil, status.Error(codes.ResourceExhausted,
+				"tenant exceeded its agent-event rate limit; throttled to protect other sessions")
+		}
+	}
+
 	var shardID uint32
 	if s.routeCheck != nil {
 		tenant := req.GetEvent().GetTenant()

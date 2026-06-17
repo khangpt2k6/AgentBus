@@ -24,10 +24,11 @@ import (
 	"github.com/khangpt2k6/AgentBus/internal/consumer"
 	"github.com/khangpt2k6/AgentBus/internal/grpcapi"
 	"github.com/khangpt2k6/AgentBus/internal/metrics"
+	"github.com/khangpt2k6/AgentBus/internal/ratelimit"
 	"github.com/khangpt2k6/AgentBus/internal/telemetry"
 	"github.com/khangpt2k6/AgentBus/internal/wal"
-	"github.com/prometheus/client_golang/prometheus"
 	pb "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 )
@@ -53,7 +54,12 @@ func main() {
 	clusterRaftDir := flag.String("raft-dir", "data/raft", "directory for Raft state (cluster mode)")
 	clusterAdvClientAddr := flag.String("advertise-client-addr", "", "client-dialable gRPC address (cluster mode); defaults to --grpc-addr with 127.0.0.1 host if missing")
 	clusterShardWALDir := flag.String("shardwal-dir", "data/shardwal", "directory for per-shard WAL files (cluster mode)")
+	agentRateLimit := flag.Float64("agent-rate-limit", 0, "per-tenant agent-event rate limit in events/sec for noisy-agent isolation (0 disables)")
+	agentRateBurst := flag.Float64("agent-rate-burst", 0, "per-tenant burst allowance for the agent-event rate limiter (defaults to the rate)")
 	flag.Parse()
+	if *agentRateLimit > 0 && *agentRateBurst <= 0 {
+		*agentRateBurst = *agentRateLimit
+	}
 
 	if err := os.MkdirAll("data", 0o755); err != nil {
 		log.Fatalf("create data dir: %v", err)
@@ -427,6 +433,10 @@ func main() {
 	if cl != nil {
 		gApi.SetRouteChecker(routeAdapter{cl: cl})
 		gApi.SetShardWALHook(shardWALAdapter{cl: cl})
+	}
+	if *agentRateLimit > 0 {
+		gApi.SetRateLimiter(ratelimit.New(*agentRateLimit, *agentRateBurst))
+		log.Printf("noisy-agent isolation: per-tenant rate limit %.0f events/sec (burst %.0f)", *agentRateLimit, *agentRateBurst)
 	}
 	grpcSrv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	grpcapi.Register(grpcSrv, gApi)
