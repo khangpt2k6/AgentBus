@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// crcTable uses CRC32-Castagnoli (CRC32C) — same polynomial as iSCSI, ext4,
+// crcTable uses CRC32-Castagnoli (CRC32C) - same polynomial as iSCSI, ext4,
 // and modern hardware (SSE4.2 has a single-instruction implementation).
 // Detects most flip-bit corruption that a noisy disk or partial write leaves
 // behind, in roughly free time on modern CPUs.
@@ -391,7 +391,7 @@ func readV2Record(r *bufio.Reader, opts ReplayOptions) (*Record, error) {
 	topicLen := int(binary.BigEndian.Uint16(header[14:16]))
 	keyLen := int(binary.BigEndian.Uint16(header[16:18]))
 	payloadLen := int(binary.BigEndian.Uint32(header[18:22]))
-	// Bound allocation before touching memory — a corrupt header could
+	// Bound allocation before touching memory - a corrupt header could
 	// otherwise request gigabytes.
 	if payloadLen < 0 || payloadLen > MaxPayloadSize {
 		return nil, ErrCorruptRecord
@@ -404,7 +404,7 @@ func readV2Record(r *bufio.Reader, opts ReplayOptions) (*Record, error) {
 		return nil, err
 	}
 	// V3 records carry a CRC32C trailer covering header (less magic) + body.
-	// V2 records have none — they predate the checksum field.
+	// V2 records have none - they predate the checksum field.
 	if version == 3 {
 		var crcBuf [4]byte
 		if _, err := io.ReadFull(r, crcBuf[:]); err != nil {

@@ -1,6 +1,6 @@
 # Webhook subscriber
 
-Integrate non-Go consumers (or anything that speaks HTTP) by having AgentBus POST each event to a URL. Bridge between AgentBus and Slack, PagerDuty, AWS Lambda URLs, n8n, Zapier — whatever consumes JSON over HTTPS.
+Integrate non-Go consumers (or anything that speaks HTTP) by having AgentBus POST each event to a URL. Bridge between AgentBus and Slack, PagerDuty, AWS Lambda URLs, n8n, Zapier - whatever consumes JSON over HTTPS.
 
 ## Run it
 
@@ -32,7 +32,7 @@ Headers added on every request:
 | `X-Agentbus-Attempt` | delivery attempt (1 on first try) |
 | `X-Agentbus-Tenant` / `Project` / `Session` / `Type` | extracted from the envelope if present |
 
-Extra headers via `--header 'Key: Value'` (repeatable) — useful for auth:
+Extra headers via `--header 'Key: Value'` (repeatable) - useful for auth:
 
 ```bash
 goqueue webhook --url https://api.example.com/hooks/agentbus \
@@ -45,7 +45,7 @@ goqueue webhook --url https://api.example.com/hooks/agentbus \
 | Response | Action |
 |---|---|
 | 2xx | success, advance offset |
-| 4xx (except 408 / 429) | permanent — log and skip |
+| 4xx (except 408 / 429) | permanent - log and skip |
 | 408, 429, 5xx, network error | retry with exponential backoff |
 
 After `--max-attempts` (default 5) consecutive failures, the event is dropped and the consumer group advances. This prevents a dead endpoint from wedging the entire pipeline. Configure with `--max-attempts 0` to drop on the first failure or set a large value if you want longer perseverance.

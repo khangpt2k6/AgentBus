@@ -43,7 +43,7 @@ That's the whole "hello world."
 
 ## Publishing
 
-The SDK offers three publish modes — pick by what kind of ordering you need.
+The SDK offers three publish modes - pick by what kind of ordering you need.
 
 | Method | When | Routing |
 |---|---|---|
@@ -194,7 +194,7 @@ defer client.Close()
 <-ctx.Done()
 ```
 
-Subscription Next returns `ErrSubscriptionClosed` when ctx is canceled — drain in your loop.
+Subscription Next returns `ErrSubscriptionClosed` when ctx is canceled - drain in your loop.
 
 ---
 
@@ -202,8 +202,8 @@ Subscription Next returns `ErrSubscriptionClosed` when ctx is canceled — drain
 
 The repo ships two complete examples:
 
-- [`examples/basic/`](https://github.com/khangpt2k6/AgentBus/tree/main/examples/basic) — publish + subscribe round-trip
-- [`examples/agent-events/`](https://github.com/khangpt2k6/AgentBus/tree/main/examples/agent-events) — `PublishAgent` with envelope decoding
+- [`examples/basic/`](https://github.com/khangpt2k6/AgentBus/tree/main/examples/basic) - publish + subscribe round-trip
+- [`examples/agent-events/`](https://github.com/khangpt2k6/AgentBus/tree/main/examples/agent-events) - `PublishAgent` with envelope decoding
 
 Clone and run after starting a broker:
 
@@ -217,4 +217,4 @@ go run ./examples/basic
 
 ## Stability
 
-The SDK is at `v0.1.x` — the API surface is small on purpose. Breaking changes are possible before v1; they'll be called out in release notes. Wire format is stable: the broker accepts records from older SDKs and vice versa within the v1 envelope.
+The SDK is at `v0.1.x` - the API surface is small on purpose. Breaking changes are possible before v1; they'll be called out in release notes. Wire format is stable: the broker accepts records from older SDKs and vice versa within the v1 envelope.

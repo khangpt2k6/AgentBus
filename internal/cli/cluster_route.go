@@ -57,7 +57,7 @@ func newClusterRouteCmd() *cobra.Command {
 			fmt.Printf("Session: %s/%s/%s\n", out.Tenant, out.Project, out.Session)
 			fmt.Printf("Shard:   %d\n", out.ShardID)
 			if out.LeaderNodeID == "" {
-				fmt.Println("Leader:  (none — shard unassigned or current leader is dead)")
+				fmt.Println("Leader:  (none - shard unassigned or current leader is dead)")
 			} else {
 				fmt.Printf("Leader:  %s (client addr: %s)\n", out.LeaderNodeID, out.LeaderClient)
 			}

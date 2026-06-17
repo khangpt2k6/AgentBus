@@ -685,7 +685,7 @@ func (x *PublishAgentResponse) GetPartition() int32 {
 type NotLeaderError struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// gRPC address (host:port) of the current leader. May be empty if the
-	// leader is unknown or unreachable — the SDK should back off and retry.
+	// leader is unknown or unreachable - the SDK should back off and retry.
 	LeaderAddr    string `protobuf:"bytes,1,opt,name=leader_addr,json=leaderAddr,proto3" json:"leader_addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

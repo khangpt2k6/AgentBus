@@ -2,7 +2,7 @@
 
 Single-node AgentBus broker on Kubernetes. The chart provisions:
 
-- **Deployment** (1 replica, `Recreate` strategy — the WAL is single-writer)
+- **Deployment** (1 replica, `Recreate` strategy - the WAL is single-writer)
 - **Service** with named ports (`tcp`, `grpc`, `metrics`)
 - **PersistentVolumeClaim** for the WAL (8 Gi default, RWO)
 - **ServiceAccount** with token automount disabled
@@ -57,11 +57,11 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 
 ## Why `Recreate` strategy
 
-The PVC for the WAL is ReadWriteOnce. A rolling update would try to start a new pod while the old one still holds the volume lock — it would deadlock on `FailedAttachVolume`. `Recreate` causes a brief downtime per upgrade but is the correct choice for a single-node, stateful workload. Don't change it unless you also change the persistence strategy.
+The PVC for the WAL is ReadWriteOnce. A rolling update would try to start a new pod while the old one still holds the volume lock - it would deadlock on `FailedAttachVolume`. `Recreate` causes a brief downtime per upgrade but is the correct choice for a single-node, stateful workload. Don't change it unless you also change the persistence strategy.
 
 ## Why `replicaCount: 1`
 
-AgentBus is single-node today. Two replicas would give you two independent brokers sharing nothing — they would NOT shard topics or replicate WAL. Multi-node with replication lives in the [distributed-v1 design notes](https://github.com/khangpt2k6/AgentBus/blob/main/docs/distributed-v1-design.md); not yet implemented.
+AgentBus is single-node today. Two replicas would give you two independent brokers sharing nothing - they would NOT shard topics or replicate WAL. Multi-node sharding and replication live in cluster mode (alpha), enabled with `--cluster`.
 
 ## Upgrade
 
@@ -76,7 +76,7 @@ WAL format is forward-compatible within a major version (v1/v2/v3 records all re
 ```bash
 helm uninstall agentbus
 
-# The PVC is intentionally NOT deleted — destroy it manually if you also
+# The PVC is intentionally NOT deleted - destroy it manually if you also
 # want the WAL data gone:
 kubectl delete pvc agentbus-data
 ```

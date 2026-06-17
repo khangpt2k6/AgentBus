@@ -8,7 +8,7 @@ Agent Bus emits Prometheus metrics and OpenTelemetry traces out of the box. Poin
 http://<broker>:2112/metrics
 ```
 
-Scrape with Prometheus on whatever interval suits your retention budget — 10–15s is a good default.
+Scrape with Prometheus on whatever interval suits your retention budget - 10-15s is a good default.
 
 ## Counters that matter
 
@@ -20,7 +20,7 @@ Agent-specific:
 | `goqueue_agent_event_retries_total` | events re-published with `attempt+1` | sustained rate > X% of published = a tool/agent is broken |
 | `goqueue_agent_event_dlq_total` | events that hit `max-attempts` and went to DLQ | any non-zero rate is worth a look |
 
-Plus the standard broker counters (publishes, consumes, lag) — see `internal/metrics/`.
+Plus the standard broker counters (publishes, consumes, lag) - see `internal/metrics/`.
 
 ## Traces
 
@@ -50,7 +50,7 @@ docker compose up --build
 | Broker metrics | <http://localhost:2112/metrics> | scrape target |
 | Broker readiness | <http://localhost:2112/readyz> | health probe |
 
-Grafana provisioning is in `docker/grafana/` — datasources and dashboards are pre-loaded.
+Grafana provisioning is in `docker/grafana/` - datasources and dashboards are pre-loaded.
 
 ## The WASM dashboard (no extra stack)
 
@@ -75,10 +75,10 @@ Starter PromQL:
 # DLQ should normally be flat
 rate(goqueue_agent_event_dlq_total[5m]) > 0
 
-# retry storm — more than 10% of published events are retries
+# retry storm - more than 10% of published events are retries
 rate(goqueue_agent_event_retries_total[5m])
   / rate(goqueue_agent_events_published_total[5m]) > 0.10
 
-# broker silence — no publishes for 5 minutes during business hours
+# broker silence - no publishes for 5 minutes during business hours
 rate(goqueue_agent_events_published_total[5m]) == 0
 ```

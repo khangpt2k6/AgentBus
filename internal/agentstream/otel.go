@@ -24,7 +24,7 @@ const (
 
 // PeekEnvelope quickly extracts the agent envelope fields used for tracing
 // from a raw payload. Returns (zero, false) if the bytes are not a
-// recognizable envelope. Cheaper than full decode — only inspects the
+// recognizable envelope. Cheaper than full decode - only inspects the
 // fields we tag spans with.
 func PeekEnvelope(payload []byte) (Event, bool) {
 	if len(payload) == 0 || payload[0] != '{' {
@@ -62,7 +62,7 @@ func AttributesFor(ev Event) []attribute.KeyValue {
 }
 
 // SessionTraceID derives a deterministic OTEL TraceID from a session key.
-// All events for the same session map to the same TraceID — backends like
+// All events for the same session map to the same TraceID - backends like
 // Tempo can then group them into a single trace UI even when the producers
 // did not propagate trace context.
 //

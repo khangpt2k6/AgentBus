@@ -32,7 +32,7 @@ type Manager struct {
 	closeCh     chan struct{} // closed by Close to stop the flusher
 	flushEvery  time.Duration
 
-	// Observability — incremented when a flush fails. Callers can read via
+	// Observability - incremented when a flush fails. Callers can read via
 	// SaveErrors() to wire a Prometheus counter or alert.
 	saveErrors atomic.Int64
 }
@@ -134,7 +134,7 @@ func (m *Manager) load() error {
 
 // save writes a snapshot atomically: write to .tmp then rename.
 func (m *Manager) save() error {
-	// Snapshot under read lock — don't hold lock during IO.
+	// Snapshot under read lock - don't hold lock during IO.
 	m.mu.RLock()
 	snap := make(map[string]int64, len(m.offsets))
 	for k, v := range m.offsets {
@@ -169,7 +169,7 @@ func (m *Manager) GetPartition(topic, group string, partition int) (int64, bool)
 }
 
 // SaveErrors returns the cumulative count of background flush failures.
-// Wire this to a metric/alert in production — a non-zero value means
+// Wire this to a metric/alert in production - a non-zero value means
 // committed offsets are not durably persisted and a crash will lose them.
 func (m *Manager) SaveErrors() int64 { return m.saveErrors.Load() }
 

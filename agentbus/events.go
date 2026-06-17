@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Standard AgentEvent.Type values. AgentBus does not enforce these — any
-// string works — but using the constants keeps producers and consumers in
+// Standard AgentEvent.Type values. AgentBus does not enforce these - any
+// string works - but using the constants keeps producers and consumers in
 // sync, and makes session-replay tooling readable.
 const (
 	EventTypeToolCall    = "tool.call"

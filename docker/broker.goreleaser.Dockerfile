@@ -1,5 +1,5 @@
 # Dockerfile used by GoReleaser. The broker binary is built on the host and
-# copied in — DO NOT build Go inside this image.
+# copied in - DO NOT build Go inside this image.
 #
 # Manual builds: use docker/broker.Dockerfile instead.
 

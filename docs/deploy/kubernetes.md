@@ -54,7 +54,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
     ```
 
     The `release: prometheus` label is what makes the operator pick up the
-    ServiceMonitor — adjust to match your stack's selector.
+    ServiceMonitor - adjust to match your stack's selector.
 
 === "OTEL collector"
 
@@ -100,11 +100,11 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 
 ## Architecture notes
 
-**Single-replica by design.** `replicaCount` defaults to 1 and the deployment uses `Recreate`. The WAL is a single-writer, ReadWriteOnce PVC. Bumping replicas does NOT shard topics or replicate — it would start two independent brokers fighting over the same volume mount. Distributed-v1 is in the [design notes](../distributed-v1-design.md), not built.
+**Single-replica by design.** `replicaCount` defaults to 1 and the deployment uses `Recreate`. The WAL is a single-writer, ReadWriteOnce PVC. Bumping replicas does NOT shard topics or replicate - it would start two independent brokers fighting over the same volume mount. Multi-node sharding and replication live in cluster mode (alpha), not the default single-node deployment.
 
-**Recreate strategy.** Rolling updates would deadlock on `FailedAttachVolume` (new pod can't mount while old pod still holds the RWO PVC). `Recreate` causes a brief downtime per upgrade — acceptable for a stateful single-node service.
+**Recreate strategy.** Rolling updates would deadlock on `FailedAttachVolume` (new pod can't mount while old pod still holds the RWO PVC). `Recreate` causes a brief downtime per upgrade - acceptable for a stateful single-node service.
 
-**Liveness/readiness on `/readyz`.** Probes hit the metrics port. Broker logs gRPC errors to stdout — `kubectl logs` is your friend.
+**Liveness/readiness on `/readyz`.** Probes hit the metrics port. Broker logs gRPC errors to stdout - `kubectl logs` is your friend.
 
 **No automount of SA token.** The broker doesn't talk to the Kubernetes API, so the ServiceAccount token isn't mounted. Saves a tiny attack surface.
 
@@ -132,4 +132,4 @@ kubectl delete pvc agentbus-data
 
 ## Full values reference
 
-See [`deploy/helm/agentbus/values.yaml`](https://github.com/khangpt2k6/AgentBus/blob/main/deploy/helm/agentbus/values.yaml) — it's documented inline.
+See [`deploy/helm/agentbus/values.yaml`](https://github.com/khangpt2k6/AgentBus/blob/main/deploy/helm/agentbus/values.yaml) - it's documented inline.

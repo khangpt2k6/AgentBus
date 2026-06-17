@@ -44,7 +44,7 @@ func main() {
 	// 1) Simulate an agent run that produces a handful of events.
 	produceAgentRun(ctx, client, sess)
 
-	// 2) Now replay it — this is what ops would do post-mortem.
+	// 2) Now replay it - this is what ops would do post-mortem.
 	fmt.Println("---- session replay ----")
 	events, err := client.ReplaySession(ctx, sess, agentbus.ReplayOptions{})
 	if err != nil {
@@ -59,7 +59,7 @@ func main() {
 }
 
 func produceAgentRun(ctx context.Context, client *agentbus.Client, sess agentbus.SessionRef) {
-	// First attempt — succeeds returning empty.
+	// First attempt - succeeds returning empty.
 	must(client.PublishToolCall(ctx, sess, agentbus.ToolCall{
 		Tool: "search", CallID: "c1",
 		Arguments: json.RawMessage(`{"query":"latest order"}`),
@@ -70,7 +70,7 @@ func produceAgentRun(ctx context.Context, client *agentbus.Client, sess agentbus
 		Latency: 417 * time.Millisecond,
 	}))
 
-	// Second attempt — different query, timeout.
+	// Second attempt - different query, timeout.
 	must(client.PublishToolCall(ctx, sess, agentbus.ToolCall{
 		Tool: "search", CallID: "c2",
 		Arguments: json.RawMessage(`{"query":"order acme-1042"}`),

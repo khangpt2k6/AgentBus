@@ -74,7 +74,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		}, []string{"node_id"}),
 		PartitionFillPct: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "goqueue_partition_fill_pct",
-			Help: "Ring buffer fill percentage per topic and partition (0–100).",
+			Help: "Ring buffer fill percentage per topic and partition (0-100).",
 		}, []string{"topic", "partition"}),
 		PartitionEvictions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "goqueue_partition_evictions_total",

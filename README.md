@@ -94,7 +94,7 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 
 ## Architecture
 
-![Agent Bus architecture: agent tools publish events through TCP, gRPC, and CLI clients into the Agent Bus Core (session router, partition topics, consumer groups), with observability and durability layers attached.](<Agent tools.png>)
+![Agent Bus architecture: agent tools publish events through TCP, gRPC, and CLI clients into the Agent Bus Core (session router, partition topics, consumer groups), with observability and durability layers attached.](docs/assets/architecture.png)
 
 <table>
 <thead>
@@ -110,7 +110,7 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 </tbody>
 </table>
 
-> **Status:** Single-node broker by default. The `--cluster` mode now ships **M0 through M4** on `main`: 3-node cluster, gossip membership, real metadata Raft (via `hashicorp/raft`), consistent-hashing session routing, **and ISR replication**. Killing any single non-leader node loses zero messages under `acks=quorum`. See [docs/cluster.md](docs/cluster.md). Up next: term-tagged writes + zero-loss leader-kill failover demo (M5).
+> **Status:** Single-node broker by default. The `--cluster` mode now ships **M0 through M4** on `main`: 3-node cluster, gossip membership, real metadata Raft (via `hashicorp/raft`), consistent-hashing session routing, **and ISR replication**. Killing any single non-leader node loses zero messages under `acks=quorum`. Up next: term-tagged writes plus a zero-loss leader-kill failover demo (M5).
 
 ---
 
@@ -118,7 +118,6 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 
 - **Default mode:** single-node broker. Existing behavior, byte-identical.
 - **Cluster mode (`--cluster` opt-in):** real distributed broker. Forms a 3-node cluster via SWIM gossip, elects a metadata Raft leader (real consensus, not labels), routes each `tenant/project/session` to a shard via consistent hashing, and replicates every shard write to all alive followers under quorum acks.
-- Design spec: [docs/superpowers/specs/2026-05-16-distributed-v1-design.md](docs/superpowers/specs/2026-05-16-distributed-v1-design.md). Operator guide: [docs/cluster.md](docs/cluster.md).
 
 ---
 
@@ -253,7 +252,7 @@ goqueue publish-agent --grpc --addr localhost:19095 \
   --type tool.call --payload '{"tool":"search","query":"latest order"}'
 ```
 
-Under `acks=quorum` (cluster-mode default), the publish ack waits for a majority of replicas to durably store the record. Killing any non-leader node loses zero messages. Full operator guide: [docs/cluster.md](docs/cluster.md).
+Under `acks=quorum` (cluster-mode default), the publish ack waits for a majority of replicas to durably store the record. Killing any non-leader node loses zero messages.
 
 ---
 
@@ -277,7 +276,7 @@ goqueue session replay --grpc --addr localhost:9095 \
     {"from_agent":"planner","to_agent":"escalator","reason":"3 failed attempts"}
 ```
 
-Live tail with `goqueue session tail`. Full guide: [docs/debug-agent-run.md](docs/debug-agent-run.md). Self-hosted, no vendor required.
+Live tail with `goqueue session tail`. Self-hosted, no vendor required.
 
 ### Retry or route a failed agent event to DLQ
 

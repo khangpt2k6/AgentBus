@@ -69,7 +69,7 @@ Resolved image (repository + tag, falling back to AppVersion).
 {{- end }}
 
 {{/*
-PVC claim name — either an existing claim or one created by the chart.
+PVC claim name - either an existing claim or one created by the chart.
 */}}
 {{- define "agentbus.pvcName" -}}
 {{- if .Values.persistence.existingClaim -}}

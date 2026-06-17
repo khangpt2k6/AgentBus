@@ -59,7 +59,7 @@ func main() {
 		}
 	}()
 
-	// Publish a few events for the same session — they will arrive in order.
+	// Publish a few events for the same session - they will arrive in order.
 	steps := []struct {
 		Type string
 		Step string

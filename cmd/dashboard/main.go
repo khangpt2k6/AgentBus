@@ -41,7 +41,7 @@ func main() {
 	})
 
 	// Serve app.wasm with correct MIME type.
-	// go-app's LocalDir("") generates URL /app.wasm — we handle it here explicitly
+	// go-app's LocalDir("") generates URL /app.wasm - we handle it here explicitly
 	// so the MIME type is always application/wasm (Go's FileServer may omit it).
 	wasmPath := filepath.Join(*wasmDir, "app.wasm")
 	mux.HandleFunc("/app.wasm", func(w http.ResponseWriter, r *http.Request) {
@@ -49,11 +49,11 @@ func main() {
 		http.ServeFile(w, r, wasmPath)
 	})
 
-	// go-app handler — LocalDir("") generates /app.wasm, /app-worker.js, etc.
+	// go-app handler - LocalDir("") generates /app.wasm, /app-worker.js, etc.
 	// with no directory prefix, matching our routes above.
 	mux.Handle("/", &app.Handler{
 		Name:            "GoQueue Dashboard",
-		Description:     "Real-time GoQueue message broker dashboard — built in Go → WASM",
+		Description:     "Real-time GoQueue message broker dashboard - built in Go → WASM",
 		BackgroundColor: "#f6f8fa",
 		ThemeColor:      "#0969da",
 		Icon: app.Icon{

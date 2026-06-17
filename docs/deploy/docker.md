@@ -74,7 +74,7 @@ volumes:
   agentbus-data:
 ```
 
-Lose the volume, lose the log. Plan backups accordingly until replicated WAL ships (see [Distributed v1](../distributed-v1-design.md)).
+Lose the volume, lose the log. Plan backups accordingly until replicated WAL ships with cluster mode.
 
 ## Resources
 
@@ -83,7 +83,7 @@ Reasonable starting point for a single-node broker:
 | Resource | Suggestion |
 |---|---|
 | CPU | 1 vCPU |
-| RAM | 256–512 MiB |
+| RAM | 256-512 MiB |
 | Disk | depends on retention; size for `peak msgs/sec × avg payload × retention` |
 
-Re-benchmark for your payload sizes — see [Benchmarking](../benchmarking.md).
+Re-benchmark for your own payload sizes; the broker ships with a reproducible harness under `bench`.

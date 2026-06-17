@@ -7,7 +7,7 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
-    # Recreate, not RollingUpdate — the broker is single-node and the WAL is
+    # Recreate, not RollingUpdate - the broker is single-node and the WAL is
     # tied to one PVC (ReadWriteOnce). A new pod cannot mount the volume
     # while the old one still owns it, so a rolling update would deadlock.
     type: Recreate
