@@ -6,14 +6,22 @@ coverage.txt
 data/
 *.wal
 
+# Compiled binaries and build output
+*.exe
+bin/
+
+# Stray temp/scratch files
+Agent tools.png
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
 
-# Claude Code
+# Claude Code and local agent tooling
 .claude/
+.zencoder/
+.zenflow/
 
-# Do not push documentation and playwright tests
-docs/
-tests/playwright/
+# Process notes and Playwright tests (not product deliverables)
 docs/superpowers/
+tests/playwright/
