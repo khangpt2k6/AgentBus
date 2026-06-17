@@ -10,19 +10,20 @@ import (
 )
 
 type Metrics struct {
-	PublishedTotal     prometheus.Counter
-	ConsumedTotal      prometheus.Counter
-	ConsumerLag        *prometheus.GaugeVec
-	PublishLatency     prometheus.Histogram
-	AgentEventsTotal   *prometheus.CounterVec
-	AgentRetriesTotal  *prometheus.CounterVec
-	AgentDLQTotal      *prometheus.CounterVec
-	RaftRole           *prometheus.GaugeVec
-	RaftTerm           *prometheus.GaugeVec
-	RaftLeader         *prometheus.GaugeVec
-	RaftLeaderChanges  *prometheus.CounterVec
-	PartitionFillPct   *prometheus.GaugeVec
-	PartitionEvictions *prometheus.GaugeVec
+	PublishedTotal      prometheus.Counter
+	ConsumedTotal       prometheus.Counter
+	ConsumerLag         *prometheus.GaugeVec
+	PublishLatency      prometheus.Histogram
+	AgentEventsTotal    *prometheus.CounterVec
+	AgentRetriesTotal   *prometheus.CounterVec
+	AgentDLQTotal       *prometheus.CounterVec
+	AgentThrottledTotal prometheus.Counter
+	RaftRole            *prometheus.GaugeVec
+	RaftTerm            *prometheus.GaugeVec
+	RaftLeader          *prometheus.GaugeVec
+	RaftLeaderChanges   *prometheus.CounterVec
+	PartitionFillPct    *prometheus.GaugeVec
+	PartitionEvictions  *prometheus.GaugeVec
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -56,6 +57,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "goqueue_agent_event_dlq_total",
 			Help: "Total agent events routed to DLQ topics by topic and event type.",
 		}, []string{"topic", "event_type"}),
+		AgentThrottledTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "goqueue_agent_events_throttled_total",
+			Help: "Total agent events rejected by the per-tenant rate limiter (noisy-agent isolation).",
+		}),
 		RaftRole: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "goqueue_raft_role",
 			Help: "Current raft role of a node (one-hot by role label).",
@@ -89,6 +94,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.AgentEventsTotal,
 		m.AgentRetriesTotal,
 		m.AgentDLQTotal,
+		m.AgentThrottledTotal,
 		m.RaftRole,
 		m.RaftTerm,
 		m.RaftLeader,
@@ -138,6 +144,12 @@ func (m *Metrics) IncAgentRetry(topic, eventType string) {
 
 func (m *Metrics) IncAgentDLQ(topic, eventType string) {
 	m.AgentDLQTotal.WithLabelValues(topic, eventType).Inc()
+}
+
+// IncAgentThrottled records one agent event rejected by the per-tenant rate
+// limiter that isolates noisy producers.
+func (m *Metrics) IncAgentThrottled() {
+	m.AgentThrottledTotal.Inc()
 }
 
 // ObserveAgentPayload updates agent-event counters when payload matches
