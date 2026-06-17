@@ -107,7 +107,7 @@ func newSessionTailCmd(opts *options) *cobra.Command {
 			if !opts.grpc {
 				return errors.New("session commands require --grpc")
 			}
-			// No outer timeout — tail runs until SIGINT or stream close.
+			// No outer timeout - tail runs until SIGINT or stream close.
 			ctx := cmd.Context()
 
 			client, err := agentbus.Connect(ctx, opts.addr)

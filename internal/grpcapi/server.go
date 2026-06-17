@@ -103,7 +103,7 @@ func (s *Server) SetShardWALHook(h ShardWALHook) { s.shardWAL = h }
 func (s *Server) Publish(ctx context.Context, req *goqueuev1.PublishRequest) (*goqueuev1.PublishResponse, error) {
 	// Peek the envelope BEFORE starting the span so we can anchor the span
 	// to the session's derived trace_id when no upstream trace is propagated.
-	// Producers that already propagate OTEL context keep their own trace —
+	// Producers that already propagate OTEL context keep their own trace -
 	// we only synthesize one when the caller has none, so observers can
 	// still group events by session in Jaeger/Tempo.
 	if ev, ok := agentstream.PeekEnvelope(req.Payload); ok {
@@ -269,7 +269,7 @@ func (s *Server) Consume(req *goqueuev1.ConsumeRequest, stream grpc.ServerStream
 
 // Fetch returns a single page of historical messages from (topic, partition)
 // starting at from_offset. Unlike Consume, it doesn't touch consumer-group
-// state and doesn't stream — callers paginate by passing the response's
+// state and doesn't stream - callers paginate by passing the response's
 // next_offset on the next call. Powers session replay and time-travel reads.
 func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goqueuev1.FetchResponse, error) {
 	_, span := otel.Tracer("goqueue.grpcapi").Start(ctx, "BrokerService.Fetch")
@@ -290,7 +290,7 @@ func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goque
 		return nil, status.Error(codes.InvalidArgument, "partition must be >= 0")
 	}
 	if int(req.Partition) >= s.broker.PartitionCount(req.Topic) {
-		// Topic may not exist yet — return empty rather than error so callers
+		// Topic may not exist yet - return empty rather than error so callers
 		// can poll safely.
 		head, tail, err := s.broker.TopicPartitionInfo(req.Topic, int(req.Partition))
 		if err != nil {
@@ -331,7 +331,7 @@ func (s *Server) Fetch(ctx context.Context, req *goqueuev1.FetchRequest) (*goque
 
 	// Filtered path: scan in larger pages until we collect maxCount matches
 	// or hit the scan budget. nextOffset is the offset to resume from on
-	// the next page, NOT FromOffset + len(matches) — callers must use it
+	// the next page, NOT FromOffset + len(matches) - callers must use it
 	// instead of trying to derive their own.
 	scanLimit := int(req.ScanLimit)
 	if scanLimit <= 0 {

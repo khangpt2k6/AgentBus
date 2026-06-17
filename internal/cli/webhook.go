@@ -81,7 +81,7 @@ SaaS), without forcing them to speak gRPC.`,
 					return err
 				}
 				if err := deliver(ctx, httpClient, url, msg, extraHeaders, maxAttempts, baseBackoff); err != nil {
-					// Already exhausted retries — log + continue (don't wedge the
+					// Already exhausted retries - log + continue (don't wedge the
 					// consumer group on a permanently-failing endpoint).
 					fmt.Fprintf(os.Stderr, "webhook: dropped offset=%d after %d attempts: %v\n",
 						msg.Offset, maxAttempts, err)
@@ -140,7 +140,7 @@ func deliver(ctx context.Context, hc *http.Client, url string, msg agentbus.Mess
 		req.Header.Set("X-Agentbus-Partition", strconv.FormatInt(int64(msg.Partition), 10))
 		req.Header.Set("X-Agentbus-Timestamp", msg.Timestamp.UTC().Format(time.RFC3339Nano))
 		req.Header.Set("X-Agentbus-Attempt", strconv.Itoa(attempt))
-		// Tag with envelope fields if the payload is an agent event — lets
+		// Tag with envelope fields if the payload is an agent event - lets
 		// the consumer route without re-parsing.
 		if ev, ok := agentbus.DecodeEvent(msg.Payload); ok {
 			req.Header.Set("X-Agentbus-Tenant", ev.Tenant)
@@ -161,7 +161,7 @@ func deliver(ctx context.Context, hc *http.Client, url string, msg agentbus.Mess
 				return nil
 			}
 			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, bytes.TrimSpace(body))
-			// 4xx (except 408/429) is a permanent error — no retry.
+			// 4xx (except 408/429) is a permanent error - no retry.
 			if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
 				resp.StatusCode != http.StatusRequestTimeout &&
 				resp.StatusCode != http.StatusTooManyRequests {

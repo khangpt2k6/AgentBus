@@ -32,12 +32,12 @@ type BrokerServiceClient interface {
 	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error)
 	Consume(ctx context.Context, in *ConsumeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ConsumeMessage], error)
 	// Fetch returns historical messages starting at from_offset. Unlike Consume,
-	// it does not track consumer-group state and does not stream — it returns a
+	// it does not track consumer-group state and does not stream - it returns a
 	// single page. Use it for session replay, debugging, and time-travel reads.
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 	// PublishAgent publishes a structured agent event. In cluster mode, returns
 	// FailedPrecondition with a NotLeaderError detail when this node does not
-	// own the target shard — the client must redirect to the indicated leader.
+	// own the target shard - the client must redirect to the indicated leader.
 	PublishAgent(ctx context.Context, in *PublishAgentRequest, opts ...grpc.CallOption) (*PublishAgentResponse, error)
 }
 
@@ -105,12 +105,12 @@ type BrokerServiceServer interface {
 	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
 	Consume(*ConsumeRequest, grpc.ServerStreamingServer[ConsumeMessage]) error
 	// Fetch returns historical messages starting at from_offset. Unlike Consume,
-	// it does not track consumer-group state and does not stream — it returns a
+	// it does not track consumer-group state and does not stream - it returns a
 	// single page. Use it for session replay, debugging, and time-travel reads.
 	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
 	// PublishAgent publishes a structured agent event. In cluster mode, returns
 	// FailedPrecondition with a NotLeaderError detail when this node does not
-	// own the target shard — the client must redirect to the indicated leader.
+	// own the target shard - the client must redirect to the indicated leader.
 	PublishAgent(context.Context, *PublishAgentRequest) (*PublishAgentResponse, error)
 	mustEmbedUnimplementedBrokerServiceServer()
 }

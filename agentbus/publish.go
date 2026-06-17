@@ -19,7 +19,7 @@ type PublishResult struct {
 
 // Publish sends payload to topic. Routing uses round-robin partitioning.
 //
-// For per-session ordering, prefer PublishWithKey or PublishAgent — Publish
+// For per-session ordering, prefer PublishWithKey or PublishAgent - Publish
 // does NOT guarantee any ordering relationship across calls.
 func (c *Client) Publish(ctx context.Context, topic string, payload []byte) (PublishResult, error) {
 	return c.publishRaw(ctx, topic, "", -1, payload)
@@ -64,13 +64,13 @@ func (c *Client) publishRaw(ctx context.Context, topic, key string, partition in
 // triple (Tenant, Project, SessionID) selects a stable partition, so events
 // for the same session are always delivered in order.
 type AgentEvent struct {
-	// Routing — required.
+	// Routing - required.
 	Tenant    string
 	Project   string
 	SessionID string
 	AgentID   string
 
-	// What happened — required.
+	// What happened - required.
 	Type string // "tool.call", "tool.result", "token.chunk", "handoff", ...
 
 	// Optional context.

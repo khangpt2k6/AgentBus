@@ -11,7 +11,7 @@ hide:
 # Session-ordered event bus, built for AI agents.
 
 <p class="ab-lede">
-AgentBus is the open-source event bus your multi-agent systems were waiting for. Stable per-session ordering, crash-safe WAL, built-in replay, OpenTelemetry traces, and HTTP webhook fan-out — in a single Go binary.
+AgentBus is the open-source event bus your multi-agent systems were waiting for. Stable per-session ordering, crash-safe WAL, built-in replay, OpenTelemetry traces, and HTTP webhook fan-out - in a single Go binary.
 </p>
 
 <div class="ab-cta">
@@ -72,7 +72,7 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
       --tenant acme --project support-bot --session sess-42
     ```
 
-    Output: every event for the session, in order. Tool calls, retries, handoffs, completions — the whole story.
+    Output: every event for the session, in order. Tool calls, retries, handoffs, completions - the whole story.
 
 ---
 
@@ -84,7 +84,7 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
 
     ---
 
-    Hash routes by `tenant/project/session`. Same session always lands on the same partition, so its events stay in order — without distributed locks or 2PC.
+    Hash routes by `tenant/project/session`. Same session always lands on the same partition, so its events stay in order - without distributed locks or 2PC.
 
     [:octicons-arrow-right-24: Sessions & ordering](concepts/sessions.md)
 
@@ -92,9 +92,9 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
 
     ---
 
-    Got a session id? Get the full trace. `goqueue session replay` or `client.ReplaySession` returns every event chronologically — self-hosted alternative to LangSmith-style traces.
+    Got a session id? Get the full trace. `goqueue session replay` or `client.ReplaySession` returns every event chronologically - self-hosted alternative to LangSmith-style traces.
 
-    [:octicons-arrow-right-24: Debug an agent run](debug-agent-run.md)
+    [:octicons-arrow-right-24: WAL and replay](concepts/wal-replay.md)
 
 -   :material-database-refresh:{ .lg .middle } &nbsp; **Crash-safe WAL with CRC32C**
 
@@ -116,7 +116,7 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
 
     ---
 
-    `goqueue webhook --url ...` POSTs every event to any HTTPS endpoint with retry, backoff, and standard tagging headers. Slack, PagerDuty, Lambda — all bridgeable.
+    `goqueue webhook --url ...` POSTs every event to any HTTPS endpoint with retry, backoff, and standard tagging headers. Slack, PagerDuty, Lambda - all bridgeable.
 
     [:octicons-arrow-right-24: Webhook subscriber](webhook.md)
 
@@ -156,7 +156,7 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
     - You prefer self-hosting and a small binary over running a Kafka stack
 
 !!! warning "Not a fit (yet)"
-    - You need real distributed consensus across nodes (see [distributed-v1](distributed-v1-design.md) design notes)
+    - You need real distributed consensus across nodes (cluster mode is alpha; multi-node replication is still maturing)
     - Your workload is millions of messages per second per partition (it's fast, but not Kafka-fast)
     - You require hard exactly-once semantics across consumers
 
@@ -174,9 +174,9 @@ AgentBus is the open-source event bus your multi-agent systems were waiting for.
 
     Add `agentbus.Connect` to your app, build typed agent events.
 
--   [:material-bug: **Debug an agent run**](debug-agent-run.md)
+-   [:material-bug: **Replay a session**](concepts/wal-replay.md)
 
-    The killer-feature workflow — session id in, full trace out.
+    The killer-feature workflow - session id in, full trace out.
 
 -   [:material-source-branch: **GitHub**](https://github.com/khangpt2k6/AgentBus)
 

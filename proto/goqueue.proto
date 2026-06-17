@@ -8,12 +8,12 @@ service BrokerService {
   rpc Publish(PublishRequest) returns (PublishResponse);
   rpc Consume(ConsumeRequest) returns (stream ConsumeMessage);
   // Fetch returns historical messages starting at from_offset. Unlike Consume,
-  // it does not track consumer-group state and does not stream — it returns a
+  // it does not track consumer-group state and does not stream - it returns a
   // single page. Use it for session replay, debugging, and time-travel reads.
   rpc Fetch(FetchRequest) returns (FetchResponse);
   // PublishAgent publishes a structured agent event. In cluster mode, returns
   // FailedPrecondition with a NotLeaderError detail when this node does not
-  // own the target shard — the client must redirect to the indicated leader.
+  // own the target shard - the client must redirect to the indicated leader.
   rpc PublishAgent(PublishAgentRequest) returns (PublishAgentResponse);
 }
 
@@ -105,7 +105,7 @@ message PublishAgentResponse {
 // own the target shard.
 message NotLeaderError {
   // gRPC address (host:port) of the current leader. May be empty if the
-  // leader is unknown or unreachable — the SDK should back off and retry.
+  // leader is unknown or unreachable - the SDK should back off and retry.
   string leader_addr = 1;
 }
 

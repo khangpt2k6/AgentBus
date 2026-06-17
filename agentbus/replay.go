@@ -100,7 +100,7 @@ func (c *Client) ReplaySession(ctx context.Context, sess SessionRef, opts Replay
 		pageSize = 256
 	}
 
-	// Push the session filter to the broker — drastically reduces wire
+	// Push the session filter to the broker - drastically reduces wire
 	// bytes on a busy topic. The broker's scan_limit defaults to 16K; bump
 	// pageSize-derived budget here if MaxEvents is large.
 	filter := &pb.SessionFilter{
@@ -128,7 +128,7 @@ func (c *Client) ReplaySession(ctx context.Context, sess SessionRef, opts Replay
 		if len(page.Messages) == 0 {
 			// Either no more matches OR broker hit its scan budget without
 			// finding more. If NextOffset advanced past where we started,
-			// progress was made — loop again. Otherwise we're done.
+			// progress was made - loop again. Otherwise we're done.
 			if page.NextOffset > offset && page.NextOffset < page.Tail {
 				offset = page.NextOffset
 				continue

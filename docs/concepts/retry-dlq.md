@@ -1,6 +1,6 @@
 # Retry & DLQ
 
-Agent Bus has a **broker-native** retry policy. You don't need a sidecar, a CLI operator, or a separate worker — the broker itself decides whether a failed event gets re-published with `attempt+1` or routed to a dead-letter topic.
+Agent Bus has a **broker-native** retry policy. You don't need a sidecar, a CLI operator, or a separate worker - the broker itself decides whether a failed event gets re-published with `attempt+1` or routed to a dead-letter topic.
 
 ## The rule
 
@@ -20,8 +20,8 @@ That's it. No exponential backoff state, no separate scheduler. The simplicity i
 
 Two paths:
 
-1. **Consumer reports failure** — when your consumer nacks an agent event, the broker applies the policy and decides where it goes next.
-2. **CLI operator command** — useful for tests and one-offs:
+1. **Consumer reports failure** - when your consumer nacks an agent event, the broker applies the policy and decides where it goes next.
+2. **CLI operator command** - useful for tests and one-offs:
 
 ```bash
 goqueue retry-agent --grpc --addr localhost:9095 \
@@ -58,7 +58,7 @@ Three counters tell you the whole story:
 | `goqueue_agent_event_retries_total` | events that were re-published with `attempt+1` |
 | `goqueue_agent_event_dlq_total` | events that crossed `max-attempts` and went to DLQ |
 
-A healthy system has `retries / published` low and steady; spikes mean a tool or agent is failing. `dlq_total > 0` is always worth investigating — these are events your consumers gave up on entirely.
+A healthy system has `retries / published` low and steady; spikes mean a tool or agent is failing. `dlq_total > 0` is always worth investigating - these are events your consumers gave up on entirely.
 
 ## Designing consumers around it
 

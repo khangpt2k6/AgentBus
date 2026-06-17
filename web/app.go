@@ -1,4 +1,4 @@
-// Package web — GoQueue dashboard, 100% Go compiled to WebAssembly.
+// Package web - GoQueue dashboard, 100% Go compiled to WebAssembly.
 // No HTML / CSS / JS files written by hand.
 package web
 
@@ -52,10 +52,10 @@ type Dashboard struct {
 	prevConRate int64
 	connErr     string
 
-	// left panel — selected topic
+	// left panel - selected topic
 	selectedTopic string
 
-	// right panel — active tab
+	// right panel - active tab
 	activeTab string // "publish" | "fetch" | "guide"
 
 	// publish form
@@ -130,8 +130,8 @@ func (d *Dashboard) Render() app.UI {
 
 func (d *Dashboard) renderHeader() app.UI {
 	nodeID := or(d.stats.NodeID, "connecting…")
-	role := or(d.stats.Role, "—")
-	uptime := or(d.stats.Uptime, "—")
+	role := or(d.stats.Role, "-")
+	uptime := or(d.stats.Uptime, "-")
 
 	dotCol := accent
 	if d.connErr != "" {
@@ -202,7 +202,7 @@ func (d *Dashboard) renderStatRow() app.UI {
 			d.stat("BACKLOG", fmtN(backlog), backlogCol),
 			d.stat("TOPICS", strconv.Itoa(len(d.stats.Topics)), txt),
 			d.stat("TCP CONN", strconv.FormatInt(d.stats.TCPConnections, 10), txt),
-			d.stat("WAL SYNC", or(d.stats.WAL.SyncMode, "—"), txt),
+			d.stat("WAL SYNC", or(d.stats.WAL.SyncMode, "-"), txt),
 		)
 }
 
@@ -422,7 +422,7 @@ func (d *Dashboard) renderToolPanel() app.UI {
 // ── publish form ──────────────────────────────────────────────────────────────
 
 func (d *Dashboard) renderPublishForm() app.UI {
-	selLabel := or(d.pubTopic, "— pick a topic on the left or type below —")
+	selLabel := or(d.pubTopic, "- pick a topic on the left or type below -")
 	selCol := muted
 	if d.pubTopic != "" {
 		selCol = accent
@@ -457,14 +457,14 @@ func (d *Dashboard) renderPublishForm() app.UI {
 					d.pubTopic = ctx.JSSrc().Get("value").String()
 				}),
 		),
-		d.formRow("KEY  (optional — for partition routing)",
+		d.formRow("KEY  (optional - for partition routing)",
 			app.Input().Type("text").Placeholder("user-123").
 				Value(d.pubKey).
 				OnInput(func(ctx app.Context, e app.Event) {
 					d.pubKey = ctx.JSSrc().Get("value").String()
 				}),
 		),
-		d.formRow("PARTITION  (optional — leave blank for auto)",
+		d.formRow("PARTITION  (optional - leave blank for auto)",
 			app.Input().Type("text").Placeholder("-1").
 				Value(d.pubPartStr).
 				OnInput(func(ctx app.Context, e app.Event) {
@@ -668,8 +668,8 @@ func (d *Dashboard) doFetch(ctx app.Context, e app.Event) {
 // ── guide / settings tab ──────────────────────────────────────────────────────
 
 func (d *Dashboard) renderGuide() app.UI {
-	walMode := or(d.stats.WAL.SyncMode, "—")
-	walPath := or(d.stats.WAL.Path, "—")
+	walMode := or(d.stats.WAL.SyncMode, "-")
+	walPath := or(d.stats.WAL.Path, "-")
 
 	return app.Div().Body(
 		d.guideSection("QUICK START", []string{
@@ -734,7 +734,7 @@ func (d *Dashboard) renderFooter() app.UI {
 		Style("border-top", "1px solid "+glassBorder).Style("padding-top", "14px").
 		Body(
 			app.Span().Style("color", muted).Style("font-size", "10px").
-				Text("wal: "+or(d.stats.WAL.Path, "—")+"  sync="+or(d.stats.WAL.SyncMode, "—")),
+				Text("wal: "+or(d.stats.WAL.Path, "-")+"  sync="+or(d.stats.WAL.SyncMode, "-")),
 			app.Span().Style("color", "rgba(255,255,255,0.15)").Style("font-size", "10px").
 				Text("goqueue · built in Go → WASM"),
 		)

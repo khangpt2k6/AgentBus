@@ -74,7 +74,7 @@ goqueue publish-agent --grpc --addr localhost:9095 \
 
 | Flag | Meaning |
 |---|---|
-| `--tenant` / `--project` / `--session` | the routing triple — see [Sessions](../concepts/sessions.md) |
+| `--tenant` / `--project` / `--session` | the routing triple - see [Sessions](../concepts/sessions.md) |
 | `--agent` | agent identifier (free-form) |
 | `--type` | event type (`tool.call`, `token.chunk`, etc.) |
 | `--step` | step name within the session |

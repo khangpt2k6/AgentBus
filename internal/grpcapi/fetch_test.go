@@ -75,7 +75,7 @@ func TestFetchSessionFilterReturnsOnlyMatches(t *testing.T) {
 	b := broker.New()
 	srv := NewServer(b, consumer.NewManager(), nil, nil)
 
-	// Publish three envelopes — two for sess-42, one for sess-99 — all on
+	// Publish three envelopes - two for sess-42, one for sess-99 - all on
 	// the same explicit partition so they appear in the same fetch.
 	publish := func(session, agentID string) {
 		env := map[string]any{

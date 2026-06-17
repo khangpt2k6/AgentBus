@@ -5,7 +5,7 @@ AgentBus emits OTEL spans for every publish. Two integrations make these spans p
 1. **Session attributes** on every span so you can find every event in a session with a single search.
 2. **Session-derived trace_id** so events from a session that started without an upstream trace context still get grouped into one Jaeger/Tempo trace.
 
-You get this for free — no agent-side instrumentation required.
+You get this for free - no agent-side instrumentation required.
 
 ---
 
@@ -32,7 +32,7 @@ agent.session.id = sess-42
 
 You see every Publish the broker handled for `sess-42`, ordered by time. Click any span for its full attributes including step, attempt, and partition.
 
-This works **without modifying your agent code** — the broker introspects the envelope and tags the span automatically.
+This works **without modifying your agent code** - the broker introspects the envelope and tags the span automatically.
 
 ---
 

@@ -102,26 +102,19 @@ nav:
       - Installation: getting-started.md
       - Integrate the Go SDK: integrate.md
   - Workflows:
-      - Debug an agent run: debug-agent-run.md
       - Webhook subscriber: webhook.md
       - OpenTelemetry tracing: otel-tracing.md
       - Observability: observability.md
   - Concepts:
-      - Sessions & ordering: concepts/sessions.md
-      - Retry & DLQ: concepts/retry-dlq.md
-      - WAL & replay: concepts/wal-replay.md
+      - Sessions and ordering: concepts/sessions.md
+      - Retry and DLQ: concepts/retry-dlq.md
+      - WAL and replay: concepts/wal-replay.md
   - Deploy:
       - Docker: deploy/docker.md
       - Kubernetes (Helm): deploy/kubernetes.md
       - systemd on a VM: deploy/systemd.md
   - Reference:
       - CLI: reference/cli.md
-  - Cluster mode:
-      - Operator guide: cluster.md
-  - Design notes:
-      - Distributed v1: distributed-v1-design.md
-      - Benchmarking: benchmarking.md
-      - AI agent pivot: ai-agent-pivot.md
 
 extra:
   generator: false
@@ -134,5 +127,4 @@ extra:
       name: Container image on GHCR
 
 exclude_docs: |
-  canva-diagram-guide.html
   superpowers/

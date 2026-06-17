@@ -101,7 +101,7 @@ func TestReplayTruncatedFile(t *testing.T) {
 		count++
 		return nil
 	})
-	// should not error — just stop at the truncated record
+	// should not error - just stop at the truncated record
 	if err != nil {
 		t.Fatalf("replay truncated: %v", err)
 	}

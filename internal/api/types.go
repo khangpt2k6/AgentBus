@@ -1,5 +1,5 @@
 // Package api defines the JSON types shared between the broker HTTP API
-// and the WASM frontend. Both import this package directly — no type drift.
+// and the WASM frontend. Both import this package directly - no type drift.
 package api
 
 // BrokerStats is the response shape for GET /api/stats.

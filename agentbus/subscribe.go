@@ -61,7 +61,7 @@ func (c *Client) SubscribeWithOptions(ctx context.Context, topic, group string, 
 
 // Subscription is an iterator over a stream of messages.
 //
-// Not safe for concurrent use — drive it from a single goroutine. To fan
+// Not safe for concurrent use - drive it from a single goroutine. To fan
 // out, copy messages onto your own channel after Next() returns.
 type Subscription struct {
 	stream pb.BrokerService_ConsumeClient

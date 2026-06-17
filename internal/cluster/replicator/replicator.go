@@ -100,7 +100,7 @@ func (w *shardWorker) run() {
 	}
 	hwm.SetReplicas(replicaIDs)
 
-	// Local shardwal Subscribe — single source of all entries to fan out.
+	// Local shardwal Subscribe - single source of all entries to fan out.
 	shard, err := w.mgr.Shard(w.shardID)
 	if err != nil {
 		log.Printf("replicator shard %d: open: %v", w.shardID, err)
@@ -145,7 +145,7 @@ func (w *shardWorker) run() {
 				select {
 				case fc.entries <- entry:
 				default:
-					// Buffer full — slow follower will fall behind; rely on
+					// Buffer full - slow follower will fall behind; rely on
 					// reconnect / catchup to recover.
 				}
 			}

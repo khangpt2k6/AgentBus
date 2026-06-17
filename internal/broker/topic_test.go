@@ -91,7 +91,7 @@ func TestTopicEvictions(t *testing.T) {
 		t.Fatalf("initial evictions: got %d, want 0", topic.Evictions())
 	}
 
-	// Fill exactly — no eviction yet.
+	// Fill exactly - no eviction yet.
 	for range cap {
 		topic.Publish([]byte("x"))
 	}
@@ -99,7 +99,7 @@ func TestTopicEvictions(t *testing.T) {
 		t.Fatalf("evictions at full capacity: got %d, want 0", topic.Evictions())
 	}
 
-	// Overflow by 7 — each extra message evicts one.
+	// Overflow by 7 - each extra message evicts one.
 	overflow := 7
 	for range overflow {
 		topic.Publish([]byte("x"))

@@ -136,7 +136,7 @@ docker_manifests:
       - 'ghcr.io/khangpt2k6/goqueue:latest-amd64'
       - 'ghcr.io/khangpt2k6/goqueue:latest-arm64'
 
-# Homebrew tap — requires you to create a separate repo:
+# Homebrew tap - requires you to create a separate repo:
 #   github.com/khangpt2k6/homebrew-goqueue
 # and add a HOMEBREW_TAP_GITHUB_TOKEN secret with push access to that repo.
 # Uncomment when ready.
@@ -157,7 +157,7 @@ docker_manifests:
 #       system "#{bin}/broker", "--help"
 #       system "#{bin}/goqueue", "--help"
 
-# Scoop bucket — same idea for Windows.
+# Scoop bucket - same idea for Windows.
 # Requires github.com/khangpt2k6/scoop-goqueue.
 #
 # scoops:

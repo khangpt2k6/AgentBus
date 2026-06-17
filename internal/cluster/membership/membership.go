@@ -86,7 +86,7 @@ func Start(cfg Config) (*Membership, error) {
 	if len(cfg.JoinAddrs) > 0 {
 		// ml.Join returns the number of nodes successfully contacted. If
 		// zero peers are reachable yet (e.g. this is the first node up),
-		// we proceed anyway — other nodes will push their state to us when
+		// we proceed anyway - other nodes will push their state to us when
 		// they join, making gossip eventually-consistent regardless of
 		// start order. Surface the warning so operators can distinguish
 		// "still converging" from "every peer address unreachable".
@@ -113,7 +113,7 @@ func (m *Membership) Alive() []string {
 	return out
 }
 
-// MemberInfo is what callers see about another node — just its ID and
+// MemberInfo is what callers see about another node - just its ID and
 // the address gossip is using to talk to it. For richer metadata
 // (client/gRPC address, etc.) callers consult the metadata FSM.
 type MemberInfo struct {

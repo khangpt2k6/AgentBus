@@ -10,7 +10,7 @@ import (
 func TestBrokerPublishSubscribe(t *testing.T) {
 	b := New()
 
-	// Subscriber first, then publish — but Subscription.Next returns as
+	// Subscriber first, then publish - but Subscription.Next returns as
 	// soon as ANY messages are available, so a single Next() call may see
 	// only the first publish if the second hasn't landed yet. Drain in a
 	// loop until both arrive or the deadline fires. The race-detector

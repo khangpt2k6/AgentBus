@@ -16,7 +16,7 @@ imagePullSecrets: []
 # -----------------------------------------------------------------------------
 # Workload
 # -----------------------------------------------------------------------------
-# AgentBus is single-node today — replicas > 1 will not give you HA or shard
+# AgentBus is single-node today - replicas > 1 will not give you HA or shard
 # the topics. It will give you two independent brokers sharing nothing. Keep
 # this at 1 unless you know what you want.
 replicaCount: 1
@@ -76,7 +76,7 @@ broker:
 # -----------------------------------------------------------------------------
 # Persistence (WAL + consumer offsets)
 # -----------------------------------------------------------------------------
-# When disabled, AgentBus uses an emptyDir — fast, but lose the pod, lose
+# When disabled, AgentBus uses an emptyDir - fast, but lose the pod, lose
 # the WAL. For anything other than dev, enable persistence.
 persistence:
   enabled: true
@@ -98,7 +98,7 @@ service:
   annotations: {}
 
 # -----------------------------------------------------------------------------
-# Ingress (optional — usually you front gRPC with a service mesh or LB)
+# Ingress (optional - usually you front gRPC with a service mesh or LB)
 # -----------------------------------------------------------------------------
 ingress:
   enabled: false
@@ -147,7 +147,7 @@ serviceMonitor:
   metricRelabelings: []
 
 # -----------------------------------------------------------------------------
-# OpenTelemetry — optional env wiring to the OTEL collector you already run.
+# OpenTelemetry - optional env wiring to the OTEL collector you already run.
 # -----------------------------------------------------------------------------
 otel:
   enabled: false

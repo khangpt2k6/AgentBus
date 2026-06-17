@@ -2,7 +2,7 @@ apiVersion: v2
 name: agentbus
 description: |
   AgentBus is a session-ordered event bus for AI agents, with replay,
-  durable WAL, Prometheus metrics, and OpenTelemetry traces — in a
+  durable WAL, Prometheus metrics, and OpenTelemetry traces - in a
   single Go binary.
 type: application
 

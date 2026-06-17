@@ -16,7 +16,7 @@ Service ports (cluster-internal):
 {{- if .Values.persistence.enabled }}
 WAL persistence is ENABLED on PVC "{{ include "agentbus.pvcName" . }}" ({{ .Values.persistence.size }}).
 {{- else }}
-WAL persistence is DISABLED. The WAL lives on an emptyDir — restart loses it.
+WAL persistence is DISABLED. The WAL lives on an emptyDir - restart loses it.
 For anything beyond a demo, set persistence.enabled=true.
 {{- end }}
 
