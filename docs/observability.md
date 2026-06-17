@@ -1,6 +1,6 @@
 # Observability
 
-Agent Bus emits Prometheus metrics and OpenTelemetry traces out of the box. Point Grafana at the included dashboards and you have incident-level visibility in minutes.
+Agent Bus emits Prometheus metrics and OpenTelemetry traces by default. Point Grafana at the included dashboards to get incident-level visibility quickly.
 
 ## Metrics endpoint
 

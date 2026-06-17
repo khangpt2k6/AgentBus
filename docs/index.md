@@ -22,7 +22,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 <ul class="ab-pills">
   <li><span class="dot"></span> Single Go binary</li>
   <li><span class="dot"></span> Docker image on GHCR</li>
-  <li><span class="dot"></span> No Zookeeper / no Raft to babysit</li>
+  <li><span class="dot"></span> No Zookeeper or Raft to operate</li>
   <li><span class="dot"></span> MIT licensed</li>
 </ul>
 
