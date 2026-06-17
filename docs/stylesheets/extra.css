@@ -1,6 +1,7 @@
 /* ---------------------------------------------------------------------------
    AgentBus docs - Notion-style theme.
-   Monochrome, flat, generous whitespace. No gradients, glows, or grid noise.
+   Soft paper background, Notion blue links, pastel callouts, flat cards.
+   Generous whitespace. No gradients, glows, or grid noise.
    --------------------------------------------------------------------------- */
 
 :root {
@@ -14,18 +15,29 @@
   --md-default-fg-color: #37352f;
   --md-default-fg-color--light: #787774;
   --md-default-fg-color--lighter: #9b9a97;
-  --md-primary-fg-color: #ffffff;
+  --md-primary-fg-color: #f7f6f3;
   --md-primary-bg-color: #37352f;
-  --md-accent-fg-color: #37352f;
-  --md-typeset-a-color: #37352f;
+  --md-accent-fg-color: #2383e2;
+  --md-typeset-a-color: #2383e2;
   --md-code-bg-color: #f7f6f3;
   --md-code-fg-color: #37352f;
+  --ab-code-inline: #eb5757;
 
   --ab-text-muted: #787774;
   --ab-border: #e9e9e7;
   --ab-border-strong: #d3d1cb;
   --ab-subtle: #f7f6f3;
   --ab-subtle-2: #f1f0ee;
+  --ab-link: #2383e2;
+  --ab-link-hover: #1a6dc4;
+
+  /* Notion-style pastel callouts */
+  --ab-note-bg: #e7f3f8;
+  --ab-note-bd: #2383e2;
+  --ab-tip-bg: #edf3ec;
+  --ab-tip-bd: #448361;
+  --ab-warn-bg: #fbf3db;
+  --ab-warn-bd: #cb912f;
 }
 
 /* Dark scheme: Notion dark ---------------------------------------------- */
@@ -34,18 +46,29 @@
   --md-default-fg-color: #d4d4d4;
   --md-default-fg-color--light: #9b9b9b;
   --md-default-fg-color--lighter: #6f6f6f;
-  --md-primary-fg-color: #191919;
+  --md-primary-fg-color: #202020;
   --md-primary-bg-color: #e6e6e6;
-  --md-accent-fg-color: #e6e6e6;
-  --md-typeset-a-color: #e6e6e6;
+  --md-accent-fg-color: #5e9fe0;
+  --md-typeset-a-color: #5e9fe0;
   --md-code-bg-color: #2a2a2a;
   --md-code-fg-color: #e0e0e0;
+  --ab-code-inline: #ff7b72;
 
   --ab-text-muted: #9b9b9b;
   --ab-border: rgba(255, 255, 255, 0.10);
   --ab-border-strong: rgba(255, 255, 255, 0.20);
   --ab-subtle: #232323;
   --ab-subtle-2: #2a2a2a;
+  --ab-link: #5e9fe0;
+  --ab-link-hover: #82b6ea;
+
+  /* Notion-style pastel callouts (muted for dark) */
+  --ab-note-bg: rgba(35, 131, 226, 0.12);
+  --ab-note-bd: #5e9fe0;
+  --ab-tip-bg: rgba(68, 131, 97, 0.15);
+  --ab-tip-bd: #5a9b78;
+  --ab-warn-bg: rgba(203, 145, 47, 0.14);
+  --ab-warn-bd: #d9a441;
 }
 
 /* Typography ------------------------------------------------------------ */
@@ -76,16 +99,19 @@ body, .md-typeset {
   font-size: 1.05rem;
   margin-top: 1.8rem;
 }
-/* Links: underlined, monochrome (true black and white) */
+/* Links: Notion blue, subtle underline on hover */
 .md-typeset a {
+  color: var(--ab-link);
   text-decoration: none;
-  border-bottom: 1px solid var(--ab-border-strong);
-  transition: border-color 100ms ease, opacity 100ms ease;
+  border-bottom: 1px solid transparent;
+  transition: border-color 100ms ease, color 100ms ease;
 }
 .md-typeset a:hover {
-  opacity: 0.7;
+  color: var(--ab-link-hover);
   border-bottom-color: currentColor;
 }
+/* Inline code keeps the Notion red-on-gray look but stays neutral in links */
+.md-typeset a code { color: inherit; }
 
 /* Header & navigation --------------------------------------------------- */
 .md-header {
@@ -241,12 +267,15 @@ body, .md-typeset {
   border-radius: 4px;
   border: 1px solid var(--ab-border);
   background: var(--ab-subtle);
+  color: var(--ab-code-inline);
 }
 .md-typeset pre > code {
   border: none;
   border-radius: 0;
   font-size: 0.76rem;
   line-height: 1.6;
+  color: var(--md-code-fg-color);
+  background: transparent;
 }
 .md-typeset .highlight {
   border-radius: var(--ab-radius);
@@ -275,7 +304,7 @@ body, .md-typeset {
 .md-typeset table:not([class]) td { border-top: 1px solid var(--ab-border); }
 .md-typeset table:not([class]) tr:hover { background: var(--ab-subtle); }
 
-/* Admonitions - quiet, monochrome -------------------------------------- */
+/* Admonitions - Notion pastel callouts --------------------------------- */
 .md-typeset .admonition,
 .md-typeset details {
   border-radius: var(--ab-radius);
@@ -291,6 +320,41 @@ body, .md-typeset {
 }
 .md-typeset .admonition-title::before,
 .md-typeset summary::before { background-color: var(--ab-text-muted); }
+
+/* Note / info */
+.md-typeset .admonition.note,
+.md-typeset details.note,
+.md-typeset .admonition.info,
+.md-typeset details.info {
+  border-left-color: var(--ab-note-bd);
+  background: var(--ab-note-bg);
+}
+.md-typeset .note > .admonition-title,
+.md-typeset .info > .admonition-title { background: transparent; }
+.md-typeset .note > .admonition-title::before,
+.md-typeset .info > .admonition-title::before { background-color: var(--ab-note-bd); }
+
+/* Tip / success */
+.md-typeset .admonition.tip,
+.md-typeset details.tip,
+.md-typeset .admonition.success,
+.md-typeset details.success {
+  border-left-color: var(--ab-tip-bd);
+  background: var(--ab-tip-bg);
+}
+.md-typeset .tip > .admonition-title,
+.md-typeset .success > .admonition-title { background: transparent; }
+.md-typeset .tip > .admonition-title::before,
+.md-typeset .success > .admonition-title::before { background-color: var(--ab-tip-bd); }
+
+/* Warning */
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-left-color: var(--ab-warn-bd);
+  background: var(--ab-warn-bg);
+}
+.md-typeset .warning > .admonition-title { background: transparent; }
+.md-typeset .warning > .admonition-title::before { background-color: var(--ab-warn-bd); }
 
 /* Mermaid diagrams - center and breathe -------------------------------- */
 .md-typeset .mermaid {
