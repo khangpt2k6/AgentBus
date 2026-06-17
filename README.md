@@ -94,7 +94,19 @@ One Go binary. Docker Compose is optional, not required to run or develop agains
 
 ## Architecture
 
-![Agent Bus architecture: agent tools publish events through TCP, gRPC, and CLI clients into the Agent Bus Core (session router, partition topics, consumer groups), with observability and durability layers attached.](docs/assets/architecture.png)
+```mermaid
+flowchart TB
+    P["Agent tools (producers)"] -->|TCP / gRPC / CLI| R
+    subgraph CORE["Agent Bus core"]
+        direction TB
+        R["Session router"] --> T["Partitioned topics"]
+        T --> RD["Retry and DLQ"]
+    end
+    T --> W[("Write-ahead log")]
+    T --> C["Consumers"]
+    T --> H["Webhook fan-out"]
+    CORE --> O["Observability (Prometheus and OpenTelemetry)"]
+```
 
 <table>
 <thead>
