@@ -387,6 +387,7 @@ docker compose up --build
 - `goqueue_agent_events_published_total`
 - `goqueue_agent_event_retries_total`
 - `goqueue_agent_event_dlq_total`
+- `goqueue_agent_events_throttled_total`
 
 ---
 
