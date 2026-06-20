@@ -86,6 +86,78 @@ func TestReplicator_FanOutToFollowers(t *testing.T) {
 		f1s.Tail(), f2s.Tail(), leaderMgr.HWM(7).Mark())
 }
 
+// waitTail blocks until the follower's shard reaches wantTail or the deadline.
+func waitTail(t *testing.T, mgr *shardwal.Manager, shardID uint32, wantTail uint64) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		s, _ := mgr.Shard(shardID)
+		if s.Tail() >= wantTail {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	s, _ := mgr.Shard(shardID)
+	t.Fatalf("follower tail = %d, want >= %d", s.Tail(), wantTail)
+}
+
+// TestReplicator_ReAddConvergesAfterReassignment reproduces the wedge that the
+// old replicator hit on shard-leadership reassignment. The orchestration layer
+// restarts a shard's worker (Add over an existing one) whenever the follower set
+// changes. The old worker re-streamed from offset 0; a follower that already had
+// records rejected offset 0 as a tail mismatch and wedged forever. With
+// per-follower cursors + an idempotent follower, the re-streamed prefix is
+// skipped and replication converges.
+func TestReplicator_ReAddConvergesAfterReassignment(t *testing.T) {
+	leaderMgr, err := shardwal.NewManager(t.TempDir(), "leader")
+	if err != nil {
+		t.Fatalf("leader manager: %v", err)
+	}
+	defer leaderMgr.Close()
+
+	fAddr, fMgr, stop := startFollower(t, "f1")
+	defer stop()
+
+	rep := New(leaderMgr)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const shardID = 3
+	rep.Add(ctx, shardID, []FollowerAddr{{NodeID: "f1", Addr: fAddr}})
+	defer rep.Drop(shardID)
+
+	leaderShard, err := leaderMgr.Shard(shardID)
+	if err != nil {
+		t.Fatalf("shard: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if _, err := leaderShard.Append([]byte{byte('a' + i)}); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+	waitTail(t, fMgr, shardID, 5)
+
+	// Simulate a leadership reassignment: restart the worker. The follower is
+	// already at tail 5; the old code would wedge here.
+	rep.Add(ctx, shardID, []FollowerAddr{{NodeID: "f1", Addr: fAddr}})
+
+	for i := 5; i < 10; i++ {
+		if _, err := leaderShard.Append([]byte{byte('a' + i)}); err != nil {
+			t.Fatalf("append after re-add: %v", err)
+		}
+	}
+	waitTail(t, fMgr, shardID, 10)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if leaderMgr.HWM(shardID).Mark() >= 10 {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("HWM = %d after re-add, want >= 10 (quorum wedged)", leaderMgr.HWM(shardID).Mark())
+}
+
 func TestReplicator_DropStopsReplication(t *testing.T) {
 	leaderMgr, _ := shardwal.NewManager(t.TempDir(), "leader")
 	defer leaderMgr.Close()

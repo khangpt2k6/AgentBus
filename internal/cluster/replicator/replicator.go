@@ -2,11 +2,18 @@
 // to a shard's followers. One Replicator instance per broker; Add and
 // Drop are called by the cluster orchestration layer as shard leadership
 // changes.
+//
+// Each follower gets its own independent shardwal Subscribe cursor rather than
+// sharing one fan-out buffer. Subscribe does "backfill from disk at offset N,
+// then live tail", so a follower that is behind (new, reconnecting, or picked
+// up after a leadership change) is caught up automatically with no separate
+// catch-up path and no possibility of a dropped entry wedging it. A slow
+// follower exerts backpressure on its own goroutine only, never on the local
+// append path or on other followers.
 package replicator
 
 import (
 	"context"
-	"io"
 	"log"
 	"sync"
 	"time"
@@ -21,6 +28,10 @@ type FollowerAddr struct {
 	NodeID string
 	Addr   string
 }
+
+// reconnectBackoff is how long a follower goroutine waits before redialing
+// after a stream error, to avoid a tight loop on a persistently failing peer.
+const reconnectBackoff = 200 * time.Millisecond
 
 // Replicator runs per-broker. Add(shardID, followers) starts streaming for
 // a shard; Drop(shardID) stops it.
@@ -100,120 +111,147 @@ func (w *shardWorker) run() {
 	}
 	hwm.SetReplicas(replicaIDs)
 
-	// Local shardwal Subscribe - single source of all entries to fan out.
 	shard, err := w.mgr.Shard(w.shardID)
 	if err != nil {
 		log.Printf("replicator shard %d: open: %v", w.shardID, err)
 		return
 	}
-	ch, cancelSub := shard.Subscribe(w.ctx, 0)
-	defer cancelSub()
 
-	// Per-follower goroutines: each owns its connection + Replicate stream.
-	type followerCh struct {
-		entries chan *pb.AppendEntry
-	}
-	chans := make(map[string]followerCh)
+	var wg sync.WaitGroup
+
+	// Self-updater: advance this leader's own HWM entry as it appends locally.
+	// The leader is durable the instant Append returns, so self tracks the tail.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		w.selfUpdateLoop(shard, hwm)
+	}()
+
+	// One independent goroutine + Subscribe cursor + stream per follower.
 	for _, f := range w.followers {
-		fch := followerCh{entries: make(chan *pb.AppendEntry, 256)}
-		chans[f.NodeID] = fch
-		go w.followerLoop(f, fch.entries, hwm)
+		wg.Add(1)
+		go func(f FollowerAddr) {
+			defer wg.Done()
+			w.followerLoop(f, shard, hwm)
+		}(f)
 	}
 
-	// Fan out every entry to all followers, and update self HWM as we
-	// commit them locally. HWM uses "count of records ack'd" semantics
-	// (offset+1), so a record at offset N satisfies WaitFor(N+1).
+	wg.Wait()
+}
+
+// selfUpdateLoop keeps the leader's own HWM entry equal to its durable tail.
+func (w *shardWorker) selfUpdateLoop(shard *shardwal.Shard, hwm *shardwal.HighWaterMark) {
+	self := w.mgr.SelfID()
+	start := shard.Tail()
+	hwm.Update(self, start)
+
+	ch, cancelSub := shard.Subscribe(w.ctx, start)
+	defer cancelSub()
 	for {
 		select {
 		case <-w.ctx.Done():
-			for _, fc := range chans {
-				close(fc.entries)
-			}
 			return
 		case rec, ok := <-ch:
 			if !ok {
 				return
 			}
-			hwm.Update(w.mgr.SelfID(), rec.Offset+1)
-			entry := &pb.AppendEntry{
-				ShardId:      w.shardID,
-				Offset:       rec.Offset,
-				Payload:      rec.Payload,
-				LeaderNodeId: w.mgr.SelfID(),
-			}
-			for _, fc := range chans {
-				select {
-				case fc.entries <- entry:
-				default:
-					// Buffer full - slow follower will fall behind; rely on
-					// reconnect / catchup to recover.
-				}
-			}
+			hwm.Update(self, rec.Offset+1)
 		}
 	}
 }
 
-// followerLoop maintains a single Replicate stream to one follower,
-// reconnecting on error. Acks are funneled into the HWM tracker.
-func (w *shardWorker) followerLoop(f FollowerAddr, entries chan *pb.AppendEntry, hwm *shardwal.HighWaterMark) {
+// followerLoop maintains replication to one follower, reconnecting on error
+// until the worker is cancelled.
+func (w *shardWorker) followerLoop(f FollowerAddr, shard *shardwal.Shard, hwm *shardwal.HighWaterMark) {
 	for w.ctx.Err() == nil {
-		_ = w.runOneFollowerSession(f, entries, hwm)
+		err := w.runOneFollowerSession(f, shard, hwm)
 		if w.ctx.Err() != nil {
 			return
 		}
-		// Brief backoff before reconnect to avoid tight loop on persistent error.
+		if err != nil {
+			log.Printf("replicator shard %d follower %s: %v", w.shardID, f.NodeID, err)
+		}
 		select {
 		case <-w.ctx.Done():
 			return
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(reconnectBackoff):
 		}
 	}
 }
 
-func (w *shardWorker) runOneFollowerSession(f FollowerAddr, entries chan *pb.AppendEntry, hwm *shardwal.HighWaterMark) error {
+// runOneFollowerSession opens a stream to one follower and streams the shard
+// from offset 0. The follower skips records it already has (idempotent), so a
+// reconnect or leadership change re-streams from the follower's real position
+// with no gap and no mismatch. Returns when the stream breaks or the worker is
+// cancelled; nil on clean cancellation.
+func (w *shardWorker) runOneFollowerSession(f FollowerAddr, shard *shardwal.Shard, hwm *shardwal.HighWaterMark) error {
 	cl, err := transport.Dial(f.Addr)
 	if err != nil {
 		return err
 	}
 	defer cl.Close()
-	stream, err := cl.OpenReplicate(w.ctx)
+
+	// Session context so we can abort the stream (and unblock the ack receiver)
+	// independently of, but subordinate to, the worker context.
+	sessCtx, sessCancel := context.WithCancel(w.ctx)
+	defer sessCancel()
+
+	stream, err := cl.OpenReplicate(sessCtx)
 	if err != nil {
 		return err
 	}
-	// Receive acks in a goroutine, push to HWM.
-	errCh := make(chan error, 1)
+
+	// Ack receiver: feeds follower acks into the HWM. Exits when the stream
+	// breaks or sessCtx is cancelled. recvErr is buffered so its final send
+	// never blocks even if no one reads it.
+	recvErr := make(chan error, 1)
+	recvDone := make(chan struct{})
 	go func() {
+		defer close(recvDone)
 		for {
 			ack, err := stream.Recv()
-			if err == io.EOF {
-				errCh <- nil
-				return
-			}
 			if err != nil {
-				errCh <- err
+				recvErr <- err
 				return
 			}
 			hwm.Update(ack.NodeId, ack.LastOffset+1)
 		}
 	}()
-	// Forward entries.
+
+	ch, cancelSub := shard.Subscribe(sessCtx, 0)
+	defer cancelSub()
+
+	var sendErr error
+loop:
 	for {
 		select {
-		case <-w.ctx.Done():
-			_ = stream.CloseSend()
-			<-errCh
-			return nil
-		case entry, ok := <-entries:
+		case <-sessCtx.Done():
+			break loop
+		case e := <-recvErr:
+			sendErr = e
+			break loop
+		case rec, ok := <-ch:
 			if !ok {
-				_ = stream.CloseSend()
-				<-errCh
-				return nil
+				break loop
 			}
-			if err := stream.Send(entry); err != nil {
-				_ = stream.CloseSend()
-				<-errCh
-				return err
+			if err := stream.Send(&pb.AppendEntry{
+				ShardId:      w.shardID,
+				Offset:       rec.Offset,
+				Payload:      rec.Payload,
+				LeaderNodeId: w.mgr.SelfID(),
+			}); err != nil {
+				sendErr = err
+				break loop
 			}
 		}
 	}
+
+	sessCancel()        // abort the stream so the ack receiver unblocks
+	_ = stream.CloseSend()
+	<-recvDone          // wait for the receiver goroutine to exit (no leak)
+
+	if w.ctx.Err() != nil {
+		return nil // worker cancelled (drop / leadership change): not an error
+	}
+	return sendErr
 }

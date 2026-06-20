@@ -23,12 +23,18 @@ func NewServer(mgr *shardwal.Manager) *Server {
 }
 
 // Replicate handles a leader-to-follower stream. For each AppendEntry it
-// appends to the local shard log and sends an AppendAck back.
+// applies the record (if new) and acks the follower's last-held offset.
 //
-// Note: we trust the offset on the wire to match what we'll assign
-// locally (the follower's Tail must equal the entry's Offset). If it
-// doesn't, we return the inconsistency as a stream error and let the
-// leader either CatchUp or rebuild the stream.
+// The handler is idempotent in the offset: the leader streams a shard from
+// offset 0 on every (re)connect, so a follower that already has a prefix skips
+// it rather than erroring. This makes reconnects and leadership changes
+// self-healing - a follower is never wedged by a gap, because the leader always
+// re-streams from a point at or before the follower's tail.
+//
+//	offset <  tail : already applied, skip and re-ack
+//	offset == tail : the next record, append
+//	offset >  tail : a real gap (cannot apply out of order) -> error so the
+//	                 leader rebuilds the stream from the start
 func (s *Server) Replicate(stream pb.ClusterService_ReplicateServer) error {
 	for {
 		entry, err := stream.Recv()
@@ -42,17 +48,24 @@ func (s *Server) Replicate(stream pb.ClusterService_ReplicateServer) error {
 		if err != nil {
 			return err
 		}
-		if shard.Tail() != entry.Offset {
-			return fmt.Errorf("shardwal tail mismatch on shard %d: have %d, leader sent offset %d",
-				entry.ShardId, shard.Tail(), entry.Offset)
+		tail := shard.Tail()
+		switch {
+		case entry.Offset < tail:
+			// Already have it; fall through to re-ack our current position.
+		case entry.Offset == tail:
+			if _, err := shard.Append(entry.Payload); err != nil {
+				return err
+			}
+		default: // entry.Offset > tail
+			return fmt.Errorf("shardwal gap on shard %d: have tail %d, leader sent offset %d",
+				entry.ShardId, tail, entry.Offset)
 		}
-		off, err := shard.Append(entry.Payload)
-		if err != nil {
-			return err
-		}
+		// Ack the last offset we hold (tail-1). tail is >= 1 here: the append
+		// branch raised it, and the skip branch requires offset < tail so tail
+		// was already >= 1.
 		if err := stream.Send(&pb.AppendAck{
 			ShardId:    entry.ShardId,
-			LastOffset: off,
+			LastOffset: shard.Tail() - 1,
 			NodeId:     s.mgr.SelfID(),
 		}); err != nil {
 			return err
