@@ -36,16 +36,31 @@ type Record struct {
 }
 
 // Shard is a single per-shard append-only log handle.
+//
+// Appends are durable via group-commit fsync: concurrent writers are coalesced
+// into one fsync per "generation". While one goroutine runs the fsync syscall
+// (mutex released), other writers fill the next generation's buffer. This turns
+// N sequential fsyncs into roughly ceil(N / batch), the same technique the main
+// WAL uses. Append returns only after the generation containing its record has
+// been fsynced, so quorum/ack semantics still rest on durable data.
 type Shard struct {
-	id     uint32
-	path   string
+	id   uint32
+	path string
 
-	mu       sync.Mutex
-	f        *os.File
-	w        *bufio.Writer
-	tail     uint64
-	cond     *sync.Cond
-	closed   bool
+	mu     sync.Mutex
+	f      *os.File
+	w      *bufio.Writer
+	tail   uint64 // records appended (buffered); the next offset to assign
+	synced uint64 // records durably fsynced; what Subscribe may expose
+	cond   *sync.Cond
+	closed bool
+
+	// Group-commit fsync state (guarded by mu).
+	syncCond   *sync.Cond
+	pendingGen uint64
+	syncedGen  uint64
+	syncing    bool
+	syncErr    error
 }
 
 // Open returns a *Shard rooted at <dir>/shard-<id>.wal. Creates the file
@@ -66,10 +81,14 @@ func Open(dir string, id uint32) (*Shard, error) {
 		w:    bufio.NewWriterSize(f, 1<<16),
 	}
 	s.cond = sync.NewCond(&s.mu)
+	s.syncCond = sync.NewCond(&s.mu)
+	s.pendingGen = 1
 	if err := s.recoverTail(); err != nil {
 		_ = f.Close()
 		return nil, fmt.Errorf("recover tail: %w", err)
 	}
+	// Everything recovered from disk is already durable.
+	s.synced = s.tail
 	if _, err := f.Seek(0, io.SeekEnd); err != nil {
 		_ = f.Close()
 		return nil, fmt.Errorf("seek end: %w", err)
@@ -111,36 +130,90 @@ func (s *Shard) recoverTail() error {
 	return nil
 }
 
-// Append writes payload as the next record and returns its offset.
+// Append writes payload as the next record and returns its offset. It blocks
+// until the record is durably fsynced, but coalesces its fsync with any other
+// concurrent appends via group commit.
 func (s *Shard) Append(payload []byte) (uint64, error) {
 	if len(payload) > MaxPayloadSize {
 		return 0, fmt.Errorf("payload too large: %d", len(payload))
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return 0, errors.New("shardwal: closed")
 	}
 
 	var hdr [8]byte
 	binary.BigEndian.PutUint32(hdr[0:4], uint32(len(payload)))
 	binary.BigEndian.PutUint32(hdr[4:8], crc32.Checksum(payload, crcTable))
+
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return 0, errors.New("shardwal: closed")
+	}
 	if _, err := s.w.Write(hdr[:]); err != nil {
+		s.mu.Unlock()
 		return 0, err
 	}
 	if _, err := s.w.Write(payload); err != nil {
-		return 0, err
-	}
-	if err := s.w.Flush(); err != nil {
-		return 0, err
-	}
-	if err := s.f.Sync(); err != nil {
+		s.mu.Unlock()
 		return 0, err
 	}
 	off := s.tail
 	s.tail++
-	s.cond.Broadcast()
+	myGen := s.pendingGen
+	// groupCommitLocked returns with s.mu released.
+	if err := s.groupCommitLocked(myGen); err != nil {
+		return 0, err
+	}
 	return off, nil
+}
+
+// groupCommitLocked is called with s.mu held and returns with it released.
+// Concurrent callers are coalesced: one performs Flush+Sync per generation, the
+// rest piggyback on that completed round. On success it advances s.synced (the
+// durable record count) and wakes Subscribe consumers.
+func (s *Shard) groupCommitLocked(myGen uint64) error {
+	for {
+		if s.syncedGen >= myGen {
+			err := s.syncErr
+			s.mu.Unlock()
+			return err
+		}
+		if s.syncing {
+			s.syncCond.Wait()
+			continue
+		}
+
+		// Become the syncer for the current pending generation. Flush bufio
+		// under the lock (it is not concurrent-safe), then release the lock for
+		// the slow fsync so later appends fill the next generation's buffer.
+		s.syncing = true
+		syncingGen := s.pendingGen
+		flushedTail := s.tail
+		if err := s.w.Flush(); err != nil {
+			s.syncErr = err
+			s.syncing = false
+			s.syncCond.Broadcast()
+			s.mu.Unlock()
+			return err
+		}
+		s.pendingGen++
+		s.mu.Unlock()
+
+		syncErr := s.f.Sync()
+
+		s.mu.Lock()
+		if syncErr != nil {
+			s.syncErr = syncErr
+			s.syncing = false
+			s.syncCond.Broadcast()
+			s.mu.Unlock()
+			return syncErr
+		}
+		s.syncedGen = syncingGen
+		s.synced = flushedTail
+		s.syncErr = nil
+		s.syncing = false
+		s.syncCond.Broadcast() // wake other committers
+		s.cond.Broadcast()     // wake Subscribe consumers: data is now durable
+	}
 }
 
 // Tail returns the next offset to be written.
@@ -216,10 +289,11 @@ func (s *Shard) Subscribe(ctx context.Context, fromOffset uint64) (<-chan Record
 			return
 		}
 
-		// Live tail loop.
+		// Live tail loop. Only durably-synced records are exposed (s.synced),
+		// so a consumer never reads data that a failed fsync could lose.
 		for {
 			s.mu.Lock()
-			for !s.closed && s.tail <= next {
+			for !s.closed && s.synced <= next {
 				if subCtx.Err() != nil {
 					s.mu.Unlock()
 					return
@@ -230,7 +304,7 @@ func (s *Shard) Subscribe(ctx context.Context, fromOffset uint64) (<-chan Record
 				s.mu.Unlock()
 				return
 			}
-			currentTail := s.tail
+			currentTail := s.synced
 			s.mu.Unlock()
 
 			if err := s.Replay(next, func(off uint64, payload []byte) error {
@@ -261,9 +335,18 @@ func (s *Shard) Close() error {
 		s.mu.Unlock()
 		return nil
 	}
+	// Wait for any in-flight group-commit fsync to finish so we don't close the
+	// file out from under it.
+	for s.syncing {
+		s.syncCond.Wait()
+	}
 	s.closed = true
 	s.cond.Broadcast()
+	s.syncCond.Broadcast()
 	err := s.w.Flush()
+	if err == nil {
+		err = s.f.Sync()
+	}
 	if err == nil {
 		err = s.f.Close()
 	}
