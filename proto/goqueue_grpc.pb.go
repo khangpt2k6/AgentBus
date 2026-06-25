@@ -398,3 +398,265 @@ var ClusterService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "goqueue.proto",
 }
+
+const (
+	ControlPlane_RegisterAgent_FullMethodName   = "/goqueue.v1.ControlPlane/RegisterAgent"
+	ControlPlane_Heartbeat_FullMethodName       = "/goqueue.v1.ControlPlane/Heartbeat"
+	ControlPlane_OpenInbox_FullMethodName       = "/goqueue.v1.ControlPlane/OpenInbox"
+	ControlPlane_GetSessionState_FullMethodName = "/goqueue.v1.ControlPlane/GetSessionState"
+	ControlPlane_ListAgents_FullMethodName      = "/goqueue.v1.ControlPlane/ListAgents"
+)
+
+// ControlPlaneClient is the client API for ControlPlane service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ControlPlaneClient interface {
+	RegisterAgent(ctx context.Context, in *RegisterAgentRequest, opts ...grpc.CallOption) (*RegisterAgentResponse, error)
+	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	// OpenInbox streams events routed to this agent (currently handoffs). The
+	// stream stays open until the client disconnects.
+	OpenInbox(ctx context.Context, in *OpenInboxRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RoutedEventMsg], error)
+	GetSessionState(ctx context.Context, in *SessionStateRequest, opts ...grpc.CallOption) (*RunStateMsg, error)
+	ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*AgentListResponse, error)
+}
+
+type controlPlaneClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewControlPlaneClient(cc grpc.ClientConnInterface) ControlPlaneClient {
+	return &controlPlaneClient{cc}
+}
+
+func (c *controlPlaneClient) RegisterAgent(ctx context.Context, in *RegisterAgentRequest, opts ...grpc.CallOption) (*RegisterAgentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterAgentResponse)
+	err := c.cc.Invoke(ctx, ControlPlane_RegisterAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HeartbeatResponse)
+	err := c.cc.Invoke(ctx, ControlPlane_Heartbeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneClient) OpenInbox(ctx context.Context, in *OpenInboxRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RoutedEventMsg], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ControlPlane_ServiceDesc.Streams[0], ControlPlane_OpenInbox_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[OpenInboxRequest, RoutedEventMsg]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ControlPlane_OpenInboxClient = grpc.ServerStreamingClient[RoutedEventMsg]
+
+func (c *controlPlaneClient) GetSessionState(ctx context.Context, in *SessionStateRequest, opts ...grpc.CallOption) (*RunStateMsg, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunStateMsg)
+	err := c.cc.Invoke(ctx, ControlPlane_GetSessionState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneClient) ListAgents(ctx context.Context, in *ListAgentsRequest, opts ...grpc.CallOption) (*AgentListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentListResponse)
+	err := c.cc.Invoke(ctx, ControlPlane_ListAgents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ControlPlaneServer is the server API for ControlPlane service.
+// All implementations must embed UnimplementedControlPlaneServer
+// for forward compatibility.
+type ControlPlaneServer interface {
+	RegisterAgent(context.Context, *RegisterAgentRequest) (*RegisterAgentResponse, error)
+	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	// OpenInbox streams events routed to this agent (currently handoffs). The
+	// stream stays open until the client disconnects.
+	OpenInbox(*OpenInboxRequest, grpc.ServerStreamingServer[RoutedEventMsg]) error
+	GetSessionState(context.Context, *SessionStateRequest) (*RunStateMsg, error)
+	ListAgents(context.Context, *ListAgentsRequest) (*AgentListResponse, error)
+	mustEmbedUnimplementedControlPlaneServer()
+}
+
+// UnimplementedControlPlaneServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedControlPlaneServer struct{}
+
+func (UnimplementedControlPlaneServer) RegisterAgent(context.Context, *RegisterAgentRequest) (*RegisterAgentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterAgent not implemented")
+}
+func (UnimplementedControlPlaneServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedControlPlaneServer) OpenInbox(*OpenInboxRequest, grpc.ServerStreamingServer[RoutedEventMsg]) error {
+	return status.Error(codes.Unimplemented, "method OpenInbox not implemented")
+}
+func (UnimplementedControlPlaneServer) GetSessionState(context.Context, *SessionStateRequest) (*RunStateMsg, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSessionState not implemented")
+}
+func (UnimplementedControlPlaneServer) ListAgents(context.Context, *ListAgentsRequest) (*AgentListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgents not implemented")
+}
+func (UnimplementedControlPlaneServer) mustEmbedUnimplementedControlPlaneServer() {}
+func (UnimplementedControlPlaneServer) testEmbeddedByValue()                      {}
+
+// UnsafeControlPlaneServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ControlPlaneServer will
+// result in compilation errors.
+type UnsafeControlPlaneServer interface {
+	mustEmbedUnimplementedControlPlaneServer()
+}
+
+func RegisterControlPlaneServer(s grpc.ServiceRegistrar, srv ControlPlaneServer) {
+	// If the following call panics, it indicates UnimplementedControlPlaneServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ControlPlane_ServiceDesc, srv)
+}
+
+func _ControlPlane_RegisterAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).RegisterAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_RegisterAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).RegisterAgent(ctx, req.(*RegisterAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlane_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).Heartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_Heartbeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlane_OpenInbox_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(OpenInboxRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ControlPlaneServer).OpenInbox(m, &grpc.GenericServerStream[OpenInboxRequest, RoutedEventMsg]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ControlPlane_OpenInboxServer = grpc.ServerStreamingServer[RoutedEventMsg]
+
+func _ControlPlane_GetSessionState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SessionStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).GetSessionState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_GetSessionState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).GetSessionState(ctx, req.(*SessionStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlane_ListAgents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).ListAgents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_ListAgents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).ListAgents(ctx, req.(*ListAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ControlPlane_ServiceDesc is the grpc.ServiceDesc for ControlPlane service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ControlPlane_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "goqueue.v1.ControlPlane",
+	HandlerType: (*ControlPlaneServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RegisterAgent",
+			Handler:    _ControlPlane_RegisterAgent_Handler,
+		},
+		{
+			MethodName: "Heartbeat",
+			Handler:    _ControlPlane_Heartbeat_Handler,
+		},
+		{
+			MethodName: "GetSessionState",
+			Handler:    _ControlPlane_GetSessionState_Handler,
+		},
+		{
+			MethodName: "ListAgents",
+			Handler:    _ControlPlane_ListAgents_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "OpenInbox",
+			Handler:       _ControlPlane_OpenInbox_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "goqueue.proto",
+}

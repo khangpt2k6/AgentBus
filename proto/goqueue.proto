@@ -143,3 +143,78 @@ message CatchUpRequest {
   uint32 shard_id    = 1;
   uint64 from_offset = 2;
 }
+
+// ---- Control plane (agent orchestration) ---------------------------------
+//
+// Tracks registered agents and per-session run-state, and routes handoff
+// events to the target agent's inbox. State is in-memory, rebuilt from the
+// agent-events log; this service is the agent-facing control plane over the bus.
+
+service ControlPlane {
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  // OpenInbox streams events routed to this agent (currently handoffs). The
+  // stream stays open until the client disconnects.
+  rpc OpenInbox(OpenInboxRequest) returns (stream RoutedEventMsg);
+  rpc GetSessionState(SessionStateRequest) returns (RunStateMsg);
+  rpc ListAgents(ListAgentsRequest) returns (AgentListResponse);
+}
+
+message RegisterAgentRequest {
+  string agent_id = 1;
+  repeated string capabilities = 2;
+}
+
+message RegisterAgentResponse {}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+}
+
+message HeartbeatResponse {
+  // known is false if the agent was never registered.
+  bool known = 1;
+}
+
+message OpenInboxRequest {
+  string agent_id = 1;
+}
+
+// RoutedEventMsg is an event the control plane delivered to an agent's inbox.
+message RoutedEventMsg {
+  string session_key = 1;
+  string type        = 2;
+  bytes  payload     = 3;
+}
+
+message SessionStateRequest {
+  string tenant     = 1;
+  string project    = 2;
+  string session_id = 3;
+}
+
+// RunStateMsg is the control plane's view of one session's progress.
+message RunStateMsg {
+  string session_key          = 1;
+  string active_agent         = 2;
+  string pending_agent        = 3;
+  int32  step_count           = 4;
+  string status               = 5; // running | waiting | failed | completed
+  int64  last_event_unix_nano = 6;
+  // found is false if the session is unknown.
+  bool   found                = 7;
+}
+
+message ListAgentsRequest {}
+
+message AgentMsg {
+  string id                  = 1;
+  string status              = 2; // idle | busy | offline
+  repeated string capabilities = 3;
+  string current_session     = 4;
+  int64  last_seen_unix_nano = 5;
+}
+
+message AgentListResponse {
+  repeated AgentMsg agents = 1;
+}
