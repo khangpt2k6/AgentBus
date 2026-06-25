@@ -413,6 +413,31 @@ func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRe
 		}
 	}
 
+	// Anchor the span to the session's derived trace_id when no upstream trace
+	// is propagated, and tag it with agent attributes, so observers can group
+	// every event in a session in Jaeger/Tempo by agent.session.id - matching
+	// the generic Publish path.
+	if ag := req.GetEvent(); ag != nil && !trace.SpanContextFromContext(ctx).IsValid() {
+		if traceID := agentstream.SessionTraceID(ag.GetTenant(), ag.GetProject(), ag.GetSessionId()); traceID.IsValid() {
+			ctx = trace.ContextWithSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
+				TraceID:    traceID,
+				SpanID:     newSpanID(),
+				TraceFlags: trace.FlagsSampled,
+			}))
+		}
+	}
+	ctx, span := otel.Tracer("goqueue.grpcapi").Start(ctx, "BrokerService.PublishAgent")
+	defer span.End()
+	if ag := req.GetEvent(); ag != nil {
+		span.SetAttributes(agentstream.AttributesFor(agentstream.Event{
+			Type:      ag.GetType(),
+			Tenant:    ag.GetTenant(),
+			Project:   ag.GetProject(),
+			SessionID: ag.GetSessionId(),
+			AgentID:   ag.GetAgentId(),
+		})...)
+	}
+
 	var shardID uint32
 	if s.routeCheck != nil {
 		tenant := req.GetEvent().GetTenant()
