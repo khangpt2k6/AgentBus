@@ -24,6 +24,11 @@ type Metrics struct {
 	RaftLeaderChanges   *prometheus.CounterVec
 	PartitionFillPct    *prometheus.GaugeVec
 	PartitionEvictions  *prometheus.GaugeVec
+
+	CPActiveAgents     prometheus.Gauge
+	CPSessions         *prometheus.GaugeVec
+	CPHandoffsRouted   prometheus.Counter
+	CPHandoffsUnrouted prometheus.Counter
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -85,6 +90,22 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "goqueue_partition_evictions_total",
 			Help: "Cumulative messages evicted from the ring buffer per topic and partition.",
 		}, []string{"topic", "partition"}),
+		CPActiveAgents: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "goqueue_cp_active_agents",
+			Help: "Agents the control plane considers active (not offline).",
+		}),
+		CPSessions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "goqueue_cp_sessions",
+			Help: "Agent sessions by control-plane run status (running/waiting/failed/completed).",
+		}, []string{"status"}),
+		CPHandoffsRouted: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "goqueue_cp_handoffs_routed_total",
+			Help: "Agent handoff events delivered to the target agent's inbox.",
+		}),
+		CPHandoffsUnrouted: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "goqueue_cp_handoffs_unrouted_total",
+			Help: "Agent handoff events that could not be delivered (no open inbox or full).",
+		}),
 	}
 	reg.MustRegister(
 		m.PublishedTotal,
@@ -101,9 +122,26 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.RaftLeaderChanges,
 		m.PartitionFillPct,
 		m.PartitionEvictions,
+		m.CPActiveAgents,
+		m.CPSessions,
+		m.CPHandoffsRouted,
+		m.CPHandoffsUnrouted,
 	)
 	return m
 }
+
+// Control-plane metrics. These method signatures satisfy the
+// controlplane.CPMetrics interface so a *Metrics can be passed straight in.
+
+func (m *Metrics) SetActiveAgents(n int) { m.CPActiveAgents.Set(float64(n)) }
+
+func (m *Metrics) SetSessions(status string, n int) {
+	m.CPSessions.WithLabelValues(status).Set(float64(n))
+}
+
+func (m *Metrics) IncHandoffRouted() { m.CPHandoffsRouted.Inc() }
+
+func (m *Metrics) IncHandoffUnrouted() { m.CPHandoffsUnrouted.Inc() }
 
 func (m *Metrics) ObservePublishLatency(start time.Time) {
 	m.PublishLatency.Observe(time.Since(start).Seconds())

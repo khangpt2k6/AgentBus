@@ -20,6 +20,7 @@ import (
 
 	"github.com/khangpt2k6/AgentBus/internal/api"
 	"github.com/khangpt2k6/AgentBus/internal/broker"
+	"github.com/khangpt2k6/AgentBus/internal/controlplane"
 	"github.com/khangpt2k6/AgentBus/internal/cluster"
 	"github.com/khangpt2k6/AgentBus/internal/consumer"
 	"github.com/khangpt2k6/AgentBus/internal/grpcapi"
@@ -56,6 +57,8 @@ func main() {
 	clusterShardWALDir := flag.String("shardwal-dir", "data/shardwal", "directory for per-shard WAL files (cluster mode)")
 	agentRateLimit := flag.Float64("agent-rate-limit", 0, "per-tenant agent-event rate limit in events/sec for noisy-agent isolation (0 disables)")
 	agentRateBurst := flag.Float64("agent-rate-burst", 0, "per-tenant burst allowance for the agent-event rate limiter (defaults to the rate)")
+	controlPlane := flag.Bool("control-plane", true, "enable the agent control-plane layer (registry, run-state, handoff routing)")
+	cpAgentTTL := flag.Duration("cp-agent-ttl", 30*time.Second, "control-plane: mark an agent offline after this much inactivity")
 	flag.Parse()
 	if *agentRateLimit > 0 && *agentRateBurst <= 0 {
 		*agentRateBurst = *agentRateLimit
@@ -444,6 +447,30 @@ func main() {
 		pb.RegisterClusterServiceServer(grpcSrv, cl.TransportServer())
 	}
 
+	// Agent control plane: tails the agent-events stream to track agent and
+	// session run-state and route handoffs, exposed via the ControlPlane gRPC
+	// service. Read-only against the broker, off the publish hot path.
+	var cpPoller *controlplane.Poller
+	if *controlPlane {
+		cp := controlplane.New(controlplane.WithMetrics(m), controlplane.WithAgentTTL(*cpAgentTTL))
+		controlplane.RegisterService(grpcSrv, cp)
+		cpPoller = controlplane.NewPoller(b, cp, "agent-events")
+		cpPoller.Start()
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					cp.Sweep()
+				case <-rootCtx.Done():
+					return
+				}
+			}
+		}()
+		log.Printf("control plane enabled (agent ttl %s)", *cpAgentTTL)
+	}
+
 	tcpSrv = broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	ready.Store(true)
 
@@ -525,6 +552,9 @@ func main() {
 		grpcSrv.Stop()
 	}
 	tcpSrv.Shutdown()
+	if cpPoller != nil {
+		cpPoller.Stop()
+	}
 	if err := logFile.Close(); err != nil {
 		log.Printf("wal close error: %v", err)
 	}
