@@ -8,8 +8,8 @@ import (
 )
 
 type fakeMetrics struct {
-	routed, unrouted, active int
-	sessions                 map[string]int
+	routed, unrouted, active, escalations int
+	sessions                             map[string]int
 }
 
 func (f *fakeMetrics) SetActiveAgents(n int) { f.active = n }
@@ -21,6 +21,7 @@ func (f *fakeMetrics) SetSessions(status string, n int) {
 }
 func (f *fakeMetrics) IncHandoffRouted()   { f.routed++ }
 func (f *fakeMetrics) IncHandoffUnrouted() { f.unrouted++ }
+func (f *fakeMetrics) IncEscalation()      { f.escalations++ }
 
 func handoffEv(from, to, session string) agentstream.Event {
 	e := ev("handoff", from, session)

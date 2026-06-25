@@ -59,6 +59,7 @@ func main() {
 	agentRateBurst := flag.Float64("agent-rate-burst", 0, "per-tenant burst allowance for the agent-event rate limiter (defaults to the rate)")
 	controlPlane := flag.Bool("control-plane", true, "enable the agent control-plane layer (registry, run-state, handoff routing)")
 	cpAgentTTL := flag.Duration("cp-agent-ttl", 30*time.Second, "control-plane: mark an agent offline after this much inactivity")
+	cpEscalationAgent := flag.String("cp-escalation-agent", "", "control-plane: agent id to auto-escalate a session to on terminal error (empty disables)")
 	flag.Parse()
 	if *agentRateLimit > 0 && *agentRateBurst <= 0 {
 		*agentRateBurst = *agentRateLimit
@@ -452,7 +453,11 @@ func main() {
 	// service. Read-only against the broker, off the publish hot path.
 	var cpPoller *controlplane.Poller
 	if *controlPlane {
-		cp := controlplane.New(controlplane.WithMetrics(m), controlplane.WithAgentTTL(*cpAgentTTL))
+		cp := controlplane.New(
+			controlplane.WithMetrics(m),
+			controlplane.WithAgentTTL(*cpAgentTTL),
+			controlplane.WithEscalationAgent(*cpEscalationAgent),
+		)
 		controlplane.RegisterService(grpcSrv, cp)
 		cp.RegisterHTTP(mux)
 		cpPoller = controlplane.NewPoller(b, cp, "agent-events")

@@ -21,6 +21,10 @@ const (
 	eventHandoff  = "handoff"
 	eventError    = "error"
 	eventComplete = "complete"
+
+	// eventEscalation is synthesized by the control plane (not a producer) when
+	// it auto-escalates a failed run to the configured escalation agent.
+	eventEscalation = "escalation"
 )
 
 // CPMetrics is the optional metrics sink the control plane publishes to. A nil
@@ -30,15 +34,17 @@ type CPMetrics interface {
 	SetSessions(status string, n int)
 	IncHandoffRouted()
 	IncHandoffUnrouted()
+	IncEscalation()
 }
 
 // ControlPlane ties the registry, session store, and inboxes together. It
 // ingests agent events (read-side) and exposes a facade the gRPC service calls.
 type ControlPlane struct {
-	reg      *Registry
-	sessions *SessionStore
-	inboxes  *Inboxes
-	metrics  CPMetrics
+	reg             *Registry
+	sessions        *SessionStore
+	inboxes         *Inboxes
+	metrics         CPMetrics
+	escalationAgent string // when set, terminal errors auto-escalate to this agent
 }
 
 // Option configures a ControlPlane.
@@ -55,6 +61,13 @@ func WithAgentTTL(ttl time.Duration) Option {
 // WithInboxSize overrides the per-agent inbox buffer size.
 func WithInboxSize(size int) Option {
 	return func(cp *ControlPlane) { cp.inboxes = NewInboxes(size) }
+}
+
+// WithEscalationAgent enables active escalation: when a session emits a terminal
+// error, the control plane routes an escalation event to this agent and marks
+// the run waiting on it. Empty (the default) disables escalation.
+func WithEscalationAgent(id string) Option {
+	return func(cp *ControlPlane) { cp.escalationAgent = id }
 }
 
 // New builds a control plane with sensible defaults.
@@ -107,6 +120,26 @@ func (cp *ControlPlane) Ingest(e agentstream.Event) {
 			cp.incUnrouted()
 		}
 	}
+
+	// Active orchestration: on a terminal error, auto-escalate to the configured
+	// agent (unless it is the one that errored). The bus initiates this step.
+	if e.Type == eventError && cp.escalationAgent != "" && cp.escalationAgent != e.AgentID {
+		cp.escalate(e)
+	}
+}
+
+// escalate routes an escalation event to the configured escalation agent and
+// moves the session to waiting on it.
+func (cp *ControlPlane) escalate(e agentstream.Event) {
+	key := agentstream.SessionKey(e.Tenant, e.Project, e.SessionID)
+	re := RoutedEvent{
+		SessionKey: key,
+		Type:       eventEscalation,
+		Payload:    []byte(`{"reason":"terminal error","from_agent":"` + e.AgentID + `"}`),
+	}
+	cp.sessions.Escalate(key, cp.escalationAgent)
+	cp.inboxes.Deliver(cp.escalationAgent, re) // best-effort; session is marked waiting regardless
+	cp.incEscalation()
 }
 
 // --- facade for the gRPC service ---
@@ -149,5 +182,11 @@ func (cp *ControlPlane) incRouted() {
 func (cp *ControlPlane) incUnrouted() {
 	if cp.metrics != nil {
 		cp.metrics.IncHandoffUnrouted()
+	}
+}
+
+func (cp *ControlPlane) incEscalation() {
+	if cp.metrics != nil {
+		cp.metrics.IncEscalation()
 	}
 }

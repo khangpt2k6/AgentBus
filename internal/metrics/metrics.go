@@ -29,6 +29,7 @@ type Metrics struct {
 	CPSessions         *prometheus.GaugeVec
 	CPHandoffsRouted   prometheus.Counter
 	CPHandoffsUnrouted prometheus.Counter
+	CPEscalations      prometheus.Counter
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -106,6 +107,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "goqueue_cp_handoffs_unrouted_total",
 			Help: "Agent handoff events that could not be delivered (no open inbox or full).",
 		}),
+		CPEscalations: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "goqueue_cp_escalations_total",
+			Help: "Sessions auto-escalated to the escalation agent after a terminal error.",
+		}),
 	}
 	reg.MustRegister(
 		m.PublishedTotal,
@@ -126,6 +131,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.CPSessions,
 		m.CPHandoffsRouted,
 		m.CPHandoffsUnrouted,
+		m.CPEscalations,
 	)
 	return m
 }
@@ -142,6 +148,8 @@ func (m *Metrics) SetSessions(status string, n int) {
 func (m *Metrics) IncHandoffRouted() { m.CPHandoffsRouted.Inc() }
 
 func (m *Metrics) IncHandoffUnrouted() { m.CPHandoffsUnrouted.Inc() }
+
+func (m *Metrics) IncEscalation() { m.CPEscalations.Inc() }
 
 func (m *Metrics) ObservePublishLatency(start time.Time) {
 	m.PublishLatency.Observe(time.Since(start).Seconds())
