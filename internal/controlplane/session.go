@@ -68,16 +68,16 @@ func (s *SessionStore) Apply(e agentstream.Event, toAgent string) {
 	}
 
 	switch e.Type {
-	case "handoff":
+	case eventHandoff:
 		if toAgent != "" {
 			rs.PendingAgent = toAgent
 			rs.Status = StatusWaiting
 		}
 		rs.StepCount++
-	case "error":
+	case eventError:
 		rs.Status = StatusFailed
 		rs.StepCount++
-	case "complete":
+	case eventComplete:
 		rs.Status = StatusCompleted
 		rs.StepCount++
 	default:
