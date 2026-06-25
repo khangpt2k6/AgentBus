@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"sort"
 	"sync"
 	"time"
 
@@ -100,6 +101,18 @@ func (s *SessionStore) Get(sessionKey string) (RunState, bool) {
 		return RunState{}, false
 	}
 	return *rs, true
+}
+
+// List returns a snapshot of all session run-states, sorted by session key.
+func (s *SessionStore) List() []RunState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]RunState, 0, len(s.sessions))
+	for _, rs := range s.sessions {
+		out = append(out, *rs)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SessionKey < out[j].SessionKey })
+	return out
 }
 
 // CountByStatus returns how many sessions are in each status.

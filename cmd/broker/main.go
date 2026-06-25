@@ -454,6 +454,7 @@ func main() {
 	if *controlPlane {
 		cp := controlplane.New(controlplane.WithMetrics(m), controlplane.WithAgentTTL(*cpAgentTTL))
 		controlplane.RegisterService(grpcSrv, cp)
+		cp.RegisterHTTP(mux)
 		cpPoller = controlplane.NewPoller(b, cp, "agent-events")
 		cpPoller.Start()
 		go func() {

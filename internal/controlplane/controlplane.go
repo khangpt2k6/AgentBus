@@ -120,6 +120,9 @@ func (cp *ControlPlane) OpenInbox(id string) <-chan RoutedEvent {
 }
 func (cp *ControlPlane) ListAgents() []AgentInfo { return cp.reg.List() }
 
+// ListSessions returns a snapshot of all tracked session run-states.
+func (cp *ControlPlane) ListSessions() []RunState { return cp.sessions.List() }
+
 // GetSession returns the run-state for a session triple.
 func (cp *ControlPlane) GetSession(tenant, project, session string) (RunState, bool) {
 	return cp.sessions.Get(agentstream.SessionKey(tenant, project, session))
