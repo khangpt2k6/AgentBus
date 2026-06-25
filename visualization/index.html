@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgentBus — Architecture Walkthrough</title>
+<meta name="description" content="A guided, step-by-step walkthrough of the AgentBus architecture: a Raft-replicated, write-ahead-logged message broker for AI-agent event streams." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --bg-0: #ffffff;
+    --bg-1: #fbfbfd;
+    --grid: #eef1f5;
+
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #d4d8df;
+    --shadow: 0 1px 2px rgba(15,23,42,0.04), 0 6px 16px rgba(15,23,42,0.06);
+    --shadow-lift: 0 2px 4px rgba(15,23,42,0.05), 0 12px 28px rgba(15,23,42,0.10);
+
+    --indigo: #4f46e5;
+    --indigo-soft: #eef2ff;
+    --emerald: #10b981;
+
+    --line: #cbd5e1;
+    --ink: #0f172a;
+    --sub: #64748b;
+    --muted: #94a3b8;
+
+    --font-display: "Space Grotesk", sans-serif;
+    --font-body: "Inter", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 700px at 50% -10%, #ffffff, transparent 70%),
+      linear-gradient(180deg, var(--bg-0), var(--bg-1));
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, #000 55%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, #000 55%, transparent 100%);
+    opacity: 0.6;
+  }
+
+  main {
+    position: relative; z-index: 1;
+    flex: 1;
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vh, 44px) clamp(16px, 4vw, 44px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: var(--shadow-lift);
+    overflow: hidden;
+  }
+  .panel-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #ffffff, #fcfcfe);
+    gap: 10px;
+  }
+  .bar-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+  .traffic { display: flex; gap: 7px; }
+  .traffic i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .traffic .r { background: #ff5f57; } .traffic .y { background: #febc2e; } .traffic .g { background: #28c840; }
+  .bar-title {
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--sub);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .step-pill {
+    font-family: var(--font-mono); font-size: 11px; color: var(--indigo);
+    border: 1px solid #c7d2fe; border-radius: 8px; padding: 5px 11px;
+    background: var(--indigo-soft); white-space: nowrap;
+  }
+
+  .panel-body { padding: 6px 6px 0; }
+
+  .svg-scroll { width: 100%; overflow-x: auto; overflow-y: hidden; }
+  .arch-svg { display: block; width: 100%; height: auto; min-width: 1000px; }
+
+  .node, .node-card, .edge, .edge-glow, .packet, .deco, .node-chip, .node-ic { transition: opacity .4s ease, stroke .4s ease, fill .4s ease; }
+
+  .stage {
+    border-top: 1px solid var(--border);
+    padding: 18px 20px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 18px 24px;
+    align-items: start;
+  }
+  .caption { min-width: 0; }
+  .caption .meta {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--indigo); margin-bottom: 8px;
+  }
+  .caption h2 {
+    font-family: var(--font-display); font-weight: 600; font-size: clamp(17px, 2.6vw, 21px);
+    letter-spacing: -0.015em; color: var(--ink); margin: 0 0 7px;
+  }
+  .caption p {
+    margin: 0; color: var(--sub); font-size: clamp(13.5px, 2vw, 15px); max-width: 640px;
+  }
+
+  .controls { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+  .btn-row { display: flex; align-items: center; gap: 8px; }
+  .btn {
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--ink);
+    border: 1px solid var(--border-strong); border-radius: 9px;
+    background: #fff; padding: 8px 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: border-color .2s, background .2s, color .2s, transform .1s;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--indigo); color: var(--indigo); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+  .btn.play { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+  .btn.play:hover:not(:disabled) { background: #4338ca; color: #fff; }
+  .btn svg { width: 14px; height: 14px; }
+
+  .dots { display: flex; gap: 7px; align-items: center; }
+  .dot {
+    width: 26px; height: 26px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border-strong); background: #fff;
+    font-family: var(--font-mono); font-size: 11px; color: var(--sub);
+    display: grid; place-items: center; padding: 0; transition: all .2s;
+  }
+  .dot:hover { border-color: var(--indigo); color: var(--indigo); }
+  .dot[aria-current="true"] { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+  .dot:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+
+  .arch-mobile { display: none; padding: 14px 12px 4px; }
+  @media (max-width: 860px) {
+    .svg-scroll { display: none; }
+    .arch-mobile { display: block; }
+    .stage { grid-template-columns: 1fr; }
+    .controls { align-items: stretch; }
+    .btn-row { justify-content: space-between; }
+    .dots { justify-content: center; flex-wrap: wrap; }
+  }
+
+  .m-step { display: none; }
+  .m-step.active { display: block; }
+  .m-flow { display: flex; flex-direction: column; gap: 9px; }
+  .m-node {
+    border: 1px solid var(--indigo); border-radius: 12px; background: #fff;
+    padding: 12px 13px; display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow);
+  }
+  .m-node.commit { border-color: var(--emerald); }
+  .m-ic {
+    width: 36px; height: 36px; flex: none; border-radius: 9px;
+    display: grid; place-items: center; background: var(--indigo-soft); color: var(--indigo);
+  }
+  .m-node.commit .m-ic { background: #d1fae5; color: #047857; }
+  .m-ic svg { width: 19px; height: 19px; }
+  .m-node .ti { font-family: var(--font-display); font-weight: 600; font-size: 14px; color: var(--ink); }
+  .m-node .su { font-family: var(--font-mono); font-size: 10.5px; color: var(--sub); margin-top: 2px; line-height: 1.4; }
+  .m-arrow { text-align: center; color: var(--muted); font-size: 13px; font-family: var(--font-mono); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .packet { display: none !important; }
+    .node, .node-card, .edge, .edge-glow, .deco { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid" aria-hidden="true"></div>
+
+<main>
+  <section class="panel" aria-label="AgentBus architecture walkthrough">
+    <div class="panel-bar">
+      <div class="bar-left">
+        <span class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+        <span class="bar-title">agentbus · topology</span>
+      </div>
+      <span class="step-pill" id="stepPill">Step 1 / 6</span>
+    </div>
+
+    <div class="panel-body">
+      <div class="svg-scroll">
+        <svg class="arch-svg" id="svg" viewBox="0 0 1160 720" role="img"
+          aria-label="AgentBus architecture diagram. Use the Previous and Next controls below to walk through six steps explaining how AI agents produce events, how the broker routes, partitions, and durably commits them, how the Raft cluster replicates each commit to a quorum of nodes, how failures retry or dead-letter, and how events are delivered to consumers and webhooks.">
+          <defs>
+            <radialGradient id="pk" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a5b4fc"/>
+              <stop offset="60%" stop-color="#4f46e5"/>
+              <stop offset="100%" stop-color="#4f46e5"/>
+            </radialGradient>
+            <radialGradient id="pkg" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#6ee7b7"/>
+              <stop offset="60%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#10b981"/>
+            </radialGradient>
+            <style>
+              .ntitle { font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; fill:#0f172a; }
+              .nsub { font-family:'JetBrains Mono',monospace; font-size:9.5px; fill:#94a3b8; }
+              .nrole { font-family:'JetBrains Mono',monospace; font-size:10px; fill:#64748b; }
+              .reg-lbl { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.14em; fill:#b0b7c3; }
+              .elabel { font-family:'JetBrains Mono',monospace; font-size:9px; fill:#b0b7c3; }
+              .ic { stroke-width:1.7; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+            </style>
+          </defs>
+          <g id="regions"></g>
+          <g id="edges"></g>
+          <g id="nodes"></g>
+          <g id="packets"></g>
+        </svg>
+      </div>
+
+      <div class="arch-mobile" id="mobile"></div>
+    </div>
+
+    <div class="stage">
+      <div class="caption" aria-live="polite">
+        <div class="meta" id="capMeta">Step 1 of 6</div>
+        <h2 id="capTitle">Agents produce events</h2>
+        <p id="capText">A fleet of AI agents (planner, researcher, executor) stream events — tool calls, results, handoffs — into the bus over gRPC and TCP.</p>
+      </div>
+      <div class="controls">
+        <div class="btn-row">
+          <button class="btn" id="prevBtn" aria-label="Previous step">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" class="ic"><path d="M10 3 L5 8 l5 5"/></svg> Prev
+          </button>
+          <button class="btn play" id="playBtn" aria-label="Play walkthrough">
+            <svg viewBox="0 0 16 16" fill="currentColor" id="playIcon"><path d="M4 3 l9 5 -9 5 z"/></svg>
+            <span id="playLbl">Play</span>
+          </button>
+          <button class="btn" id="nextBtn" aria-label="Next step">
+            Next <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" class="ic"><path d="M6 3 l5 5 -5 5"/></svg>
+          </button>
+        </div>
+        <div class="dots" id="dots" role="tablist" aria-label="Walkthrough steps"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  // ============================================================
+  // NODE MODEL — known geometry; edges DERIVED from it.
+  // ============================================================
+  var N = {
+    planner:    { x:46,  y:78,  w:172, h:56, title:"Agent", role:"planner",    icon:"bot" },
+    researcher: { x:46,  y:152, w:172, h:56, title:"Agent", role:"researcher", icon:"bot" },
+    executor:   { x:46,  y:226, w:172, h:56, title:"Agent", role:"executor",   icon:"bot" },
+    router:     { x:300, y:150, w:178, h:60, title:"Session Router", sub:"per-agent affinity", icon:"route" },
+    topics:     { x:520, y:148, w:206, h:64, title:"Partitioned Topics", sub:"consistent-hash · ordered", icon:"layers" },
+    wal:        { x:360, y:286, w:196, h:64, title:"Write-Ahead Log", sub:"group-commit fsync", icon:"disk", commit:true },
+    retry:      { x:600, y:286, w:196, h:64, title:"Retry & DLQ", sub:"backoff · dead-letter", icon:"retry" },
+    observ:     { x:910, y:36,  w:200, h:58, title:"Observability", sub:"Prometheus · OTel · Grafana", icon:"activity" },
+    consumers:  { x:910, y:150, w:200, h:64, title:"Consumers", sub:"groups · lag tracking", icon:"users" },
+    webhook:    { x:910, y:250, w:200, h:60, title:"Webhook Fan-out", sub:"at-least-once delivery", icon:"webhook" },
+    leader:     { x:120, y:486, w:250, h:170, title:"Raft Leader", sub:"term 7 · node-a", icon:"server", leader:true, log:5 },
+    follower1:  { x:650, y:470, w:250, h:96,  title:"Follower", sub:"node-b", icon:"server", log:4 },
+    follower2:  { x:650, y:600, w:250, h:96,  title:"Follower", sub:"node-c", icon:"server", log:4 },
+    quorum:     { x:946, y:520, w:150, h:120, icon:"server", quorum:true }
+  };
+
+  var REGIONS = [
+    { x:278, y:118, w:472, h:254, label:"AGENT BUS CORE" },
+    { x:46,  y:438, w:1068, h:254, label:"RAFT CONSENSUS CLUSTER" }
+  ];
+
+  var EDGES = [
+    { id:"e_planner",    from:"planner",    fromSide:"R", to:"router", toSide:"L", railX:272 },
+    { id:"e_researcher", from:"researcher", fromSide:"R", to:"router", toSide:"L", railX:272 },
+    { id:"e_executor",   from:"executor",   fromSide:"R", to:"router", toSide:"L", railX:272 },
+    { id:"e_rt",  from:"router", fromSide:"R", to:"topics", toSide:"L" },
+    { id:"e_tw",  from:"topics", fromSide:"B", to:"wal", toSide:"T", midY:268 },
+    { id:"e_tr",  from:"topics", fromSide:"B", to:"retry", toSide:"T", midY:268 },
+    { id:"e_tc",  from:"topics", fromSide:"R", to:"consumers", toSide:"L", railX:824 },
+    { id:"e_cw",  from:"consumers", fromSide:"B", to:"webhook", toSide:"T" },
+    { id:"e_to",  from:"topics", fromSide:"T", to:"observ", toSide:"L", railX:824 },
+    { id:"e_wl",  from:"wal", fromSide:"B", to:"leader", toSide:"T", midY:418 },
+    { id:"e_lf1", from:"leader", fromSide:"R", to:"follower1", toSide:"L", railX:510 },
+    { id:"e_lf2", from:"leader", fromSide:"R", to:"follower2", toSide:"L", railX:510 }
+  ];
+
+  var STEPS = [
+    { title:"Agents produce events",
+      text:"A fleet of AI agents — planner, researcher, executor — stream events like tool calls, results, and handoffs into the bus over gRPC and TCP.",
+      nodes:["planner","researcher","executor","router"], edges:["e_planner","e_researcher","e_executor"],
+      packets:["e_planner","e_researcher","e_executor"], mobile:["planner","researcher","executor","router"] },
+    { title:"Session routing keeps order",
+      text:"The session router pins each conversation to one partition, so all of its events stay strictly in order — no interleaving between agents.",
+      nodes:["router","topics"], edges:["e_rt"], packets:["e_rt"], mobile:["router","topics"] },
+    { title:"Partitioned and made durable",
+      text:"Events land on consistent-hash partitions and are appended to a write-ahead log with group-commit fsync — durable even if the process crashes.",
+      nodes:["topics","wal"], edges:["e_tw"], packets:["e_tw"], commit:"wal", mobile:["topics","wal"] },
+    { title:"Replicated by Raft consensus",
+      text:"Every commit is replicated to follower nodes via Raft. A majority must store it before it counts as committed — so killing any single node loses zero data.",
+      nodes:["leader","follower1","follower2","quorum"], edges:["e_wl","e_lf1","e_lf2"],
+      packets:["e_lf1","e_lf2"], raft:true, mobile:["leader","follower1","follower2","quorum"] },
+    { title:"Retry and dead-letter",
+      text:"Failed events retry with exponential backoff. Anything past its max attempts is parked in a dead-letter queue — nothing silently vanishes.",
+      nodes:["topics","retry"], edges:["e_tr"], packets:["e_tr"], mobile:["topics","retry"] },
+    { title:"Delivered out",
+      text:"Consumer groups pull events in order with lag tracking, and webhooks fan out at-least-once to downstream services. Observability taps metrics and traces throughout.",
+      nodes:["topics","consumers","webhook","observ"], edges:["e_tc","e_cw","e_to"],
+      packets:["e_tc","e_cw"], mobile:["topics","consumers","webhook","observ"] }
+  ];
+
+  var ICONS = {
+    bot:    "M9 0 v3 M3 3 h12 a2 2 0 0 1 2 2 v8 a2 2 0 0 1 -2 2 H3 a2 2 0 0 1 -2 -2 V5 a2 2 0 0 1 2 -2 M6 9 h0.01 M12 9 h0.01 M7 13 h4",
+    route:  "M3 2 a2 2 0 1 0 0.01 0 M3 4 v7 a2 2 0 0 0 2 2 h7 M15 13 a2 2 0 1 0 0.01 0 M15 2 a2 2 0 1 0 0.01 0 M15 4 v4 a2 2 0 0 1 -2 2 H7",
+    layers: "M9 0 l9 4.5 -9 4.5 -9 -4.5 z M0 9 l9 4.5 9 -4.5 M0 13.5 l9 4.5 9 -4.5",
+    disk:   "M2 0 h11 l4 4 v11 a2 2 0 0 1 -2 2 H2 a2 2 0 0 1 -2 -2 V2 a2 2 0 0 1 2 -2 M4 0 v5 h7 V0 M4 18 v-6 h9 v6",
+    retry:  "M17 8 a8 8 0 1 1 -2.3 -5.6 M17 1.5 v4.5 h-4.5",
+    activity:"M0 9 h3.5 l2.5 -7 4.5 14 2.5 -7 h5",
+    users:  "M6.5 8 a3.2 3.2 0 1 0 0 -6.4 3.2 3.2 0 0 0 0 6.4 M1 18 a5.5 5.5 0 0 1 11 0 M14 8.2 a2.6 2.6 0 1 0 0 -5.2 M12 18 a4.4 4.4 0 0 1 5.5 -4.2",
+    webhook:"M5.5 6.5 a3.3 3.3 0 1 1 4.4 2.9 l-2.2 3.8 M10 15 a3.3 3.3 0 1 1 -5 -2.9 M12 10.4 a3.3 3.3 0 1 1 -1.7 5.5",
+    server: "M0 1 h16 a1 1 0 0 1 1 1 v3.5 a1 1 0 0 1 -1 1 H1 a1 1 0 0 1 -1 -1 V2 a1 1 0 0 1 1 -1 M0 9.5 h16 a1 1 0 0 1 1 1 V14 a1 1 0 0 1 -1 1 H1 a1 1 0 0 1 -1 -1 v-3.5 a1 1 0 0 1 1 -1 M4 4 h0.01 M4 12 h0.01",
+    check:  "M2 9 l5 5 9 -11"
+  };
+
+  function el(tag, attrs) {
+    var e = document.createElementNS(SVGNS, tag);
+    if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function anchor(n, side) {
+    switch (side) {
+      case "L": return [n.x, n.y + n.h/2];
+      case "R": return [n.x + n.w, n.y + n.h/2];
+      case "T": return [n.x + n.w/2, n.y];
+      case "B": return [n.x + n.w/2, n.y + n.h];
+    }
+  }
+  function buildPath(edge) {
+    var a = N[edge.from], b = N[edge.to];
+    var p0 = anchor(a, edge.fromSide), p1 = anchor(b, edge.toSide);
+    var x0=p0[0], y0=p0[1], x1=p1[0], y1=p1[1], d;
+    if (edge.railX != null) {
+      d = "M "+x0+" "+y0+" H "+edge.railX+" V "+y1+" H "+x1;
+    } else if (edge.midY != null) {
+      d = "M "+x0+" "+y0+" V "+edge.midY+" H "+x1+" V "+y1;
+    } else if (edge.fromSide==="R" && edge.toSide==="L") {
+      if (Math.abs(y0-y1)<0.5) d = "M "+x0+" "+y0+" H "+x1;
+      else { var mx=(x0+x1)/2; d = "M "+x0+" "+y0+" H "+mx+" V "+y1+" H "+x1; }
+    } else if (edge.fromSide==="B" && edge.toSide==="T") {
+      if (Math.abs(x0-x1)<0.5) d = "M "+x0+" "+y0+" V "+y1;
+      else { var my=(y0+y1)/2; d = "M "+x0+" "+y0+" V "+my+" H "+x1+" V "+y1; }
+    } else {
+      d = "M "+x0+" "+y0+" L "+x1+" "+y1;
+    }
+    return d;
+  }
+
+  var gRegions = document.getElementById("regions");
+  var gEdges   = document.getElementById("edges");
+  var gNodes   = document.getElementById("nodes");
+  var gPackets = document.getElementById("packets");
+
+  REGIONS.forEach(function (r) {
+    var rect = el("rect", { x:r.x, y:r.y, width:r.w, height:r.h, rx:16, fill:"#fcfcfd", stroke:"#e8ebf0", "stroke-width":1.2 });
+    rect.setAttribute("class","deco"); gRegions.appendChild(rect);
+    var t = el("text", { x:r.x+18, y:r.y+22, "class":"reg-lbl" }); t.textContent = r.label; gRegions.appendChild(t);
+  });
+
+  var edgePaths = {};
+  EDGES.forEach(function (e) {
+    var d = buildPath(e);
+    var base = el("path", { d:d, fill:"none", stroke:"#cbd5e1", "stroke-width":1.6 });
+    base.setAttribute("class","edge"); base.setAttribute("id", e.id);
+    var glow = el("path", { d:d, fill:"none", stroke:"#4f46e5", "stroke-width":2.4, opacity:0 });
+    glow.setAttribute("class","edge-glow");
+    gEdges.appendChild(base); gEdges.appendChild(glow);
+    edgePaths[e.id] = { base:base, glow:glow, d:d };
+  });
+
+  var nodeEls = {};
+  function drawNode(id) {
+    var n = N[id];
+    var g = el("g", {}); g.setAttribute("class","node"); g.dataset.id = id;
+
+    var card = el("rect", { x:n.x, y:n.y, width:n.w, height:n.h, rx:12, fill:"#ffffff", stroke:"#e2e8f0", "stroke-width":1.2 });
+    card.setAttribute("class","node-card"); g.appendChild(card);
+
+    if (n.quorum) {
+      var ring = el("circle", { cx:n.x+n.w/2, cy:n.y+44, r:21, fill:"#f8fafc", stroke:"#e2e8f0", "stroke-width":1.3 });
+      ring.setAttribute("class","q-ring"); g.appendChild(ring);
+      var chk = el("path", { d:"M "+(n.x+n.w/2-9)+" "+(n.y+44)+" l 6 6 12 -13", fill:"none", stroke:"#94a3b8", "stroke-width":2.6, "stroke-linecap":"round", "stroke-linejoin":"round" });
+      chk.setAttribute("class","q-check"); g.appendChild(chk);
+      var qt1 = el("text", { x:n.x+n.w/2, y:n.y+86, "class":"nrole", "text-anchor":"middle" }); qt1.textContent="quorum 3/3"; g.appendChild(qt1);
+      var qt2 = el("text", { x:n.x+n.w/2, y:n.y+100, "class":"nsub", "text-anchor":"middle" }); qt2.textContent="committed"; g.appendChild(qt2);
+      gNodes.appendChild(g); nodeEls[id]=g; return;
+    }
+
+    var chipX = n.x + 16, chipY = n.y + (n.log ? 16 : n.h/2 - 16);
+    var chip = el("rect", { x:chipX, y:chipY, width:32, height:32, rx:8, fill:"#f1f5f9" });
+    chip.setAttribute("class","node-chip"); g.appendChild(chip);
+    var ig = el("g", { transform:"translate("+(chipX+7)+","+(chipY+7)+")" });
+    var ip = el("path", { d:ICONS[n.icon]||"" });
+    ip.setAttribute("class","ic node-ic"); ip.setAttribute("stroke","#64748b");
+    ig.appendChild(ip); g.appendChild(ig);
+
+    var tx = chipX + 44;
+    if (n.role) {
+      var t1 = el("text", { x:tx, y:n.y+n.h/2-2, "class":"ntitle" }); t1.textContent = n.title;
+      var t2 = el("text", { x:tx, y:n.y+n.h/2+14, "class":"nrole" }); t2.textContent = "· "+n.role;
+      g.appendChild(t1); g.appendChild(t2);
+    } else {
+      var ty = n.log ? n.y+30 : n.y+n.h/2-3;
+      var s1 = el("text", { x:tx, y:ty, "class":"ntitle" }); s1.textContent = n.title; g.appendChild(s1);
+      if (n.sub) { var s2 = el("text", { x:tx, y:ty+15, "class":"nsub" }); s2.textContent = n.sub; g.appendChild(s2); }
+    }
+
+    if (n.log) {
+      var total = 5, filled = n.log;
+      var lx = n.x + 16, ly = n.y + n.h - 30;
+      var cellW = 38, gap = 6;
+      var lab = el("text", { x:lx, y:ly-8, "class":"nsub" }); lab.textContent = "replicated log"; g.appendChild(lab);
+      var cells = [];
+      for (var i=0;i<total;i++){
+        var on = i < filled;
+        var c = el("rect", { x:lx+i*(cellW+gap), y:ly, width:cellW, height:20, rx:4,
+          fill: on ? (id==="leader" ? "#e0e7ff" : "#eef2f6") : "#f8fafc",
+          stroke: on ? (id==="leader" ? "#c7d2fe" : "#e2e8f0") : "#eef1f5", "stroke-width":1 });
+        c.setAttribute("class","logcell" + (id!=="leader" && i===4 ? " newcell" : ""));
+        g.appendChild(c); cells.push(c);
+      }
+      g._cells = cells;
+      if (id!=="leader") {
+        var ack = el("text", { x:n.x+n.w-16, y:n.y+24, "class":"nsub", "text-anchor":"end", fill:"#059669", opacity:0 });
+        ack.setAttribute("class","ack-lbl"); ack.textContent="ack ✓"; g.appendChild(ack);
+      }
+    }
+
+    gNodes.appendChild(g); nodeEls[id] = g;
+  }
+  Object.keys(N).forEach(drawNode);
+
+  // decorative labels
+  function deco(x,y,cls,txt,extra){ var a={x:x,y:y,"class":cls+" deco"}; if(extra) for(var k in extra) a[k]=extra[k]; var t=el("text",a); t.textContent=txt; gNodes.appendChild(t); return t; }
+  deco(235,108,"elabel","gRPC · TCP · CLI",{ "text-anchor":"middle" });
+  deco(46,66,"reg-lbl","AGENTS");
+  deco(560,464,"elabel","replicated via Raft · acks = quorum",{ "text-anchor":"middle" });
+
+  // ============================================================
+  // STATE + STEP APPLY
+  // ============================================================
+  var current = 0, playing = false, playTimer = null, packetTimers = [];
+  var stepPill = document.getElementById("stepPill");
+  var capMeta = document.getElementById("capMeta");
+  var capTitle = document.getElementById("capTitle");
+  var capText = document.getElementById("capText");
+
+  function clearPackets() {
+    while (gPackets.firstChild) gPackets.removeChild(gPackets.firstChild);
+    packetTimers.forEach(clearTimeout); packetTimers = [];
+  }
+
+  function setDim() {
+    var s = STEPS[current];
+    var activeN = {}; s.nodes.forEach(function(id){ activeN[id]=1; });
+    var activeE = {}; s.edges.forEach(function(id){ activeE[id]=1; });
+
+    Object.keys(nodeEls).forEach(function(id){
+      var on = activeN[id], g = nodeEls[id];
+      g.style.opacity = on ? "1" : "0.34";
+      var card = g.querySelector(".node-card");
+      var isCommit = (s.commit===id);
+      var isRaftActive = s.raft && (id==="leader"||id==="follower1"||id==="follower2");
+      if (card) {
+        var stroke = "#e2e8f0", sw = "1.2";
+        if (on) {
+          if (isCommit) stroke = "#10b981";
+          else if (id==="leader" && s.raft) stroke = "#f59e0b";
+          else stroke = "#4f46e5";
+          sw = "1.8";
+        }
+        card.setAttribute("stroke", stroke); card.setAttribute("stroke-width", sw);
+      }
+      var chip = g.querySelector(".node-chip");
+      var ic = g.querySelector(".node-ic");
+      if (chip) chip.setAttribute("fill", on ? (isCommit ? "#d1fae5" : "#eef2ff") : "#f1f5f9");
+      if (ic)  ic.setAttribute("stroke", on ? (isCommit ? "#047857" : "#4f46e5") : "#64748b");
+    });
+
+    EDGES.forEach(function(e){
+      var ep = edgePaths[e.id], on = activeE[e.id];
+      ep.base.setAttribute("opacity", on ? "0" : "1");
+      ep.base.setAttribute("stroke", on ? "#4f46e5" : "#cbd5e1");
+      ep.glow.setAttribute("opacity", on ? "1" : "0");
+      ep.glow.setAttribute("stroke", (on && s.raft) ? "#10b981" : "#4f46e5");
+    });
+  }
+
+  function pulseNode(id) {
+    if (reduce) return;
+    var g = nodeEls[id]; if (!g) return;
+    var card = g.querySelector(".node-card");
+    if (card) {
+      card.style.transition = "none"; card.style.transformBox = "fill-box"; card.style.transformOrigin = "center";
+      card.style.transform = "scale(1.03)"; void card.getBoundingClientRect();
+      card.style.transition = "transform .35s ease-out"; card.style.transform = "scale(1)";
+    }
+  }
+
+  function runPacket(edgeId, kind, delay, onArrive) {
+    if (reduce) { if (onArrive) onArrive(); return; }
+    var c = el("circle", { r: 4.2, fill: kind==="raft" ? "url(#pkg)" : "url(#pk)", opacity:0 });
+    c.setAttribute("class","packet");
+    var am = el("animateMotion", { dur:"1.05s", begin:"indefinite", fill:"freeze" });
+    var mp = el("mpath"); mp.setAttribute("href","#"+edgeId);
+    mp.setAttributeNS("http://www.w3.org/1999/xlink","href","#"+edgeId);
+    am.appendChild(mp); c.appendChild(am); gPackets.appendChild(c);
+    var t = setTimeout(function(){
+      c.setAttribute("opacity","1");
+      try { am.beginElement(); } catch(e){}
+      var t2 = setTimeout(function(){
+        if (onArrive) onArrive();
+        c.style.transition = "opacity .3s"; c.style.opacity = "0";
+        setTimeout(function(){ if (c.parentNode) c.parentNode.removeChild(c); }, 320);
+      }, 1055);
+      packetTimers.push(t2);
+    }, delay||0);
+    packetTimers.push(t);
+  }
+
+  function animateStep() {
+    clearPackets();
+    var s = STEPS[current];
+    if (reduce) { applyEndState(); return; }
+    s.packets.forEach(function(edgeId, i){
+      var toId = EDGES.filter(function(e){return e.id===edgeId;})[0].to;
+      runPacket(edgeId, s.raft ? "raft" : "flow", i*240, function(){
+        pulseNode(toId);
+        if (s.commit && toId===s.commit) commitPing();
+        if (s.raft) followerAck(toId);
+      });
+    });
+    if (s.raft) { var qt=setTimeout(function(){ quorumPing(); }, 760); packetTimers.push(qt); }
+  }
+
+  function applyEndState() {
+    var s = STEPS[current];
+    s.nodes.forEach(pulseNode);
+    if (s.commit) commitPing(true);
+    if (s.raft) { followerAck("follower1",true); followerAck("follower2",true); quorumPing(true); }
+  }
+
+  function commitPing() {
+    var g = nodeEls.wal; if (!g) return;
+    g.querySelector(".node-card").setAttribute("stroke", "#10b981");
+    pulseNode("wal");
+  }
+
+  function followerAck(id) {
+    var g = nodeEls[id]; if (!g || !g._cells) return;
+    var newcell = g.querySelector(".newcell");
+    if (newcell) { newcell.setAttribute("fill", "#e0e7ff"); newcell.setAttribute("stroke", "#c7d2fe"); }
+    var ack = g.querySelector(".ack-lbl"); if (ack) ack.setAttribute("opacity","1");
+    var card = g.querySelector(".node-card"); if (card) card.setAttribute("stroke", "#10b981");
+    pulseNode(id);
+  }
+
+  function quorumPing(instant) {
+    var g = nodeEls.quorum; if (!g) return;
+    var ring = g.querySelector(".q-ring"), chk = g.querySelector(".q-check");
+    if (ring) ring.setAttribute("stroke", "#10b981");
+    if (chk) chk.setAttribute("stroke", "#059669");
+    if (!instant && !reduce && ring) {
+      ring.style.transition="none"; ring.style.transformBox="fill-box"; ring.style.transformOrigin="center";
+      ring.style.transform="scale(0.7)"; ring.style.opacity="0.5"; void ring.getBoundingClientRect();
+      ring.style.transition="transform .5s ease-out, opacity .5s ease-out";
+      ring.style.transform="scale(1)"; ring.style.opacity="1";
+    }
+  }
+
+  function resetRaft() {
+    ["follower1","follower2"].forEach(function(id){
+      var g = nodeEls[id]; if(!g) return;
+      var nc = g.querySelector(".newcell"); if (nc){ nc.setAttribute("fill","#f8fafc"); nc.setAttribute("stroke","#eef1f5"); }
+      var ack = g.querySelector(".ack-lbl"); if (ack) ack.setAttribute("opacity","0");
+    });
+    var q = nodeEls.quorum;
+    if (q){ q.querySelector(".q-ring").setAttribute("stroke","#e2e8f0"); q.querySelector(".q-check").setAttribute("stroke","#94a3b8"); }
+  }
+
+  // ============================================================
+  // MOBILE
+  // ============================================================
+  var mobileEl = document.getElementById("mobile");
+  function mIconSvg(icon){ return '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" class="ic"><path d="'+(ICONS[icon]||"")+'"/></svg>'; }
+  STEPS.forEach(function(s, idx){
+    var wrap = document.createElement("div");
+    wrap.className = "m-step" + (idx===0?" active":"");
+    var flow = document.createElement("div"); flow.className="m-flow";
+    s.mobile.forEach(function(id, j){
+      var n = N[id];
+      var node = document.createElement("div");
+      node.className = "m-node" + (n.commit ? " commit" : "");
+      var label = n.role ? (n.title+" · "+n.role) : (n.quorum ? "Quorum 3/3 committed" : n.title);
+      var sub = n.quorum ? "zero-data-loss failover" : (n.sub || "");
+      node.innerHTML = '<div class="m-ic">'+mIconSvg(n.quorum?"check":n.icon)+'</div>'
+        + '<div><div class="ti">'+label+'</div><div class="su">'+sub+'</div></div>';
+      flow.appendChild(node);
+      if (j < s.mobile.length-1) { var ar=document.createElement("div"); ar.className="m-arrow"; ar.textContent="↓"; flow.appendChild(ar); }
+    });
+    wrap.appendChild(flow); mobileEl.appendChild(wrap);
+  });
+  function showMobile(i){ Array.prototype.forEach.call(mobileEl.children, function(c, idx){ c.classList.toggle("active", idx===i); }); }
+
+  // ============================================================
+  // NAV
+  // ============================================================
+  var dotsEl = document.getElementById("dots");
+  STEPS.forEach(function(s, i){
+    var b = document.createElement("button");
+    b.className = "dot"; b.textContent = (i+1); b.setAttribute("role","tab");
+    b.setAttribute("aria-label","Step "+(i+1)+": "+s.title);
+    b.addEventListener("click", function(){ stopPlay(); go(i); });
+    dotsEl.appendChild(b);
+  });
+
+  var prevBtn = document.getElementById("prevBtn");
+  var nextBtn = document.getElementById("nextBtn");
+
+  function go(i, fromAuto){
+    if (i<0) i=0; if (i>=STEPS.length) i=STEPS.length-1;
+    if (current===3 && i!==3) resetRaft();
+    current = i;
+    var s = STEPS[i];
+    stepPill.textContent = "Step "+(i+1)+" / "+STEPS.length;
+    capMeta.textContent = "Step "+(i+1)+" of "+STEPS.length;
+    capTitle.textContent = s.title;
+    capText.textContent = s.text;
+    Array.prototype.forEach.call(dotsEl.children, function(d, idx){ d.setAttribute("aria-current", idx===i ? "true":"false"); });
+    prevBtn.disabled = (i===0);
+    nextBtn.disabled = (i===STEPS.length-1) && !playing;
+    setDim(); showMobile(i); animateStep();
+  }
+  function prev(){ if (current > 0) go(current-1); }
+
+  nextBtn.addEventListener("click", function(){ stopPlay(); if(current<STEPS.length-1) go(current+1); });
+  prevBtn.addEventListener("click", function(){ stopPlay(); prev(); });
+
+  var playBtn = document.getElementById("playBtn");
+  var playIcon = document.getElementById("playIcon");
+  var playLbl = document.getElementById("playLbl");
+  function setPlayUI(on){
+    playing = on;
+    playLbl.textContent = on ? "Pause" : "Play";
+    playIcon.innerHTML = on ? '<path d="M3 2 h3 v12 H3 z M10 2 h3 v12 h-3 z"/>' : '<path d="M4 3 l9 5 -9 5 z"/>';
+    nextBtn.disabled = (current===STEPS.length-1) && !on;
+  }
+  function startPlay(){
+    if (reduce) return;
+    setPlayUI(true); clearInterval(playTimer);
+    playTimer = setInterval(function(){ go((current+1) % STEPS.length, true); }, 5000);
+  }
+  function stopPlay(){ clearInterval(playTimer); setPlayUI(false); }
+  playBtn.addEventListener("click", function(){ playing ? stopPlay() : startPlay(); });
+
+  document.addEventListener("keydown", function(e){
+    if (e.key==="ArrowRight"){ stopPlay(); if(current<STEPS.length-1) go(current+1); }
+    else if (e.key==="ArrowLeft"){ stopPlay(); prev(); }
+  });
+
+  if (reduce) { playBtn.disabled = true; }
+
+  go(0);
+  if (!reduce) startPlay(); // autoplay: constantly cycles 1 -> 6 -> 1; hit Pause to stop on a step and explain
+})();
+</script>
+
+</body>
+</html>
