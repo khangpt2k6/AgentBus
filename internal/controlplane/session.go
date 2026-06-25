@@ -103,6 +103,21 @@ func (s *SessionStore) Get(sessionKey string) (RunState, bool) {
 	return *rs, true
 }
 
+// Escalate moves a session to waiting on the given agent. The control plane
+// calls this when it initiates an automatic escalation (e.g. after a terminal
+// error), so the run waits for the escalation agent to pick it up.
+func (s *SessionStore) Escalate(sessionKey, toAgent string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rs := s.sessions[sessionKey]
+	if rs == nil {
+		return
+	}
+	rs.PendingAgent = toAgent
+	rs.Status = StatusWaiting
+	rs.LastEventAt = s.now()
+}
+
 // List returns a snapshot of all session run-states, sorted by session key.
 func (s *SessionStore) List() []RunState {
 	s.mu.RLock()
