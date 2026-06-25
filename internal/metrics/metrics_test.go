@@ -69,6 +69,47 @@ func TestObserveAgentPayload(t *testing.T) {
 	assertCounterValue(t, families, "goqueue_agent_event_dlq_total", map[string]string{"topic": "agent-events.dlq", "event_type": "tool.call"}, 1)
 }
 
+func TestControlPlaneMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := New(reg)
+
+	m.SetActiveAgents(3)
+	m.SetSessions("running", 2)
+	m.IncHandoffRouted()
+	m.IncHandoffRouted()
+	m.IncHandoffUnrouted()
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	assertCounterValue(t, families, "goqueue_cp_handoffs_routed_total", map[string]string{}, 2)
+	assertCounterValue(t, families, "goqueue_cp_handoffs_unrouted_total", map[string]string{}, 1)
+	assertGaugeValue(t, families, "goqueue_cp_active_agents", map[string]string{}, 3)
+	assertGaugeValue(t, families, "goqueue_cp_sessions", map[string]string{"status": "running"}, 2)
+}
+
+func assertGaugeValue(t *testing.T, families []*dto.MetricFamily, name string, labels map[string]string, want float64) {
+	t.Helper()
+	for _, fam := range families {
+		if fam.GetName() != name {
+			continue
+		}
+		for _, metric := range fam.GetMetric() {
+			if metric.GetGauge() == nil {
+				continue
+			}
+			if labelsMatch(metric.GetLabel(), labels) {
+				if got := metric.GetGauge().GetValue(); got != want {
+					t.Fatalf("%s gauge=%v want=%v", name, got, want)
+				}
+				return
+			}
+		}
+	}
+	t.Fatalf("gauge %s with labels not found", name)
+}
+
 func assertCounterValue(t *testing.T, families []*dto.MetricFamily, name string, labels map[string]string, want float64) {
 	t.Helper()
 	for _, fam := range families {
