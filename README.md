@@ -38,7 +38,7 @@ A **distributed message broker written from scratch in Go**, specialized for AI-
 
 
 
-<img width="400" height="257" alt="Screen Recording 2026-06-25 130203" src="https://github.com/user-attachments/assets/103214d7-4069-40c3-a45e-c5fe16f47bc0" />
+<img src="https://github.com/user-attachments/assets/103214d7-4069-40c3-a45e-c5fe16f47bc0" />
 
 ## Engineering highlights
 
