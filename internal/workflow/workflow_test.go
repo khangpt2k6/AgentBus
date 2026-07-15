@@ -380,6 +380,32 @@ func TestSweepKillsExecutionOutOfAttempts(t *testing.T) {
 	}
 }
 
+func TestLeaseBatchGrantsUpToMaxInFIFOOrder(t *testing.T) {
+	c, _ := newTestCoordinator(t, nil)
+	for i := 0; i < 25; i++ {
+		mustSubmit(t, c, fmt.Sprintf("wf-%03d", i))
+	}
+	leases, err := c.LeaseBatch(context.Background(), "work", "w", 10, 0)
+	if err != nil || len(leases) != 10 {
+		t.Fatalf("batch 1: got %d leases, err=%v", len(leases), err)
+	}
+	for i, l := range leases {
+		if want := fmt.Sprintf("wf-%03d", i); l.WorkflowID != want {
+			t.Fatalf("batch order violated at %d: got %s want %s", i, l.WorkflowID, want)
+		}
+	}
+	// A batch larger than the remaining queue returns what exists.
+	leases, err = c.LeaseBatch(context.Background(), "work", "w", 100, 0)
+	if err != nil || len(leases) != 15 {
+		t.Fatalf("batch 2: got %d leases, err=%v", len(leases), err)
+	}
+	// Everything is now leased: an immediate batch returns nothing.
+	leases, err = c.LeaseBatch(context.Background(), "work", "w", 10, 0)
+	if err != nil || leases != nil {
+		t.Fatalf("batch 3: got %v, err=%v", leases, err)
+	}
+}
+
 func TestFIFOOrderAcrossManyExecutions(t *testing.T) {
 	c, _ := newTestCoordinator(t, nil)
 	const n = 50

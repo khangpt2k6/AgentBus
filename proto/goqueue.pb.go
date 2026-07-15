@@ -1650,7 +1650,10 @@ type LeaseTaskRequest struct {
 	WorkerId string                 `protobuf:"bytes,2,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 	// How long the server may hold this call waiting for work, in
 	// milliseconds. 0 returns immediately. Server caps at 30000.
-	WaitMs        int64 `protobuf:"varint,3,opt,name=wait_ms,json=waitMs,proto3" json:"wait_ms,omitempty"`
+	WaitMs int64 `protobuf:"varint,3,opt,name=wait_ms,json=waitMs,proto3" json:"wait_ms,omitempty"`
+	// Maximum tasks to lease in this call. 0 or 1 leases a single task
+	// (fields below); >1 returns up to that many in tasks. Server caps at 256.
+	MaxTasks      int32 `protobuf:"varint,4,opt,name=max_tasks,json=maxTasks,proto3" json:"max_tasks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1706,6 +1709,13 @@ func (x *LeaseTaskRequest) GetWaitMs() int64 {
 	return 0
 }
 
+func (x *LeaseTaskRequest) GetMaxTasks() int32 {
+	if x != nil {
+		return x.MaxTasks
+	}
+	return 0
+}
+
 type LeaseTaskResponse struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	Found      bool                   `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
@@ -1718,8 +1728,11 @@ type LeaseTaskResponse struct {
 	// complete, and fail calls - it is the fencing token.
 	Attempt               int32 `protobuf:"varint,7,opt,name=attempt,proto3" json:"attempt,omitempty"`
 	LeaseDeadlineUnixNano int64 `protobuf:"varint,8,opt,name=lease_deadline_unix_nano,json=leaseDeadlineUnixNano,proto3" json:"lease_deadline_unix_nano,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Batch results when max_tasks > 1. The single fields above mirror
+	// tasks[0] for backward compatibility.
+	Tasks         []*LeasedTaskMsg `protobuf:"bytes,9,rep,name=tasks,proto3" json:"tasks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LeaseTaskResponse) Reset() {
@@ -1808,6 +1821,297 @@ func (x *LeaseTaskResponse) GetLeaseDeadlineUnixNano() int64 {
 	return 0
 }
 
+func (x *LeaseTaskResponse) GetTasks() []*LeasedTaskMsg {
+	if x != nil {
+		return x.Tasks
+	}
+	return nil
+}
+
+type LeasedTaskMsg struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Tenant                string                 `protobuf:"bytes,1,opt,name=tenant,proto3" json:"tenant,omitempty"`
+	Project               string                 `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	WorkflowId            string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	TaskType              string                 `protobuf:"bytes,4,opt,name=task_type,json=taskType,proto3" json:"task_type,omitempty"`
+	Input                 []byte                 `protobuf:"bytes,5,opt,name=input,proto3" json:"input,omitempty"`
+	Attempt               int32                  `protobuf:"varint,6,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	LeaseDeadlineUnixNano int64                  `protobuf:"varint,7,opt,name=lease_deadline_unix_nano,json=leaseDeadlineUnixNano,proto3" json:"lease_deadline_unix_nano,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *LeasedTaskMsg) Reset() {
+	*x = LeasedTaskMsg{}
+	mi := &file_goqueue_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeasedTaskMsg) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeasedTaskMsg) ProtoMessage() {}
+
+func (x *LeasedTaskMsg) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeasedTaskMsg.ProtoReflect.Descriptor instead.
+func (*LeasedTaskMsg) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *LeasedTaskMsg) GetTenant() string {
+	if x != nil {
+		return x.Tenant
+	}
+	return ""
+}
+
+func (x *LeasedTaskMsg) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *LeasedTaskMsg) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *LeasedTaskMsg) GetTaskType() string {
+	if x != nil {
+		return x.TaskType
+	}
+	return ""
+}
+
+func (x *LeasedTaskMsg) GetInput() []byte {
+	if x != nil {
+		return x.Input
+	}
+	return nil
+}
+
+func (x *LeasedTaskMsg) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *LeasedTaskMsg) GetLeaseDeadlineUnixNano() int64 {
+	if x != nil {
+		return x.LeaseDeadlineUnixNano
+	}
+	return 0
+}
+
+type SubmitWorkflowsRequest struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Requests      []*SubmitWorkflowRequest `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitWorkflowsRequest) Reset() {
+	*x = SubmitWorkflowsRequest{}
+	mi := &file_goqueue_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitWorkflowsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitWorkflowsRequest) ProtoMessage() {}
+
+func (x *SubmitWorkflowsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitWorkflowsRequest.ProtoReflect.Descriptor instead.
+func (*SubmitWorkflowsRequest) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *SubmitWorkflowsRequest) GetRequests() []*SubmitWorkflowRequest {
+	if x != nil {
+		return x.Requests
+	}
+	return nil
+}
+
+type SubmitWorkflowsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accepted      int32                  `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	AlreadyExists int32                  `protobuf:"varint,2,opt,name=already_exists,json=alreadyExists,proto3" json:"already_exists,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitWorkflowsResponse) Reset() {
+	*x = SubmitWorkflowsResponse{}
+	mi := &file_goqueue_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitWorkflowsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitWorkflowsResponse) ProtoMessage() {}
+
+func (x *SubmitWorkflowsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitWorkflowsResponse.ProtoReflect.Descriptor instead.
+func (*SubmitWorkflowsResponse) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SubmitWorkflowsResponse) GetAccepted() int32 {
+	if x != nil {
+		return x.Accepted
+	}
+	return 0
+}
+
+func (x *SubmitWorkflowsResponse) GetAlreadyExists() int32 {
+	if x != nil {
+		return x.AlreadyExists
+	}
+	return 0
+}
+
+type CompleteTasksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Requests      []*CompleteTaskRequest `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteTasksRequest) Reset() {
+	*x = CompleteTasksRequest{}
+	mi := &file_goqueue_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteTasksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteTasksRequest) ProtoMessage() {}
+
+func (x *CompleteTasksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteTasksRequest.ProtoReflect.Descriptor instead.
+func (*CompleteTasksRequest) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *CompleteTasksRequest) GetRequests() []*CompleteTaskRequest {
+	if x != nil {
+		return x.Requests
+	}
+	return nil
+}
+
+type CompleteTasksResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accepted      int32                  `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	Rejected      int32                  `protobuf:"varint,2,opt,name=rejected,proto3" json:"rejected,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteTasksResponse) Reset() {
+	*x = CompleteTasksResponse{}
+	mi := &file_goqueue_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteTasksResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteTasksResponse) ProtoMessage() {}
+
+func (x *CompleteTasksResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_goqueue_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteTasksResponse.ProtoReflect.Descriptor instead.
+func (*CompleteTasksResponse) Descriptor() ([]byte, []int) {
+	return file_goqueue_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *CompleteTasksResponse) GetAccepted() int32 {
+	if x != nil {
+		return x.Accepted
+	}
+	return 0
+}
+
+func (x *CompleteTasksResponse) GetRejected() int32 {
+	if x != nil {
+		return x.Rejected
+	}
+	return 0
+}
+
 type HeartbeatTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Tenant        string                 `protobuf:"bytes,1,opt,name=tenant,proto3" json:"tenant,omitempty"`
@@ -1821,7 +2125,7 @@ type HeartbeatTaskRequest struct {
 
 func (x *HeartbeatTaskRequest) Reset() {
 	*x = HeartbeatTaskRequest{}
-	mi := &file_goqueue_proto_msgTypes[29]
+	mi := &file_goqueue_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1833,7 +2137,7 @@ func (x *HeartbeatTaskRequest) String() string {
 func (*HeartbeatTaskRequest) ProtoMessage() {}
 
 func (x *HeartbeatTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[29]
+	mi := &file_goqueue_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1846,7 +2150,7 @@ func (x *HeartbeatTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatTaskRequest.ProtoReflect.Descriptor instead.
 func (*HeartbeatTaskRequest) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{29}
+	return file_goqueue_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *HeartbeatTaskRequest) GetTenant() string {
@@ -1894,7 +2198,7 @@ type HeartbeatTaskResponse struct {
 
 func (x *HeartbeatTaskResponse) Reset() {
 	*x = HeartbeatTaskResponse{}
-	mi := &file_goqueue_proto_msgTypes[30]
+	mi := &file_goqueue_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1906,7 +2210,7 @@ func (x *HeartbeatTaskResponse) String() string {
 func (*HeartbeatTaskResponse) ProtoMessage() {}
 
 func (x *HeartbeatTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[30]
+	mi := &file_goqueue_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1919,7 +2223,7 @@ func (x *HeartbeatTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatTaskResponse.ProtoReflect.Descriptor instead.
 func (*HeartbeatTaskResponse) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{30}
+	return file_goqueue_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *HeartbeatTaskResponse) GetValid() bool {
@@ -1950,7 +2254,7 @@ type CompleteTaskRequest struct {
 
 func (x *CompleteTaskRequest) Reset() {
 	*x = CompleteTaskRequest{}
-	mi := &file_goqueue_proto_msgTypes[31]
+	mi := &file_goqueue_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1962,7 +2266,7 @@ func (x *CompleteTaskRequest) String() string {
 func (*CompleteTaskRequest) ProtoMessage() {}
 
 func (x *CompleteTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[31]
+	mi := &file_goqueue_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1975,7 +2279,7 @@ func (x *CompleteTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteTaskRequest.ProtoReflect.Descriptor instead.
 func (*CompleteTaskRequest) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{31}
+	return file_goqueue_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *CompleteTaskRequest) GetTenant() string {
@@ -2032,7 +2336,7 @@ type CompleteTaskResponse struct {
 
 func (x *CompleteTaskResponse) Reset() {
 	*x = CompleteTaskResponse{}
-	mi := &file_goqueue_proto_msgTypes[32]
+	mi := &file_goqueue_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2044,7 +2348,7 @@ func (x *CompleteTaskResponse) String() string {
 func (*CompleteTaskResponse) ProtoMessage() {}
 
 func (x *CompleteTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[32]
+	mi := &file_goqueue_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2057,7 +2361,7 @@ func (x *CompleteTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteTaskResponse.ProtoReflect.Descriptor instead.
 func (*CompleteTaskResponse) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{32}
+	return file_goqueue_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *CompleteTaskResponse) GetAccepted() bool {
@@ -2091,7 +2395,7 @@ type FailTaskRequest struct {
 
 func (x *FailTaskRequest) Reset() {
 	*x = FailTaskRequest{}
-	mi := &file_goqueue_proto_msgTypes[33]
+	mi := &file_goqueue_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2103,7 +2407,7 @@ func (x *FailTaskRequest) String() string {
 func (*FailTaskRequest) ProtoMessage() {}
 
 func (x *FailTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[33]
+	mi := &file_goqueue_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2116,7 +2420,7 @@ func (x *FailTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailTaskRequest.ProtoReflect.Descriptor instead.
 func (*FailTaskRequest) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{33}
+	return file_goqueue_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *FailTaskRequest) GetTenant() string {
@@ -2178,7 +2482,7 @@ type FailTaskResponse struct {
 
 func (x *FailTaskResponse) Reset() {
 	*x = FailTaskResponse{}
-	mi := &file_goqueue_proto_msgTypes[34]
+	mi := &file_goqueue_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2190,7 +2494,7 @@ func (x *FailTaskResponse) String() string {
 func (*FailTaskResponse) ProtoMessage() {}
 
 func (x *FailTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[34]
+	mi := &file_goqueue_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2203,7 +2507,7 @@ func (x *FailTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailTaskResponse.ProtoReflect.Descriptor instead.
 func (*FailTaskResponse) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{34}
+	return file_goqueue_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *FailTaskResponse) GetAccepted() bool {
@@ -2231,7 +2535,7 @@ type GetExecutionRequest struct {
 
 func (x *GetExecutionRequest) Reset() {
 	*x = GetExecutionRequest{}
-	mi := &file_goqueue_proto_msgTypes[35]
+	mi := &file_goqueue_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2243,7 +2547,7 @@ func (x *GetExecutionRequest) String() string {
 func (*GetExecutionRequest) ProtoMessage() {}
 
 func (x *GetExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[35]
+	mi := &file_goqueue_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2256,7 +2560,7 @@ func (x *GetExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExecutionRequest.ProtoReflect.Descriptor instead.
 func (*GetExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{35}
+	return file_goqueue_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetExecutionRequest) GetTenant() string {
@@ -2302,7 +2606,7 @@ type ExecutionStateMsg struct {
 
 func (x *ExecutionStateMsg) Reset() {
 	*x = ExecutionStateMsg{}
-	mi := &file_goqueue_proto_msgTypes[36]
+	mi := &file_goqueue_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2314,7 +2618,7 @@ func (x *ExecutionStateMsg) String() string {
 func (*ExecutionStateMsg) ProtoMessage() {}
 
 func (x *ExecutionStateMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[36]
+	mi := &file_goqueue_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2327,7 +2631,7 @@ func (x *ExecutionStateMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionStateMsg.ProtoReflect.Descriptor instead.
 func (*ExecutionStateMsg) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{36}
+	return file_goqueue_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ExecutionStateMsg) GetFound() bool {
@@ -2443,7 +2747,7 @@ type TransitionMsg struct {
 
 func (x *TransitionMsg) Reset() {
 	*x = TransitionMsg{}
-	mi := &file_goqueue_proto_msgTypes[37]
+	mi := &file_goqueue_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2455,7 +2759,7 @@ func (x *TransitionMsg) String() string {
 func (*TransitionMsg) ProtoMessage() {}
 
 func (x *TransitionMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[37]
+	mi := &file_goqueue_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2468,7 +2772,7 @@ func (x *TransitionMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionMsg.ProtoReflect.Descriptor instead.
 func (*TransitionMsg) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{37}
+	return file_goqueue_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *TransitionMsg) GetEventType() string {
@@ -2523,7 +2827,7 @@ type ExecutionHistoryResponse struct {
 
 func (x *ExecutionHistoryResponse) Reset() {
 	*x = ExecutionHistoryResponse{}
-	mi := &file_goqueue_proto_msgTypes[38]
+	mi := &file_goqueue_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2535,7 +2839,7 @@ func (x *ExecutionHistoryResponse) String() string {
 func (*ExecutionHistoryResponse) ProtoMessage() {}
 
 func (x *ExecutionHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[38]
+	mi := &file_goqueue_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2548,7 +2852,7 @@ func (x *ExecutionHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionHistoryResponse.ProtoReflect.Descriptor instead.
 func (*ExecutionHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{38}
+	return file_goqueue_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ExecutionHistoryResponse) GetFound() bool {
@@ -2578,7 +2882,7 @@ type ListExecutionsRequest struct {
 
 func (x *ListExecutionsRequest) Reset() {
 	*x = ListExecutionsRequest{}
-	mi := &file_goqueue_proto_msgTypes[39]
+	mi := &file_goqueue_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2590,7 +2894,7 @@ func (x *ListExecutionsRequest) String() string {
 func (*ListExecutionsRequest) ProtoMessage() {}
 
 func (x *ListExecutionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[39]
+	mi := &file_goqueue_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2603,7 +2907,7 @@ func (x *ListExecutionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExecutionsRequest.ProtoReflect.Descriptor instead.
 func (*ListExecutionsRequest) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{39}
+	return file_goqueue_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListExecutionsRequest) GetStatus() string {
@@ -2635,7 +2939,7 @@ type ExecutionSummaryMsg struct {
 
 func (x *ExecutionSummaryMsg) Reset() {
 	*x = ExecutionSummaryMsg{}
-	mi := &file_goqueue_proto_msgTypes[40]
+	mi := &file_goqueue_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2647,7 +2951,7 @@ func (x *ExecutionSummaryMsg) String() string {
 func (*ExecutionSummaryMsg) ProtoMessage() {}
 
 func (x *ExecutionSummaryMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[40]
+	mi := &file_goqueue_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2660,7 +2964,7 @@ func (x *ExecutionSummaryMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionSummaryMsg.ProtoReflect.Descriptor instead.
 func (*ExecutionSummaryMsg) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{40}
+	return file_goqueue_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ExecutionSummaryMsg) GetTenant() string {
@@ -2723,7 +3027,7 @@ type ListExecutionsResponse struct {
 
 func (x *ListExecutionsResponse) Reset() {
 	*x = ListExecutionsResponse{}
-	mi := &file_goqueue_proto_msgTypes[41]
+	mi := &file_goqueue_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2735,7 +3039,7 @@ func (x *ListExecutionsResponse) String() string {
 func (*ListExecutionsResponse) ProtoMessage() {}
 
 func (x *ListExecutionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_goqueue_proto_msgTypes[41]
+	mi := &file_goqueue_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2748,7 +3052,7 @@ func (x *ListExecutionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExecutionsResponse.ProtoReflect.Descriptor instead.
 func (*ListExecutionsResponse) Descriptor() ([]byte, []int) {
-	return file_goqueue_proto_rawDescGZIP(), []int{41}
+	return file_goqueue_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ListExecutionsResponse) GetExecutions() []*ExecutionSummaryMsg {
@@ -2889,11 +3193,12 @@ const file_goqueue_proto_rawDesc = "" +
 	"\flease_ttl_ms\x18\a \x01(\x03R\n" +
 	"leaseTtlMs\"?\n" +
 	"\x16SubmitWorkflowResponse\x12%\n" +
-	"\x0ealready_exists\x18\x01 \x01(\bR\ralreadyExists\"e\n" +
+	"\x0ealready_exists\x18\x01 \x01(\bR\ralreadyExists\"\x82\x01\n" +
 	"\x10LeaseTaskRequest\x12\x1b\n" +
 	"\ttask_type\x18\x01 \x01(\tR\btaskType\x12\x1b\n" +
 	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x12\x17\n" +
-	"\await_ms\x18\x03 \x01(\x03R\x06waitMs\"\x82\x02\n" +
+	"\await_ms\x18\x03 \x01(\x03R\x06waitMs\x12\x1b\n" +
+	"\tmax_tasks\x18\x04 \x01(\x05R\bmaxTasks\"\xb3\x02\n" +
 	"\x11LeaseTaskResponse\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x12\x16\n" +
 	"\x06tenant\x18\x02 \x01(\tR\x06tenant\x12\x18\n" +
@@ -2903,7 +3208,27 @@ const file_goqueue_proto_rawDesc = "" +
 	"\ttask_type\x18\x05 \x01(\tR\btaskType\x12\x14\n" +
 	"\x05input\x18\x06 \x01(\fR\x05input\x12\x18\n" +
 	"\aattempt\x18\a \x01(\x05R\aattempt\x127\n" +
-	"\x18lease_deadline_unix_nano\x18\b \x01(\x03R\x15leaseDeadlineUnixNano\"\xa0\x01\n" +
+	"\x18lease_deadline_unix_nano\x18\b \x01(\x03R\x15leaseDeadlineUnixNano\x12/\n" +
+	"\x05tasks\x18\t \x03(\v2\x19.goqueue.v1.LeasedTaskMsgR\x05tasks\"\xe8\x01\n" +
+	"\rLeasedTaskMsg\x12\x16\n" +
+	"\x06tenant\x18\x01 \x01(\tR\x06tenant\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12\x1b\n" +
+	"\ttask_type\x18\x04 \x01(\tR\btaskType\x12\x14\n" +
+	"\x05input\x18\x05 \x01(\fR\x05input\x12\x18\n" +
+	"\aattempt\x18\x06 \x01(\x05R\aattempt\x127\n" +
+	"\x18lease_deadline_unix_nano\x18\a \x01(\x03R\x15leaseDeadlineUnixNano\"W\n" +
+	"\x16SubmitWorkflowsRequest\x12=\n" +
+	"\brequests\x18\x01 \x03(\v2!.goqueue.v1.SubmitWorkflowRequestR\brequests\"\\\n" +
+	"\x17SubmitWorkflowsResponse\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\x05R\baccepted\x12%\n" +
+	"\x0ealready_exists\x18\x02 \x01(\x05R\ralreadyExists\"S\n" +
+	"\x14CompleteTasksRequest\x12;\n" +
+	"\brequests\x18\x01 \x03(\v2\x1f.goqueue.v1.CompleteTaskRequestR\brequests\"O\n" +
+	"\x15CompleteTasksResponse\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\x05R\baccepted\x12\x1a\n" +
+	"\brejected\x18\x02 \x01(\x05R\brejected\"\xa0\x01\n" +
 	"\x14HeartbeatTaskRequest\x12\x16\n" +
 	"\x06tenant\x18\x01 \x01(\tR\x06tenant\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1f\n" +
@@ -3006,10 +3331,12 @@ const file_goqueue_proto_rawDesc = "" +
 	"\tOpenInbox\x12\x1c.goqueue.v1.OpenInboxRequest\x1a\x1a.goqueue.v1.RoutedEventMsg0\x01\x12K\n" +
 	"\x0fGetSessionState\x12\x1f.goqueue.v1.SessionStateRequest\x1a\x17.goqueue.v1.RunStateMsg\x12J\n" +
 	"\n" +
-	"ListAgents\x12\x1d.goqueue.v1.ListAgentsRequest\x1a\x1d.goqueue.v1.AgentListResponse2\xab\x05\n" +
+	"ListAgents\x12\x1d.goqueue.v1.ListAgentsRequest\x1a\x1d.goqueue.v1.AgentListResponse2\xdd\x06\n" +
 	"\x0fWorkflowService\x12W\n" +
 	"\x0eSubmitWorkflow\x12!.goqueue.v1.SubmitWorkflowRequest\x1a\".goqueue.v1.SubmitWorkflowResponse\x12H\n" +
-	"\tLeaseTask\x12\x1c.goqueue.v1.LeaseTaskRequest\x1a\x1d.goqueue.v1.LeaseTaskResponse\x12T\n" +
+	"\tLeaseTask\x12\x1c.goqueue.v1.LeaseTaskRequest\x1a\x1d.goqueue.v1.LeaseTaskResponse\x12Z\n" +
+	"\x0fSubmitWorkflows\x12\".goqueue.v1.SubmitWorkflowsRequest\x1a#.goqueue.v1.SubmitWorkflowsResponse\x12T\n" +
+	"\rCompleteTasks\x12 .goqueue.v1.CompleteTasksRequest\x1a!.goqueue.v1.CompleteTasksResponse\x12T\n" +
 	"\rHeartbeatTask\x12 .goqueue.v1.HeartbeatTaskRequest\x1a!.goqueue.v1.HeartbeatTaskResponse\x12Q\n" +
 	"\fCompleteTask\x12\x1f.goqueue.v1.CompleteTaskRequest\x1a .goqueue.v1.CompleteTaskResponse\x12E\n" +
 	"\bFailTask\x12\x1b.goqueue.v1.FailTaskRequest\x1a\x1c.goqueue.v1.FailTaskResponse\x12N\n" +
@@ -3029,7 +3356,7 @@ func file_goqueue_proto_rawDescGZIP() []byte {
 	return file_goqueue_proto_rawDescData
 }
 
-var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_goqueue_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_goqueue_proto_goTypes = []any{
 	(*PublishRequest)(nil),           // 0: goqueue.v1.PublishRequest
 	(*PublishResponse)(nil),          // 1: goqueue.v1.PublishResponse
@@ -3060,72 +3387,84 @@ var file_goqueue_proto_goTypes = []any{
 	(*SubmitWorkflowResponse)(nil),   // 26: goqueue.v1.SubmitWorkflowResponse
 	(*LeaseTaskRequest)(nil),         // 27: goqueue.v1.LeaseTaskRequest
 	(*LeaseTaskResponse)(nil),        // 28: goqueue.v1.LeaseTaskResponse
-	(*HeartbeatTaskRequest)(nil),     // 29: goqueue.v1.HeartbeatTaskRequest
-	(*HeartbeatTaskResponse)(nil),    // 30: goqueue.v1.HeartbeatTaskResponse
-	(*CompleteTaskRequest)(nil),      // 31: goqueue.v1.CompleteTaskRequest
-	(*CompleteTaskResponse)(nil),     // 32: goqueue.v1.CompleteTaskResponse
-	(*FailTaskRequest)(nil),          // 33: goqueue.v1.FailTaskRequest
-	(*FailTaskResponse)(nil),         // 34: goqueue.v1.FailTaskResponse
-	(*GetExecutionRequest)(nil),      // 35: goqueue.v1.GetExecutionRequest
-	(*ExecutionStateMsg)(nil),        // 36: goqueue.v1.ExecutionStateMsg
-	(*TransitionMsg)(nil),            // 37: goqueue.v1.TransitionMsg
-	(*ExecutionHistoryResponse)(nil), // 38: goqueue.v1.ExecutionHistoryResponse
-	(*ListExecutionsRequest)(nil),    // 39: goqueue.v1.ListExecutionsRequest
-	(*ExecutionSummaryMsg)(nil),      // 40: goqueue.v1.ExecutionSummaryMsg
-	(*ListExecutionsResponse)(nil),   // 41: goqueue.v1.ListExecutionsResponse
-	nil,                              // 42: goqueue.v1.ListExecutionsResponse.CountsEntry
+	(*LeasedTaskMsg)(nil),            // 29: goqueue.v1.LeasedTaskMsg
+	(*SubmitWorkflowsRequest)(nil),   // 30: goqueue.v1.SubmitWorkflowsRequest
+	(*SubmitWorkflowsResponse)(nil),  // 31: goqueue.v1.SubmitWorkflowsResponse
+	(*CompleteTasksRequest)(nil),     // 32: goqueue.v1.CompleteTasksRequest
+	(*CompleteTasksResponse)(nil),    // 33: goqueue.v1.CompleteTasksResponse
+	(*HeartbeatTaskRequest)(nil),     // 34: goqueue.v1.HeartbeatTaskRequest
+	(*HeartbeatTaskResponse)(nil),    // 35: goqueue.v1.HeartbeatTaskResponse
+	(*CompleteTaskRequest)(nil),      // 36: goqueue.v1.CompleteTaskRequest
+	(*CompleteTaskResponse)(nil),     // 37: goqueue.v1.CompleteTaskResponse
+	(*FailTaskRequest)(nil),          // 38: goqueue.v1.FailTaskRequest
+	(*FailTaskResponse)(nil),         // 39: goqueue.v1.FailTaskResponse
+	(*GetExecutionRequest)(nil),      // 40: goqueue.v1.GetExecutionRequest
+	(*ExecutionStateMsg)(nil),        // 41: goqueue.v1.ExecutionStateMsg
+	(*TransitionMsg)(nil),            // 42: goqueue.v1.TransitionMsg
+	(*ExecutionHistoryResponse)(nil), // 43: goqueue.v1.ExecutionHistoryResponse
+	(*ListExecutionsRequest)(nil),    // 44: goqueue.v1.ListExecutionsRequest
+	(*ExecutionSummaryMsg)(nil),      // 45: goqueue.v1.ExecutionSummaryMsg
+	(*ListExecutionsResponse)(nil),   // 46: goqueue.v1.ListExecutionsResponse
+	nil,                              // 47: goqueue.v1.ListExecutionsResponse.CountsEntry
 }
 var file_goqueue_proto_depIdxs = []int32{
 	5,  // 0: goqueue.v1.FetchRequest.session_filter:type_name -> goqueue.v1.SessionFilter
 	3,  // 1: goqueue.v1.FetchResponse.messages:type_name -> goqueue.v1.ConsumeMessage
 	7,  // 2: goqueue.v1.PublishAgentRequest.event:type_name -> goqueue.v1.AgentEvent
 	23, // 3: goqueue.v1.AgentListResponse.agents:type_name -> goqueue.v1.AgentMsg
-	37, // 4: goqueue.v1.ExecutionHistoryResponse.transitions:type_name -> goqueue.v1.TransitionMsg
-	40, // 5: goqueue.v1.ListExecutionsResponse.executions:type_name -> goqueue.v1.ExecutionSummaryMsg
-	42, // 6: goqueue.v1.ListExecutionsResponse.counts:type_name -> goqueue.v1.ListExecutionsResponse.CountsEntry
-	0,  // 7: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
-	2,  // 8: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
-	4,  // 9: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
-	8,  // 10: goqueue.v1.BrokerService.PublishAgent:input_type -> goqueue.v1.PublishAgentRequest
-	11, // 11: goqueue.v1.ClusterService.Replicate:input_type -> goqueue.v1.AppendEntry
-	13, // 12: goqueue.v1.ClusterService.CatchUp:input_type -> goqueue.v1.CatchUpRequest
-	14, // 13: goqueue.v1.ControlPlane.RegisterAgent:input_type -> goqueue.v1.RegisterAgentRequest
-	16, // 14: goqueue.v1.ControlPlane.Heartbeat:input_type -> goqueue.v1.HeartbeatRequest
-	18, // 15: goqueue.v1.ControlPlane.OpenInbox:input_type -> goqueue.v1.OpenInboxRequest
-	20, // 16: goqueue.v1.ControlPlane.GetSessionState:input_type -> goqueue.v1.SessionStateRequest
-	22, // 17: goqueue.v1.ControlPlane.ListAgents:input_type -> goqueue.v1.ListAgentsRequest
-	25, // 18: goqueue.v1.WorkflowService.SubmitWorkflow:input_type -> goqueue.v1.SubmitWorkflowRequest
-	27, // 19: goqueue.v1.WorkflowService.LeaseTask:input_type -> goqueue.v1.LeaseTaskRequest
-	29, // 20: goqueue.v1.WorkflowService.HeartbeatTask:input_type -> goqueue.v1.HeartbeatTaskRequest
-	31, // 21: goqueue.v1.WorkflowService.CompleteTask:input_type -> goqueue.v1.CompleteTaskRequest
-	33, // 22: goqueue.v1.WorkflowService.FailTask:input_type -> goqueue.v1.FailTaskRequest
-	35, // 23: goqueue.v1.WorkflowService.GetExecution:input_type -> goqueue.v1.GetExecutionRequest
-	35, // 24: goqueue.v1.WorkflowService.GetExecutionHistory:input_type -> goqueue.v1.GetExecutionRequest
-	39, // 25: goqueue.v1.WorkflowService.ListExecutions:input_type -> goqueue.v1.ListExecutionsRequest
-	1,  // 26: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
-	3,  // 27: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
-	6,  // 28: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
-	9,  // 29: goqueue.v1.BrokerService.PublishAgent:output_type -> goqueue.v1.PublishAgentResponse
-	12, // 30: goqueue.v1.ClusterService.Replicate:output_type -> goqueue.v1.AppendAck
-	11, // 31: goqueue.v1.ClusterService.CatchUp:output_type -> goqueue.v1.AppendEntry
-	15, // 32: goqueue.v1.ControlPlane.RegisterAgent:output_type -> goqueue.v1.RegisterAgentResponse
-	17, // 33: goqueue.v1.ControlPlane.Heartbeat:output_type -> goqueue.v1.HeartbeatResponse
-	19, // 34: goqueue.v1.ControlPlane.OpenInbox:output_type -> goqueue.v1.RoutedEventMsg
-	21, // 35: goqueue.v1.ControlPlane.GetSessionState:output_type -> goqueue.v1.RunStateMsg
-	24, // 36: goqueue.v1.ControlPlane.ListAgents:output_type -> goqueue.v1.AgentListResponse
-	26, // 37: goqueue.v1.WorkflowService.SubmitWorkflow:output_type -> goqueue.v1.SubmitWorkflowResponse
-	28, // 38: goqueue.v1.WorkflowService.LeaseTask:output_type -> goqueue.v1.LeaseTaskResponse
-	30, // 39: goqueue.v1.WorkflowService.HeartbeatTask:output_type -> goqueue.v1.HeartbeatTaskResponse
-	32, // 40: goqueue.v1.WorkflowService.CompleteTask:output_type -> goqueue.v1.CompleteTaskResponse
-	34, // 41: goqueue.v1.WorkflowService.FailTask:output_type -> goqueue.v1.FailTaskResponse
-	36, // 42: goqueue.v1.WorkflowService.GetExecution:output_type -> goqueue.v1.ExecutionStateMsg
-	38, // 43: goqueue.v1.WorkflowService.GetExecutionHistory:output_type -> goqueue.v1.ExecutionHistoryResponse
-	41, // 44: goqueue.v1.WorkflowService.ListExecutions:output_type -> goqueue.v1.ListExecutionsResponse
-	26, // [26:45] is the sub-list for method output_type
-	7,  // [7:26] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	29, // 4: goqueue.v1.LeaseTaskResponse.tasks:type_name -> goqueue.v1.LeasedTaskMsg
+	25, // 5: goqueue.v1.SubmitWorkflowsRequest.requests:type_name -> goqueue.v1.SubmitWorkflowRequest
+	36, // 6: goqueue.v1.CompleteTasksRequest.requests:type_name -> goqueue.v1.CompleteTaskRequest
+	42, // 7: goqueue.v1.ExecutionHistoryResponse.transitions:type_name -> goqueue.v1.TransitionMsg
+	45, // 8: goqueue.v1.ListExecutionsResponse.executions:type_name -> goqueue.v1.ExecutionSummaryMsg
+	47, // 9: goqueue.v1.ListExecutionsResponse.counts:type_name -> goqueue.v1.ListExecutionsResponse.CountsEntry
+	0,  // 10: goqueue.v1.BrokerService.Publish:input_type -> goqueue.v1.PublishRequest
+	2,  // 11: goqueue.v1.BrokerService.Consume:input_type -> goqueue.v1.ConsumeRequest
+	4,  // 12: goqueue.v1.BrokerService.Fetch:input_type -> goqueue.v1.FetchRequest
+	8,  // 13: goqueue.v1.BrokerService.PublishAgent:input_type -> goqueue.v1.PublishAgentRequest
+	11, // 14: goqueue.v1.ClusterService.Replicate:input_type -> goqueue.v1.AppendEntry
+	13, // 15: goqueue.v1.ClusterService.CatchUp:input_type -> goqueue.v1.CatchUpRequest
+	14, // 16: goqueue.v1.ControlPlane.RegisterAgent:input_type -> goqueue.v1.RegisterAgentRequest
+	16, // 17: goqueue.v1.ControlPlane.Heartbeat:input_type -> goqueue.v1.HeartbeatRequest
+	18, // 18: goqueue.v1.ControlPlane.OpenInbox:input_type -> goqueue.v1.OpenInboxRequest
+	20, // 19: goqueue.v1.ControlPlane.GetSessionState:input_type -> goqueue.v1.SessionStateRequest
+	22, // 20: goqueue.v1.ControlPlane.ListAgents:input_type -> goqueue.v1.ListAgentsRequest
+	25, // 21: goqueue.v1.WorkflowService.SubmitWorkflow:input_type -> goqueue.v1.SubmitWorkflowRequest
+	27, // 22: goqueue.v1.WorkflowService.LeaseTask:input_type -> goqueue.v1.LeaseTaskRequest
+	30, // 23: goqueue.v1.WorkflowService.SubmitWorkflows:input_type -> goqueue.v1.SubmitWorkflowsRequest
+	32, // 24: goqueue.v1.WorkflowService.CompleteTasks:input_type -> goqueue.v1.CompleteTasksRequest
+	34, // 25: goqueue.v1.WorkflowService.HeartbeatTask:input_type -> goqueue.v1.HeartbeatTaskRequest
+	36, // 26: goqueue.v1.WorkflowService.CompleteTask:input_type -> goqueue.v1.CompleteTaskRequest
+	38, // 27: goqueue.v1.WorkflowService.FailTask:input_type -> goqueue.v1.FailTaskRequest
+	40, // 28: goqueue.v1.WorkflowService.GetExecution:input_type -> goqueue.v1.GetExecutionRequest
+	40, // 29: goqueue.v1.WorkflowService.GetExecutionHistory:input_type -> goqueue.v1.GetExecutionRequest
+	44, // 30: goqueue.v1.WorkflowService.ListExecutions:input_type -> goqueue.v1.ListExecutionsRequest
+	1,  // 31: goqueue.v1.BrokerService.Publish:output_type -> goqueue.v1.PublishResponse
+	3,  // 32: goqueue.v1.BrokerService.Consume:output_type -> goqueue.v1.ConsumeMessage
+	6,  // 33: goqueue.v1.BrokerService.Fetch:output_type -> goqueue.v1.FetchResponse
+	9,  // 34: goqueue.v1.BrokerService.PublishAgent:output_type -> goqueue.v1.PublishAgentResponse
+	12, // 35: goqueue.v1.ClusterService.Replicate:output_type -> goqueue.v1.AppendAck
+	11, // 36: goqueue.v1.ClusterService.CatchUp:output_type -> goqueue.v1.AppendEntry
+	15, // 37: goqueue.v1.ControlPlane.RegisterAgent:output_type -> goqueue.v1.RegisterAgentResponse
+	17, // 38: goqueue.v1.ControlPlane.Heartbeat:output_type -> goqueue.v1.HeartbeatResponse
+	19, // 39: goqueue.v1.ControlPlane.OpenInbox:output_type -> goqueue.v1.RoutedEventMsg
+	21, // 40: goqueue.v1.ControlPlane.GetSessionState:output_type -> goqueue.v1.RunStateMsg
+	24, // 41: goqueue.v1.ControlPlane.ListAgents:output_type -> goqueue.v1.AgentListResponse
+	26, // 42: goqueue.v1.WorkflowService.SubmitWorkflow:output_type -> goqueue.v1.SubmitWorkflowResponse
+	28, // 43: goqueue.v1.WorkflowService.LeaseTask:output_type -> goqueue.v1.LeaseTaskResponse
+	31, // 44: goqueue.v1.WorkflowService.SubmitWorkflows:output_type -> goqueue.v1.SubmitWorkflowsResponse
+	33, // 45: goqueue.v1.WorkflowService.CompleteTasks:output_type -> goqueue.v1.CompleteTasksResponse
+	35, // 46: goqueue.v1.WorkflowService.HeartbeatTask:output_type -> goqueue.v1.HeartbeatTaskResponse
+	37, // 47: goqueue.v1.WorkflowService.CompleteTask:output_type -> goqueue.v1.CompleteTaskResponse
+	39, // 48: goqueue.v1.WorkflowService.FailTask:output_type -> goqueue.v1.FailTaskResponse
+	41, // 49: goqueue.v1.WorkflowService.GetExecution:output_type -> goqueue.v1.ExecutionStateMsg
+	43, // 50: goqueue.v1.WorkflowService.GetExecutionHistory:output_type -> goqueue.v1.ExecutionHistoryResponse
+	46, // 51: goqueue.v1.WorkflowService.ListExecutions:output_type -> goqueue.v1.ListExecutionsResponse
+	31, // [31:52] is the sub-list for method output_type
+	10, // [10:31] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_goqueue_proto_init() }
@@ -3139,7 +3478,7 @@ func file_goqueue_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_goqueue_proto_rawDesc), len(file_goqueue_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   43,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   4,
 		},

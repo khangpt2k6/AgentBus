@@ -664,6 +664,8 @@ var ControlPlane_ServiceDesc = grpc.ServiceDesc{
 const (
 	WorkflowService_SubmitWorkflow_FullMethodName      = "/goqueue.v1.WorkflowService/SubmitWorkflow"
 	WorkflowService_LeaseTask_FullMethodName           = "/goqueue.v1.WorkflowService/LeaseTask"
+	WorkflowService_SubmitWorkflows_FullMethodName     = "/goqueue.v1.WorkflowService/SubmitWorkflows"
+	WorkflowService_CompleteTasks_FullMethodName       = "/goqueue.v1.WorkflowService/CompleteTasks"
 	WorkflowService_HeartbeatTask_FullMethodName       = "/goqueue.v1.WorkflowService/HeartbeatTask"
 	WorkflowService_CompleteTask_FullMethodName        = "/goqueue.v1.WorkflowService/CompleteTask"
 	WorkflowService_FailTask_FullMethodName            = "/goqueue.v1.WorkflowService/FailTask"
@@ -684,8 +686,17 @@ type WorkflowServiceClient interface {
 	// LeaseTask hands the oldest pending execution of the given task type to a
 	// worker. The lease is recorded on the log before the worker sees it. When
 	// no work is pending the call long-polls up to wait_ms, then returns
-	// found = false.
+	// found = false. Set max_tasks > 1 to lease a batch in one round trip;
+	// every lease is still an individual durable log event.
 	LeaseTask(ctx context.Context, in *LeaseTaskRequest, opts ...grpc.CallOption) (*LeaseTaskResponse, error)
+	// SubmitWorkflows durably enqueues a batch of executions in one round
+	// trip, amortizing RPC overhead for high-rate producers. Each submit is
+	// an individual durable log event. In cluster mode every execution in
+	// the batch must route to this node.
+	SubmitWorkflows(ctx context.Context, in *SubmitWorkflowsRequest, opts ...grpc.CallOption) (*SubmitWorkflowsResponse, error)
+	// CompleteTasks records a batch of completions in one round trip; each
+	// completion passes the same exactly-once gate as CompleteTask.
+	CompleteTasks(ctx context.Context, in *CompleteTasksRequest, opts ...grpc.CallOption) (*CompleteTasksResponse, error)
 	// HeartbeatTask extends a running lease. valid = false tells the worker its
 	// lease is gone (expired or superseded) and it should abandon the attempt.
 	HeartbeatTask(ctx context.Context, in *HeartbeatTaskRequest, opts ...grpc.CallOption) (*HeartbeatTaskResponse, error)
@@ -731,6 +742,26 @@ func (c *workflowServiceClient) LeaseTask(ctx context.Context, in *LeaseTaskRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LeaseTaskResponse)
 	err := c.cc.Invoke(ctx, WorkflowService_LeaseTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) SubmitWorkflows(ctx context.Context, in *SubmitWorkflowsRequest, opts ...grpc.CallOption) (*SubmitWorkflowsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitWorkflowsResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_SubmitWorkflows_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) CompleteTasks(ctx context.Context, in *CompleteTasksRequest, opts ...grpc.CallOption) (*CompleteTasksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteTasksResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_CompleteTasks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -809,8 +840,17 @@ type WorkflowServiceServer interface {
 	// LeaseTask hands the oldest pending execution of the given task type to a
 	// worker. The lease is recorded on the log before the worker sees it. When
 	// no work is pending the call long-polls up to wait_ms, then returns
-	// found = false.
+	// found = false. Set max_tasks > 1 to lease a batch in one round trip;
+	// every lease is still an individual durable log event.
 	LeaseTask(context.Context, *LeaseTaskRequest) (*LeaseTaskResponse, error)
+	// SubmitWorkflows durably enqueues a batch of executions in one round
+	// trip, amortizing RPC overhead for high-rate producers. Each submit is
+	// an individual durable log event. In cluster mode every execution in
+	// the batch must route to this node.
+	SubmitWorkflows(context.Context, *SubmitWorkflowsRequest) (*SubmitWorkflowsResponse, error)
+	// CompleteTasks records a batch of completions in one round trip; each
+	// completion passes the same exactly-once gate as CompleteTask.
+	CompleteTasks(context.Context, *CompleteTasksRequest) (*CompleteTasksResponse, error)
 	// HeartbeatTask extends a running lease. valid = false tells the worker its
 	// lease is gone (expired or superseded) and it should abandon the attempt.
 	HeartbeatTask(context.Context, *HeartbeatTaskRequest) (*HeartbeatTaskResponse, error)
@@ -847,6 +887,12 @@ func (UnimplementedWorkflowServiceServer) SubmitWorkflow(context.Context, *Submi
 }
 func (UnimplementedWorkflowServiceServer) LeaseTask(context.Context, *LeaseTaskRequest) (*LeaseTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LeaseTask not implemented")
+}
+func (UnimplementedWorkflowServiceServer) SubmitWorkflows(context.Context, *SubmitWorkflowsRequest) (*SubmitWorkflowsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitWorkflows not implemented")
+}
+func (UnimplementedWorkflowServiceServer) CompleteTasks(context.Context, *CompleteTasksRequest) (*CompleteTasksResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteTasks not implemented")
 }
 func (UnimplementedWorkflowServiceServer) HeartbeatTask(context.Context, *HeartbeatTaskRequest) (*HeartbeatTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HeartbeatTask not implemented")
@@ -919,6 +965,42 @@ func _WorkflowService_LeaseTask_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkflowServiceServer).LeaseTask(ctx, req.(*LeaseTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_SubmitWorkflows_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitWorkflowsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).SubmitWorkflows(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_SubmitWorkflows_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).SubmitWorkflows(ctx, req.(*SubmitWorkflowsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_CompleteTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteTasksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).CompleteTasks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_CompleteTasks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).CompleteTasks(ctx, req.(*CompleteTasksRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1045,6 +1127,14 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LeaseTask",
 			Handler:    _WorkflowService_LeaseTask_Handler,
+		},
+		{
+			MethodName: "SubmitWorkflows",
+			Handler:    _WorkflowService_SubmitWorkflows_Handler,
+		},
+		{
+			MethodName: "CompleteTasks",
+			Handler:    _WorkflowService_CompleteTasks_Handler,
 		},
 		{
 			MethodName: "HeartbeatTask",

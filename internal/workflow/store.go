@@ -15,18 +15,30 @@ import (
 type Store struct {
 	mu     sync.Mutex
 	execs  map[string]*Execution
-	queues map[string][]string          // task type -> FIFO of execution keys (lazily compacted)
-	queued map[string]bool              // execution key -> currently enqueued
-	wake   map[string]chan struct{}     // task type -> closed-and-replaced on new work
+	queues map[string][]string      // task type -> FIFO of execution keys (lazily compacted)
+	queued map[string]bool          // execution key -> currently enqueued
+	wake   map[string]chan struct{} // task type -> closed-and-replaced on new work
+
+	// Incremental indexes so the hot paths never scan the whole map:
+	// counts backs the gauges, running bounds the expiry sweep to
+	// in-flight executions, and terminalQ retires old terminal entries
+	// when retainTerminal is set (the log remains the source of truth;
+	// this only bounds the in-memory index).
+	counts         map[Status]int
+	running        map[string]struct{}
+	terminalQ      []string
+	retainTerminal int // 0 = keep every terminal execution in memory
 }
 
 // NewStore returns an empty store.
 func NewStore() *Store {
 	return &Store{
-		execs:  make(map[string]*Execution),
-		queues: make(map[string][]string),
-		queued: make(map[string]bool),
-		wake:   make(map[string]chan struct{}),
+		execs:   make(map[string]*Execution),
+		queues:  make(map[string][]string),
+		queued:  make(map[string]bool),
+		wake:    make(map[string]chan struct{}),
+		counts:  make(map[Status]int),
+		running: make(map[string]struct{}),
 	}
 }
 
@@ -50,17 +62,53 @@ func (s *Store) Apply(e agentstream.Event) bool {
 			return false
 		}
 		s.execs[key] = nx
+		s.counts[nx.Status]++
 		s.reconcileQueueLocked(key, nx)
 		return true
 	}
 	if !ok {
 		return false
 	}
+	prev := x.Status
 	changed := x.apply(e)
 	if changed {
+		if x.Status != prev {
+			s.counts[prev]--
+			s.counts[x.Status]++
+			if prev == StatusRunning {
+				delete(s.running, key)
+			}
+			if x.Status == StatusRunning {
+				s.running[key] = struct{}{}
+			}
+			if x.Terminal() {
+				s.terminalQ = append(s.terminalQ, key)
+				s.evictTerminalLocked()
+			}
+		}
 		s.reconcileQueueLocked(key, x)
 	}
 	return changed
+}
+
+// evictTerminalLocked retires the oldest terminal executions beyond the
+// retention cap. Their full history stays on the log; only the in-memory
+// index forgets them.
+func (s *Store) evictTerminalLocked() {
+	if s.retainTerminal <= 0 {
+		return
+	}
+	for len(s.terminalQ) > s.retainTerminal {
+		key := s.terminalQ[0]
+		s.terminalQ = s.terminalQ[1:]
+		x, ok := s.execs[key]
+		if !ok || !x.Terminal() {
+			continue
+		}
+		s.counts[x.Status]--
+		delete(s.execs, key)
+		delete(s.queued, key)
+	}
 }
 
 // reconcileQueueLocked keeps the pending queue consistent with the folded
@@ -171,12 +219,18 @@ func (s *Store) AbortComplete(tenant, project, workflowID string) {
 
 // ExpiredLeases returns copies of running executions whose lease deadline
 // passed. The expiry sweep - unlike the fold - is allowed to consult the
-// wall clock, because it initiates new events rather than replaying old ones.
+// wall clock, because it initiates new events rather than replaying old
+// ones. Bounded by the running index, not the store size.
 func (s *Store) ExpiredLeases(now time.Time) []Execution {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []Execution
-	for _, x := range s.execs {
+	for key := range s.running {
+		x, ok := s.execs[key]
+		if !ok {
+			delete(s.running, key)
+			continue
+		}
 		if x.Status == StatusRunning && !x.reserved && !x.completing && x.LeaseDeadline.Before(now) {
 			out = append(out, snapshot(x))
 		}
@@ -184,20 +238,39 @@ func (s *Store) ExpiredLeases(now time.Time) []Execution {
 	return out
 }
 
+// CountByStatus returns execution counts by status, maintained
+// incrementally so it is O(1) regardless of store size.
+func (s *Store) CountByStatus() map[Status]int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[Status]int, len(s.counts))
+	for st, n := range s.counts {
+		if n != 0 {
+			out[st] = n
+		}
+	}
+	return out
+}
+
 // List returns execution snapshots (optionally filtered by status, capped
-// at limit) plus counts by status over the whole store.
+// at limit) plus counts by status over the whole store. Only up to limit
+// executions are copied.
 func (s *Store) List(status Status, limit int) ([]Execution, map[Status]int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	counts := make(map[Status]int)
+	counts := make(map[Status]int, len(s.counts))
+	for st, n := range s.counts {
+		if n != 0 {
+			counts[st] = n
+		}
+	}
 	var out []Execution
 	for _, x := range s.execs {
-		counts[x.Status]++
 		if status != "" && x.Status != status {
 			continue
 		}
 		if limit > 0 && len(out) >= limit {
-			continue
+			break
 		}
 		out = append(out, snapshot(x))
 	}

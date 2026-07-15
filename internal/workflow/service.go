@@ -77,26 +77,86 @@ func (s *Service) LeaseTask(ctx context.Context, req *goqueuev1.LeaseTaskRequest
 	if req.TaskType == "" || req.WorkerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "task_type and worker_id are required")
 	}
-	lease, err := s.coord.Lease(ctx, req.TaskType, req.WorkerId, time.Duration(req.WaitMs)*time.Millisecond)
+	max := int(req.MaxTasks)
+	if max <= 0 {
+		max = 1
+	}
+	if max > 256 {
+		max = 256
+	}
+	leases, err := s.coord.LeaseBatch(ctx, req.TaskType, req.WorkerId, max, time.Duration(req.WaitMs)*time.Millisecond)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, status.FromContextError(ctx.Err()).Err()
 		}
 		return nil, status.Errorf(codes.Internal, "lease failed: %v", err)
 	}
-	if lease == nil {
+	if len(leases) == 0 {
 		return &goqueuev1.LeaseTaskResponse{Found: false}, nil
 	}
-	return &goqueuev1.LeaseTaskResponse{
-		Found:                   true,
-		Tenant:                  lease.Tenant,
-		Project:                 lease.Project,
-		WorkflowId:              lease.WorkflowID,
-		TaskType:                lease.TaskType,
-		Input:                   lease.Input,
-		Attempt:                 int32(lease.Attempt),
-		LeaseDeadlineUnixNano:   lease.LeaseDeadline.UnixNano(),
-	}, nil
+	resp := &goqueuev1.LeaseTaskResponse{
+		Found:                 true,
+		Tenant:                leases[0].Tenant,
+		Project:               leases[0].Project,
+		WorkflowId:            leases[0].WorkflowID,
+		TaskType:              leases[0].TaskType,
+		Input:                 leases[0].Input,
+		Attempt:               int32(leases[0].Attempt),
+		LeaseDeadlineUnixNano: leases[0].LeaseDeadline.UnixNano(),
+	}
+	if req.MaxTasks > 1 {
+		resp.Tasks = make([]*goqueuev1.LeasedTaskMsg, 0, len(leases))
+		for _, l := range leases {
+			resp.Tasks = append(resp.Tasks, &goqueuev1.LeasedTaskMsg{
+				Tenant:                l.Tenant,
+				Project:               l.Project,
+				WorkflowId:            l.WorkflowID,
+				TaskType:              l.TaskType,
+				Input:                 l.Input,
+				Attempt:               int32(l.Attempt),
+				LeaseDeadlineUnixNano: l.LeaseDeadline.UnixNano(),
+			})
+		}
+	}
+	return resp, nil
+}
+
+func (s *Service) SubmitWorkflows(ctx context.Context, req *goqueuev1.SubmitWorkflowsRequest) (*goqueuev1.SubmitWorkflowsResponse, error) {
+	if len(req.Requests) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "requests must not be empty")
+	}
+	resp := &goqueuev1.SubmitWorkflowsResponse{}
+	for _, r := range req.Requests {
+		one, err := s.SubmitWorkflow(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		if one.AlreadyExists {
+			resp.AlreadyExists++
+		} else {
+			resp.Accepted++
+		}
+	}
+	return resp, nil
+}
+
+func (s *Service) CompleteTasks(ctx context.Context, req *goqueuev1.CompleteTasksRequest) (*goqueuev1.CompleteTasksResponse, error) {
+	if len(req.Requests) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "requests must not be empty")
+	}
+	resp := &goqueuev1.CompleteTasksResponse{}
+	for _, r := range req.Requests {
+		one, err := s.CompleteTask(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		if one.Accepted {
+			resp.Accepted++
+		} else {
+			resp.Rejected++
+		}
+	}
+	return resp, nil
 }
 
 func (s *Service) HeartbeatTask(ctx context.Context, req *goqueuev1.HeartbeatTaskRequest) (*goqueuev1.HeartbeatTaskResponse, error) {

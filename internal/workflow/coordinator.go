@@ -84,6 +84,18 @@ func WithSweepInterval(d time.Duration) Option {
 	}
 }
 
+// WithTerminalRetention bounds how many completed/failed executions stay
+// in the in-memory index; the oldest are retired first. Their events
+// remain on the log, so history is never lost - this only caps memory
+// under sustained high completion rates. 0 (the default) keeps all.
+func WithTerminalRetention(n int) Option {
+	return func(c *Coordinator) {
+		if n > 0 {
+			c.store.retainTerminal = n
+		}
+	}
+}
+
 // withClock overrides the wall clock, for tests.
 func withClock(now func() time.Time) Option {
 	return func(c *Coordinator) { c.now = now }
@@ -181,53 +193,88 @@ type Lease struct {
 // recording the lease on the log before the worker sees it. When nothing
 // is pending it blocks up to wait (capped at 30s), then returns (nil, nil).
 func (c *Coordinator) Lease(ctx context.Context, taskType, workerID string, wait time.Duration) (*Lease, error) {
+	leases, err := c.LeaseBatch(ctx, taskType, workerID, 1, wait)
+	if err != nil || len(leases) == 0 {
+		return nil, err
+	}
+	return leases[0], nil
+}
+
+// LeaseBatch grants up to max pending executions of taskType to workerID
+// in one call, amortizing per-call overhead for high-throughput workers.
+// Each grant is still an individual durable log event. Blocks up to wait
+// only while it has granted nothing; once at least one lease is held it
+// returns immediately with what is available.
+func (c *Coordinator) LeaseBatch(ctx context.Context, taskType, workerID string, max int, wait time.Duration) ([]*Lease, error) {
+	if max <= 0 {
+		max = 1
+	}
 	if wait > maxLeaseWait {
 		wait = maxLeaseWait
 	}
 	deadline := c.now().Add(wait)
-	for {
+	var out []*Lease
+	for len(out) < max {
 		x := c.store.ReserveNext(taskType)
-		if x != nil {
-			attempt := x.Attempt + 1
-			env, err := newEnvelope(EventLeased, x.Tenant, x.Project, x.WorkflowID,
-				workerID, attempt, LeasePayload{WorkerID: workerID}, c.now())
-			if err == nil {
-				err = c.append(ctx, env)
+		if x == nil {
+			if len(out) > 0 {
+				return out, nil
 			}
-			if err != nil {
-				c.store.Unreserve(x)
-				return nil, err
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				return nil, nil
 			}
-			if c.metrics != nil {
-				c.metrics.IncWorkflowLeaseGranted()
+			wakeCh := c.store.WaitChan(taskType)
+			timer := time.NewTimer(remaining)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+				return nil, nil
+			case <-wakeCh:
+				timer.Stop()
 			}
-			granted, _ := c.store.Get(x.Tenant, x.Project, x.WorkflowID)
-			return &Lease{
-				Tenant:        x.Tenant,
-				Project:       x.Project,
-				WorkflowID:    x.WorkflowID,
-				TaskType:      x.TaskType,
-				Input:         x.Input,
-				Attempt:       attempt,
-				LeaseDeadline: granted.LeaseDeadline,
-			}, nil
+			continue
 		}
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return nil, nil
+		lease, err := c.grant(ctx, x, workerID)
+		if err != nil {
+			c.store.Unreserve(x)
+			if len(out) > 0 {
+				return out, nil // hand back what was already durably granted
+			}
+			return nil, err
 		}
-		wakeCh := c.store.WaitChan(taskType)
-		timer := time.NewTimer(remaining)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
-			return nil, nil
-		case <-wakeCh:
-			timer.Stop()
-		}
+		out = append(out, lease)
 	}
+	return out, nil
+}
+
+// grant appends the wf.leased event for a reserved execution and builds
+// the worker-facing lease.
+func (c *Coordinator) grant(ctx context.Context, x *Execution, workerID string) (*Lease, error) {
+	attempt := x.Attempt + 1
+	env, err := newEnvelope(EventLeased, x.Tenant, x.Project, x.WorkflowID,
+		workerID, attempt, LeasePayload{WorkerID: workerID}, c.now())
+	if err == nil {
+		err = c.append(ctx, env)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if c.metrics != nil {
+		c.metrics.IncWorkflowLeaseGranted()
+	}
+	granted, _ := c.store.Get(x.Tenant, x.Project, x.WorkflowID)
+	return &Lease{
+		Tenant:        x.Tenant,
+		Project:       x.Project,
+		WorkflowID:    x.WorkflowID,
+		TaskType:      x.TaskType,
+		Input:         x.Input,
+		Attempt:       attempt,
+		LeaseDeadline: granted.LeaseDeadline,
+	}, nil
 }
 
 // Heartbeat extends a running lease. It returns the new deadline, or
@@ -365,11 +412,12 @@ func (c *Coordinator) Stop() {
 }
 
 // PublishGauges pushes execution counts by status to the metrics sink.
+// Uses the incremental counters, so it is O(1) regardless of store size.
 func (c *Coordinator) PublishGauges() {
 	if c.metrics == nil {
 		return
 	}
-	_, counts := c.store.List("", 0)
+	counts := c.store.CountByStatus()
 	for _, st := range []Status{StatusPending, StatusRunning, StatusRetrying, StatusCompleted, StatusFailed} {
 		c.metrics.SetWorkflowExecutions(string(st), counts[st])
 	}

@@ -64,6 +64,7 @@ func main() {
 	workflowEnabled := flag.Bool("workflow", true, "enable the durable workflow execution runtime (submit/lease/heartbeat/retry over the log)")
 	wfMaxAttempts := flag.Int("wf-max-attempts", workflow.DefaultMaxAttempts, "workflow: default maximum lease attempts per execution")
 	wfLeaseTTL := flag.Duration("wf-lease-ttl", workflow.DefaultLeaseTTL, "workflow: default lease duration before an unacknowledged task is re-enqueued")
+	wfRetainTerminal := flag.Int("wf-retain-terminal", 200000, "workflow: max completed/failed executions kept in the in-memory index (0 = unlimited; history stays on the log)")
 	flag.Parse()
 	if *agentRateLimit > 0 && *agentRateBurst <= 0 {
 		*agentRateBurst = *agentRateLimit
@@ -493,6 +494,7 @@ func main() {
 		wfCoord = workflow.NewCoordinator(gApi,
 			workflow.WithMetrics(m),
 			workflow.WithDefaults(*wfMaxAttempts, *wfLeaseTTL),
+			workflow.WithTerminalRetention(*wfRetainTerminal),
 		)
 		var wfRoute workflow.RouteChecker
 		if cl != nil {

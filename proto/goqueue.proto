@@ -239,8 +239,19 @@ service WorkflowService {
   // LeaseTask hands the oldest pending execution of the given task type to a
   // worker. The lease is recorded on the log before the worker sees it. When
   // no work is pending the call long-polls up to wait_ms, then returns
-  // found = false.
+  // found = false. Set max_tasks > 1 to lease a batch in one round trip;
+  // every lease is still an individual durable log event.
   rpc LeaseTask(LeaseTaskRequest) returns (LeaseTaskResponse);
+
+  // SubmitWorkflows durably enqueues a batch of executions in one round
+  // trip, amortizing RPC overhead for high-rate producers. Each submit is
+  // an individual durable log event. In cluster mode every execution in
+  // the batch must route to this node.
+  rpc SubmitWorkflows(SubmitWorkflowsRequest) returns (SubmitWorkflowsResponse);
+
+  // CompleteTasks records a batch of completions in one round trip; each
+  // completion passes the same exactly-once gate as CompleteTask.
+  rpc CompleteTasks(CompleteTasksRequest) returns (CompleteTasksResponse);
 
   // HeartbeatTask extends a running lease. valid = false tells the worker its
   // lease is gone (expired or superseded) and it should abandon the attempt.
@@ -298,6 +309,9 @@ message LeaseTaskRequest {
   // How long the server may hold this call waiting for work, in
   // milliseconds. 0 returns immediately. Server caps at 30000.
   int64  wait_ms   = 3;
+  // Maximum tasks to lease in this call. 0 or 1 leases a single task
+  // (fields below); >1 returns up to that many in tasks. Server caps at 256.
+  int32  max_tasks = 4;
 }
 
 message LeaseTaskResponse {
@@ -311,6 +325,37 @@ message LeaseTaskResponse {
   // complete, and fail calls - it is the fencing token.
   int32  attempt     = 7;
   int64  lease_deadline_unix_nano = 8;
+  // Batch results when max_tasks > 1. The single fields above mirror
+  // tasks[0] for backward compatibility.
+  repeated LeasedTaskMsg tasks = 9;
+}
+
+message LeasedTaskMsg {
+  string tenant      = 1;
+  string project     = 2;
+  string workflow_id = 3;
+  string task_type   = 4;
+  bytes  input       = 5;
+  int32  attempt     = 6;
+  int64  lease_deadline_unix_nano = 7;
+}
+
+message SubmitWorkflowsRequest {
+  repeated SubmitWorkflowRequest requests = 1;
+}
+
+message SubmitWorkflowsResponse {
+  int32 accepted       = 1;
+  int32 already_exists = 2;
+}
+
+message CompleteTasksRequest {
+  repeated CompleteTaskRequest requests = 1;
+}
+
+message CompleteTasksResponse {
+  int32 accepted = 1;
+  int32 rejected = 2;
 }
 
 message HeartbeatTaskRequest {
