@@ -19,6 +19,7 @@ import (
 type Client struct {
 	conn *grpc.ClientConn
 	api  pb.BrokerServiceClient
+	wf   pb.WorkflowServiceClient
 }
 
 type config struct {
@@ -76,6 +77,7 @@ func Connect(ctx context.Context, addr string, opts ...Option) (*Client, error) 
 	return &Client{
 		conn: conn,
 		api:  pb.NewBrokerServiceClient(conn),
+		wf:   pb.NewWorkflowServiceClient(conn),
 	}, nil
 }
 
