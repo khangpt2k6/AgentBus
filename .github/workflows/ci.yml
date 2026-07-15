@@ -33,12 +33,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
+          # check-latest keeps the runner off stale patch releases; govulncheck
+          # fails the build on stdlib vulns already fixed in the newest patch.
+          check-latest: true
           cache: true
 
       - name: Setup Buf
@@ -112,7 +115,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: actionlint
         uses: docker://rhysd/actionlint:1.7.7
@@ -125,12 +128,15 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_benchmarks == 'true')
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
+          # check-latest keeps the runner off stale patch releases; govulncheck
+          # fails the build on stdlib vulns already fixed in the newest patch.
+          check-latest: true
           cache: true
 
       - name: Run benchmark reports
