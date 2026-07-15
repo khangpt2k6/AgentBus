@@ -17,8 +17,8 @@ services:
     command:
       - --cluster
       - --node-id=n1
-      - --raft-bind=0.0.0.0:7001
-      - --gossip-bind=0.0.0.0:8001
+      - --raft-bind=n1:7001
+      - --gossip-bind=n1:8001
       - --raft-dir=/data/raft
       - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
       - --tcp-addr=:9090
@@ -42,8 +42,8 @@ services:
     command:
       - --cluster
       - --node-id=n2
-      - --raft-bind=0.0.0.0:7001
-      - --gossip-bind=0.0.0.0:8001
+      - --raft-bind=n2:7001
+      - --gossip-bind=n2:8001
       - --raft-dir=/data/raft
       - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
       - --tcp-addr=:9090
@@ -67,8 +67,8 @@ services:
     command:
       - --cluster
       - --node-id=n3
-      - --raft-bind=0.0.0.0:7001
-      - --gossip-bind=0.0.0.0:8001
+      - --raft-bind=n3:7001
+      - --gossip-bind=n3:8001
       - --raft-dir=/data/raft
       - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
       - --tcp-addr=:9090

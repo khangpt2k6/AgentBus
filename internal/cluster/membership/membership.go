@@ -68,8 +68,26 @@ func Start(cfg Config) (*Membership, error) {
 	mc.Name = cfg.NodeID
 	mc.BindAddr = host
 	mc.BindPort = port
-	mc.AdvertiseAddr = host
 	mc.AdvertisePort = port
+
+	// memberlist requires the advertise address to be a literal IP, not a
+	// hostname. raft tolerates a name (it resolves on dial), but gossip does
+	// not, so a docker service name like "n1" (or any DNS name) must be
+	// resolved here. For an empty or wildcard host, leave AdvertiseAddr unset
+	// so memberlist auto-detects the outbound IP.
+	switch {
+	case host == "" || host == "0.0.0.0" || host == "::":
+		mc.AdvertiseAddr = ""
+	case net.ParseIP(host) != nil:
+		mc.AdvertiseAddr = host
+	default:
+		addrs, lerr := net.LookupHost(host)
+		if lerr != nil || len(addrs) == 0 {
+			return nil, fmt.Errorf("GossipBind host %q: resolve: %w", host, lerr)
+		}
+		mc.AdvertiseAddr = addrs[0]
+		mc.BindAddr = addrs[0]
+	}
 	mc.LogOutput = io.Discard // suppress library chatter; callers use Events() instead
 
 	m := &Membership{
