@@ -10,7 +10,7 @@
 <br />
 
 <a href="https://github.com/khangpt2k6/AgentBus/releases">
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=3200&pause=900&color=6E48AA&center=true&vCenter=true&width=760&lines=Raft-replicated%2C+zero-data-loss+failover;Group-commit+WAL+%E2%80%94+34x+append+throughput;Session-ordered+agent+event+streams;Prometheus+%2B+OpenTelemetry+built-in" alt="Typing tagline" />
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=3200&pause=900&color=6E48AA&center=true&vCenter=true&width=760&lines=Raft-replicated%2C+zero-data-loss+failover;Durable+workflow+execution+on+the+log;Group-commit+WAL+-+34x+append+throughput;Session-ordered+agent+event+streams;Prometheus+%2B+OpenTelemetry+built-in" alt="Typing tagline" />
 </a>
 
 <p>
@@ -32,7 +32,7 @@
 
 </div>
 
-A **distributed message broker written from scratch in Go**, specialized for AI-agent event streams. It routes each `tenant/project/session` to a stable partition for in-order streaming, persists every write to a crash-safe WAL, and runs as a Raft-replicated cluster with automatic failover - all from a single binary, no Kafka-scale ops.
+A **distributed message broker and workflow execution runtime written from scratch in Go**, specialized for AI-agent event streams. It routes each `tenant/project/session` to a stable partition for in-order streaming, persists every write to a crash-safe WAL, runs as a Raft-replicated cluster with automatic failover, and schedules durable task execution (lease, heartbeat, retry, exactly-once completion) on top of the same log - all from a single binary, no Kafka-scale ops.
 
 > Not a Kafka replacement. Focused on AI-native streaming where ordering, replay, and low operational overhead matter.
 
@@ -45,6 +45,7 @@ A **distributed message broker written from scratch in Go**, specialized for AI-
 | | |
 |---|---|
 | **Raft consensus** | 3-node cluster, leader election, automatic failover. Killing any non-leader loses **zero messages** under quorum acks - verified by a kill-the-leader test. |
+| **Durable workflow execution** | Submit / lease / heartbeat / retry / exactly-once completion, event-sourced on the replicated log. State is a pure fold over events, so crash recovery and debugging replay are **deterministic** - a restarted broker rebuilds byte-identical execution state. Sustains **2K+ concurrent executions and 45K+ workflow events/sec** under k6 (see benchmarks). |
 | **Group-commit WAL** | Append-only durability with full replay on restart. Group-commit fsync gives a **34× append-throughput** gain. |
 | **Distributed internals** | Gossip membership (SWIM), consistent-hash session routing, replication with per-follower cursors and idempotent catch-up. |
 | **Dual API** | gRPC + raw TCP wire protocols (plus a CLI). Transparent `NOT_LEADER` redirect follow in the SDK. |
@@ -61,6 +62,7 @@ A **distributed message broker written from scratch in Go**, specialized for AI-
 | **Session Router** | Picks a partition per `tenant/project/session` to keep ordering stable |
 | **Partitioned Topics** | Append-only ring buffers with offset + eviction tracking |
 | **Retry + DLQ** | Broker-native policy that auto-routes events past max-attempts |
+| **Workflow runtime** | Coordinator that leases tasks to workers (FIFO per task type, batched RPCs), sweeps expired leases into retries, and fences stale completions by attempt number; every transition is a durable log event |
 | **WAL** | Append-only durability with group-commit fsync and full replay |
 | **Cluster** | Raft metadata consensus, SWIM gossip membership, consistent-hash sharding, quorum replication |
 | **Observability** | Prometheus counters + OpenTelemetry traces via Grafana / Tempo |
@@ -79,6 +81,11 @@ broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/a
 # Publish + consume
 goqueue publish --grpc --addr localhost:9095 --topic orders "hello"
 goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service --partition -1
+
+# Durable workflow execution
+goqueue workflow submit --tenant acme --project etl --id job-1 --task-type transform --input '{"rows":100}'
+goqueue workflow status --tenant acme --project etl --id job-1
+goqueue workflow history --tenant acme --project etl --id job-1   # deterministic replay of state transitions
 ```
 
 Docker, Helm, the Go SDK, cluster mode, and session replay are all covered in the docs:
@@ -101,6 +108,23 @@ Reproducible from [bench/](bench/) - local developer machine, 256 B payload:
 
 ```bash
 GOQUEUE_BENCH=1 go test ./bench -run TestThroughputReport -count=1 -v
+```
+
+**Workflow runtime under k6** - reproducible from [load/](load/), single broker, WAL fsync interval 250ms, k6 and broker sharing one laptop (Ryzen AI 7 350). Every submit / lease / heartbeat / complete / retry is an individual durable log event; rates measured server-side from `goqueue_wf_events_total`:
+
+| Metric | Measured |
+|---|---:|
+| Workflow events/sec, best 60s window | **50.8K** |
+| Workflow events/sec, avg over 134s run | **44.8K** |
+| Peak 10s window | **53.7K** |
+| Long-running executions held concurrently (leased + heartbeating, full run) | **2,500** |
+| Peak concurrently running executions | **38.5K** |
+| Peak in-flight tracked executions | **60.7K** |
+
+```bash
+# broker running locally, then:
+k6 run -e BATCH=32 -e SUBMIT_RATE=520 -e WORKER_VUS=288 -e HOLD_COUNT=2500 load/k6/workflow_load.js
+go run ./load/metricsampler   # server-side rates while it runs
 ```
 
 > Local benchmark evidence, not production SLA claims.
