@@ -218,3 +218,205 @@ message AgentMsg {
 message AgentListResponse {
   repeated AgentMsg agents = 1;
 }
+
+// ---- Workflow execution runtime -------------------------------------------
+//
+// A durable task-execution layer on top of the event log. Every state
+// transition of an execution (submitted, leased, heartbeat, completed,
+// failed, retry, dead) is an event appended through the same durable
+// publish path as agent events: main WAL in single-node mode, shard WAL
+// plus quorum replication in cluster mode. Execution state is a pure fold
+// over those events, so it can be rebuilt deterministically from the log
+// after a crash, a restart, or a leader failover.
+
+service WorkflowService {
+  // SubmitWorkflow durably enqueues a new workflow execution. Submitting an
+  // id that already exists is an idempotent no-op (already_exists = true).
+  // In cluster mode, returns FailedPrecondition with a NotLeaderError detail
+  // when this node does not own the execution's shard.
+  rpc SubmitWorkflow(SubmitWorkflowRequest) returns (SubmitWorkflowResponse);
+
+  // LeaseTask hands the oldest pending execution of the given task type to a
+  // worker. The lease is recorded on the log before the worker sees it. When
+  // no work is pending the call long-polls up to wait_ms, then returns
+  // found = false.
+  rpc LeaseTask(LeaseTaskRequest) returns (LeaseTaskResponse);
+
+  // HeartbeatTask extends a running lease. valid = false tells the worker its
+  // lease is gone (expired or superseded) and it should abandon the attempt.
+  rpc HeartbeatTask(HeartbeatTaskRequest) returns (HeartbeatTaskResponse);
+
+  // CompleteTask records a successful result exactly once. A completion for
+  // a stale attempt or an already-terminal execution is rejected with
+  // accepted = false (and duplicate = true when the execution already
+  // completed), so a zombie worker whose lease expired cannot double-commit.
+  rpc CompleteTask(CompleteTaskRequest) returns (CompleteTaskResponse);
+
+  // FailTask records a failed attempt. Retryable failures re-enqueue the
+  // execution until max_attempts is exhausted; the response says whether a
+  // retry was scheduled.
+  rpc FailTask(FailTaskRequest) returns (FailTaskResponse);
+
+  // GetExecution returns the current state of one execution.
+  rpc GetExecution(GetExecutionRequest) returns (ExecutionStateMsg);
+
+  // GetExecutionHistory returns the ordered state transitions of one
+  // execution as rebuilt from the event log - the deterministic replay
+  // surface used for debugging.
+  rpc GetExecutionHistory(GetExecutionRequest) returns (ExecutionHistoryResponse);
+
+  // ListExecutions returns execution summaries, optionally filtered by
+  // status, plus in-flight counts.
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+}
+
+message SubmitWorkflowRequest {
+  string tenant      = 1;
+  string project     = 2;
+  // Unique id of this execution within (tenant, project). Doubles as the
+  // session id on the log, so executions shard exactly like sessions.
+  string workflow_id = 3;
+  // Task type names the worker queue that will execute this workflow.
+  string task_type   = 4;
+  bytes  input       = 5;
+  // Maximum lease attempts before the execution is declared dead. 0 means
+  // the server default (3).
+  int32  max_attempts = 6;
+  // Lease duration in milliseconds. A worker must complete, fail, or
+  // heartbeat within this window or the coordinator re-enqueues the
+  // execution. 0 means the server default (30000).
+  int64  lease_ttl_ms = 7;
+}
+
+message SubmitWorkflowResponse {
+  bool already_exists = 1;
+}
+
+message LeaseTaskRequest {
+  string task_type = 1;
+  string worker_id = 2;
+  // How long the server may hold this call waiting for work, in
+  // milliseconds. 0 returns immediately. Server caps at 30000.
+  int64  wait_ms   = 3;
+}
+
+message LeaseTaskResponse {
+  bool   found       = 1;
+  string tenant      = 2;
+  string project     = 3;
+  string workflow_id = 4;
+  string task_type   = 5;
+  bytes  input       = 6;
+  // Attempt number of this lease, 1-based. Echo it back on heartbeat,
+  // complete, and fail calls - it is the fencing token.
+  int32  attempt     = 7;
+  int64  lease_deadline_unix_nano = 8;
+}
+
+message HeartbeatTaskRequest {
+  string tenant      = 1;
+  string project     = 2;
+  string workflow_id = 3;
+  string worker_id   = 4;
+  int32  attempt     = 5;
+}
+
+message HeartbeatTaskResponse {
+  bool  valid = 1;
+  int64 lease_deadline_unix_nano = 2;
+}
+
+message CompleteTaskRequest {
+  string tenant      = 1;
+  string project     = 2;
+  string workflow_id = 3;
+  string worker_id   = 4;
+  int32  attempt     = 5;
+  bytes  result      = 6;
+}
+
+message CompleteTaskResponse {
+  bool accepted  = 1;
+  // duplicate is true when the execution had already completed - the caller
+  // can treat its work as done.
+  bool duplicate = 2;
+}
+
+message FailTaskRequest {
+  string tenant      = 1;
+  string project     = 2;
+  string workflow_id = 3;
+  string worker_id   = 4;
+  int32  attempt     = 5;
+  string error       = 6;
+  // retryable = false forces the execution dead regardless of remaining
+  // attempts.
+  bool   retryable   = 7;
+}
+
+message FailTaskResponse {
+  bool accepted   = 1;
+  bool will_retry = 2;
+}
+
+message GetExecutionRequest {
+  string tenant      = 1;
+  string project     = 2;
+  string workflow_id = 3;
+}
+
+message ExecutionStateMsg {
+  bool   found       = 1;
+  string tenant      = 2;
+  string project     = 3;
+  string workflow_id = 4;
+  string task_type   = 5;
+  string status      = 6; // pending | running | retrying | completed | failed
+  int32  attempt     = 7;
+  int32  max_attempts = 8;
+  string worker_id   = 9;
+  bytes  result      = 10;
+  string error       = 11;
+  int64  submitted_unix_nano = 12;
+  int64  updated_unix_nano   = 13;
+  int64  lease_deadline_unix_nano = 14;
+}
+
+// TransitionMsg is one step in an execution's rebuilt history.
+message TransitionMsg {
+  string event_type = 1; // wf.submitted | wf.leased | wf.heartbeat | ...
+  string status     = 2; // status after applying the event
+  int32  attempt    = 3;
+  string worker_id  = 4;
+  string detail     = 5;
+  int64  at_unix_nano = 6;
+}
+
+message ExecutionHistoryResponse {
+  bool found = 1;
+  repeated TransitionMsg transitions = 2;
+}
+
+message ListExecutionsRequest {
+  // Optional status filter: pending | running | retrying | completed | failed.
+  string status = 1;
+  // Maximum summaries to return. Server caps at 1000; counts are always
+  // over the full store.
+  int32  limit  = 2;
+}
+
+message ExecutionSummaryMsg {
+  string tenant      = 1;
+  string project     = 2;
+  string workflow_id = 3;
+  string task_type   = 4;
+  string status      = 5;
+  int32  attempt     = 6;
+  int64  updated_unix_nano = 7;
+}
+
+message ListExecutionsResponse {
+  repeated ExecutionSummaryMsg executions = 1;
+  // Counts by status over every tracked execution.
+  map<string, int64> counts = 2;
+}

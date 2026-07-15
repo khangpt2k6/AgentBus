@@ -28,6 +28,7 @@ import (
 	"github.com/khangpt2k6/AgentBus/internal/ratelimit"
 	"github.com/khangpt2k6/AgentBus/internal/telemetry"
 	"github.com/khangpt2k6/AgentBus/internal/wal"
+	"github.com/khangpt2k6/AgentBus/internal/workflow"
 	pb "github.com/khangpt2k6/AgentBus/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -60,6 +61,9 @@ func main() {
 	controlPlane := flag.Bool("control-plane", true, "enable the agent control-plane layer (registry, run-state, handoff routing)")
 	cpAgentTTL := flag.Duration("cp-agent-ttl", 30*time.Second, "control-plane: mark an agent offline after this much inactivity")
 	cpEscalationAgent := flag.String("cp-escalation-agent", "", "control-plane: agent id to auto-escalate a session to on terminal error (empty disables)")
+	workflowEnabled := flag.Bool("workflow", true, "enable the durable workflow execution runtime (submit/lease/heartbeat/retry over the log)")
+	wfMaxAttempts := flag.Int("wf-max-attempts", workflow.DefaultMaxAttempts, "workflow: default maximum lease attempts per execution")
+	wfLeaseTTL := flag.Duration("wf-lease-ttl", workflow.DefaultLeaseTTL, "workflow: default lease duration before an unacknowledged task is re-enqueued")
 	flag.Parse()
 	if *agentRateLimit > 0 && *agentRateBurst <= 0 {
 		*agentRateBurst = *agentRateLimit
@@ -477,6 +481,42 @@ func main() {
 		log.Printf("control plane enabled (agent ttl %s)", *cpAgentTTL)
 	}
 
+	// Durable workflow execution runtime: every task state transition is an
+	// event on the workflow-events topic, appended through the same durable
+	// path as agent events (WAL single-node, shard WAL + quorum in cluster
+	// mode). The coordinator grants leases, sweeps expired ones, and folds
+	// the log into execution state; the poller rebuilds that state from
+	// offset 0 on startup.
+	var wfCoord *workflow.Coordinator
+	var wfPoller *workflow.Poller
+	if *workflowEnabled {
+		wfCoord = workflow.NewCoordinator(gApi,
+			workflow.WithMetrics(m),
+			workflow.WithDefaults(*wfMaxAttempts, *wfLeaseTTL),
+		)
+		var wfRoute workflow.RouteChecker
+		if cl != nil {
+			wfRoute = routeAdapter{cl: cl}
+		}
+		workflow.RegisterService(grpcSrv, workflow.NewService(wfCoord, wfRoute))
+		wfPoller = workflow.NewPoller(b, wfCoord, workflow.Topic)
+		wfPoller.Start()
+		wfCoord.Start()
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					wfCoord.PublishGauges()
+				case <-rootCtx.Done():
+					return
+				}
+			}
+		}()
+		log.Printf("workflow runtime enabled (max attempts %d, lease ttl %s)", *wfMaxAttempts, *wfLeaseTTL)
+	}
+
 	tcpSrv = broker.NewTCPServer(*tcpAddr, b, logFile, groups, m)
 	ready.Store(true)
 
@@ -560,6 +600,12 @@ func main() {
 	tcpSrv.Shutdown()
 	if cpPoller != nil {
 		cpPoller.Stop()
+	}
+	if wfCoord != nil {
+		wfCoord.Stop()
+	}
+	if wfPoller != nil {
+		wfPoller.Stop()
 	}
 	if err := logFile.Close(); err != nil {
 		log.Printf("wal close error: %v", err)

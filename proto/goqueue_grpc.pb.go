@@ -660,3 +660,417 @@ var ControlPlane_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "goqueue.proto",
 }
+
+const (
+	WorkflowService_SubmitWorkflow_FullMethodName      = "/goqueue.v1.WorkflowService/SubmitWorkflow"
+	WorkflowService_LeaseTask_FullMethodName           = "/goqueue.v1.WorkflowService/LeaseTask"
+	WorkflowService_HeartbeatTask_FullMethodName       = "/goqueue.v1.WorkflowService/HeartbeatTask"
+	WorkflowService_CompleteTask_FullMethodName        = "/goqueue.v1.WorkflowService/CompleteTask"
+	WorkflowService_FailTask_FullMethodName            = "/goqueue.v1.WorkflowService/FailTask"
+	WorkflowService_GetExecution_FullMethodName        = "/goqueue.v1.WorkflowService/GetExecution"
+	WorkflowService_GetExecutionHistory_FullMethodName = "/goqueue.v1.WorkflowService/GetExecutionHistory"
+	WorkflowService_ListExecutions_FullMethodName      = "/goqueue.v1.WorkflowService/ListExecutions"
+)
+
+// WorkflowServiceClient is the client API for WorkflowService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type WorkflowServiceClient interface {
+	// SubmitWorkflow durably enqueues a new workflow execution. Submitting an
+	// id that already exists is an idempotent no-op (already_exists = true).
+	// In cluster mode, returns FailedPrecondition with a NotLeaderError detail
+	// when this node does not own the execution's shard.
+	SubmitWorkflow(ctx context.Context, in *SubmitWorkflowRequest, opts ...grpc.CallOption) (*SubmitWorkflowResponse, error)
+	// LeaseTask hands the oldest pending execution of the given task type to a
+	// worker. The lease is recorded on the log before the worker sees it. When
+	// no work is pending the call long-polls up to wait_ms, then returns
+	// found = false.
+	LeaseTask(ctx context.Context, in *LeaseTaskRequest, opts ...grpc.CallOption) (*LeaseTaskResponse, error)
+	// HeartbeatTask extends a running lease. valid = false tells the worker its
+	// lease is gone (expired or superseded) and it should abandon the attempt.
+	HeartbeatTask(ctx context.Context, in *HeartbeatTaskRequest, opts ...grpc.CallOption) (*HeartbeatTaskResponse, error)
+	// CompleteTask records a successful result exactly once. A completion for
+	// a stale attempt or an already-terminal execution is rejected with
+	// accepted = false (and duplicate = true when the execution already
+	// completed), so a zombie worker whose lease expired cannot double-commit.
+	CompleteTask(ctx context.Context, in *CompleteTaskRequest, opts ...grpc.CallOption) (*CompleteTaskResponse, error)
+	// FailTask records a failed attempt. Retryable failures re-enqueue the
+	// execution until max_attempts is exhausted; the response says whether a
+	// retry was scheduled.
+	FailTask(ctx context.Context, in *FailTaskRequest, opts ...grpc.CallOption) (*FailTaskResponse, error)
+	// GetExecution returns the current state of one execution.
+	GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*ExecutionStateMsg, error)
+	// GetExecutionHistory returns the ordered state transitions of one
+	// execution as rebuilt from the event log - the deterministic replay
+	// surface used for debugging.
+	GetExecutionHistory(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*ExecutionHistoryResponse, error)
+	// ListExecutions returns execution summaries, optionally filtered by
+	// status, plus in-flight counts.
+	ListExecutions(ctx context.Context, in *ListExecutionsRequest, opts ...grpc.CallOption) (*ListExecutionsResponse, error)
+}
+
+type workflowServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewWorkflowServiceClient(cc grpc.ClientConnInterface) WorkflowServiceClient {
+	return &workflowServiceClient{cc}
+}
+
+func (c *workflowServiceClient) SubmitWorkflow(ctx context.Context, in *SubmitWorkflowRequest, opts ...grpc.CallOption) (*SubmitWorkflowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitWorkflowResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_SubmitWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) LeaseTask(ctx context.Context, in *LeaseTaskRequest, opts ...grpc.CallOption) (*LeaseTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LeaseTaskResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_LeaseTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) HeartbeatTask(ctx context.Context, in *HeartbeatTaskRequest, opts ...grpc.CallOption) (*HeartbeatTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HeartbeatTaskResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_HeartbeatTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) CompleteTask(ctx context.Context, in *CompleteTaskRequest, opts ...grpc.CallOption) (*CompleteTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteTaskResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_CompleteTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) FailTask(ctx context.Context, in *FailTaskRequest, opts ...grpc.CallOption) (*FailTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FailTaskResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_FailTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*ExecutionStateMsg, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecutionStateMsg)
+	err := c.cc.Invoke(ctx, WorkflowService_GetExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) GetExecutionHistory(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*ExecutionHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecutionHistoryResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_GetExecutionHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ListExecutions(ctx context.Context, in *ListExecutionsRequest, opts ...grpc.CallOption) (*ListExecutionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListExecutionsResponse)
+	err := c.cc.Invoke(ctx, WorkflowService_ListExecutions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WorkflowServiceServer is the server API for WorkflowService service.
+// All implementations must embed UnimplementedWorkflowServiceServer
+// for forward compatibility.
+type WorkflowServiceServer interface {
+	// SubmitWorkflow durably enqueues a new workflow execution. Submitting an
+	// id that already exists is an idempotent no-op (already_exists = true).
+	// In cluster mode, returns FailedPrecondition with a NotLeaderError detail
+	// when this node does not own the execution's shard.
+	SubmitWorkflow(context.Context, *SubmitWorkflowRequest) (*SubmitWorkflowResponse, error)
+	// LeaseTask hands the oldest pending execution of the given task type to a
+	// worker. The lease is recorded on the log before the worker sees it. When
+	// no work is pending the call long-polls up to wait_ms, then returns
+	// found = false.
+	LeaseTask(context.Context, *LeaseTaskRequest) (*LeaseTaskResponse, error)
+	// HeartbeatTask extends a running lease. valid = false tells the worker its
+	// lease is gone (expired or superseded) and it should abandon the attempt.
+	HeartbeatTask(context.Context, *HeartbeatTaskRequest) (*HeartbeatTaskResponse, error)
+	// CompleteTask records a successful result exactly once. A completion for
+	// a stale attempt or an already-terminal execution is rejected with
+	// accepted = false (and duplicate = true when the execution already
+	// completed), so a zombie worker whose lease expired cannot double-commit.
+	CompleteTask(context.Context, *CompleteTaskRequest) (*CompleteTaskResponse, error)
+	// FailTask records a failed attempt. Retryable failures re-enqueue the
+	// execution until max_attempts is exhausted; the response says whether a
+	// retry was scheduled.
+	FailTask(context.Context, *FailTaskRequest) (*FailTaskResponse, error)
+	// GetExecution returns the current state of one execution.
+	GetExecution(context.Context, *GetExecutionRequest) (*ExecutionStateMsg, error)
+	// GetExecutionHistory returns the ordered state transitions of one
+	// execution as rebuilt from the event log - the deterministic replay
+	// surface used for debugging.
+	GetExecutionHistory(context.Context, *GetExecutionRequest) (*ExecutionHistoryResponse, error)
+	// ListExecutions returns execution summaries, optionally filtered by
+	// status, plus in-flight counts.
+	ListExecutions(context.Context, *ListExecutionsRequest) (*ListExecutionsResponse, error)
+	mustEmbedUnimplementedWorkflowServiceServer()
+}
+
+// UnimplementedWorkflowServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedWorkflowServiceServer struct{}
+
+func (UnimplementedWorkflowServiceServer) SubmitWorkflow(context.Context, *SubmitWorkflowRequest) (*SubmitWorkflowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitWorkflow not implemented")
+}
+func (UnimplementedWorkflowServiceServer) LeaseTask(context.Context, *LeaseTaskRequest) (*LeaseTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LeaseTask not implemented")
+}
+func (UnimplementedWorkflowServiceServer) HeartbeatTask(context.Context, *HeartbeatTaskRequest) (*HeartbeatTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method HeartbeatTask not implemented")
+}
+func (UnimplementedWorkflowServiceServer) CompleteTask(context.Context, *CompleteTaskRequest) (*CompleteTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteTask not implemented")
+}
+func (UnimplementedWorkflowServiceServer) FailTask(context.Context, *FailTaskRequest) (*FailTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FailTask not implemented")
+}
+func (UnimplementedWorkflowServiceServer) GetExecution(context.Context, *GetExecutionRequest) (*ExecutionStateMsg, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetExecution not implemented")
+}
+func (UnimplementedWorkflowServiceServer) GetExecutionHistory(context.Context, *GetExecutionRequest) (*ExecutionHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetExecutionHistory not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ListExecutions(context.Context, *ListExecutionsRequest) (*ListExecutionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListExecutions not implemented")
+}
+func (UnimplementedWorkflowServiceServer) mustEmbedUnimplementedWorkflowServiceServer() {}
+func (UnimplementedWorkflowServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeWorkflowServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to WorkflowServiceServer will
+// result in compilation errors.
+type UnsafeWorkflowServiceServer interface {
+	mustEmbedUnimplementedWorkflowServiceServer()
+}
+
+func RegisterWorkflowServiceServer(s grpc.ServiceRegistrar, srv WorkflowServiceServer) {
+	// If the following call panics, it indicates UnimplementedWorkflowServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&WorkflowService_ServiceDesc, srv)
+}
+
+func _WorkflowService_SubmitWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).SubmitWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_SubmitWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).SubmitWorkflow(ctx, req.(*SubmitWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_LeaseTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeaseTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).LeaseTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_LeaseTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).LeaseTask(ctx, req.(*LeaseTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_HeartbeatTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).HeartbeatTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_HeartbeatTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).HeartbeatTask(ctx, req.(*HeartbeatTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_CompleteTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).CompleteTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_CompleteTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).CompleteTask(ctx, req.(*CompleteTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_FailTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FailTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).FailTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_FailTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).FailTask(ctx, req.(*FailTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_GetExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).GetExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_GetExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).GetExecution(ctx, req.(*GetExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_GetExecutionHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).GetExecutionHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_GetExecutionHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).GetExecutionHistory(ctx, req.(*GetExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ListExecutions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListExecutionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ListExecutions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkflowService_ListExecutions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ListExecutions(ctx, req.(*ListExecutionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// WorkflowService_ServiceDesc is the grpc.ServiceDesc for WorkflowService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var WorkflowService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "goqueue.v1.WorkflowService",
+	HandlerType: (*WorkflowServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SubmitWorkflow",
+			Handler:    _WorkflowService_SubmitWorkflow_Handler,
+		},
+		{
+			MethodName: "LeaseTask",
+			Handler:    _WorkflowService_LeaseTask_Handler,
+		},
+		{
+			MethodName: "HeartbeatTask",
+			Handler:    _WorkflowService_HeartbeatTask_Handler,
+		},
+		{
+			MethodName: "CompleteTask",
+			Handler:    _WorkflowService_CompleteTask_Handler,
+		},
+		{
+			MethodName: "FailTask",
+			Handler:    _WorkflowService_FailTask_Handler,
+		},
+		{
+			MethodName: "GetExecution",
+			Handler:    _WorkflowService_GetExecution_Handler,
+		},
+		{
+			MethodName: "GetExecutionHistory",
+			Handler:    _WorkflowService_GetExecutionHistory_Handler,
+		},
+		{
+			MethodName: "ListExecutions",
+			Handler:    _WorkflowService_ListExecutions_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "goqueue.proto",
+}

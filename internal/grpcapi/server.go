@@ -474,20 +474,27 @@ func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRe
 		return nil, status.Errorf(codes.InvalidArgument, "invalid agent event: %v", err)
 	}
 	key := agentstream.SessionKey(ev.GetTenant(), ev.GetProject(), ev.GetSessionId())
-	topic := "agent-events"
+	offset, partition, err := s.appendDurable(ctx, "agent-events", key, shardID, encoded)
+	if err != nil {
+		return nil, err
+	}
+	return &goqueuev1.PublishAgentResponse{Offset: offset, Partition: partition}, nil
+}
+
+// appendDurable is the shared durable write path: shard WAL + quorum wait
+// in cluster mode, then the main WAL, then the in-memory broker so
+// subscribers see the event. Returns gRPC status errors.
+func (s *Server) appendDurable(ctx context.Context, topic, key string, shardID uint32, encoded []byte) (int64, int32, error) {
 	partition := s.broker.RouteKey(topic, key)
-	// Cluster-mode local path: append to shardwal first, then wait for
-	// quorum. The broker.Broker write below stays as-is so subscribers still
-	// see the event in-memory.
 	if s.shardWAL != nil {
 		walOffset, err := s.shardWAL.Append(shardID, encoded)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "shardwal append: %v", err)
+			return 0, 0, status.Errorf(codes.Internal, "shardwal append: %v", err)
 		}
 		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		if err := s.shardWAL.WaitQuorum(waitCtx, shardID, walOffset); err != nil {
-			return nil, status.Errorf(codes.DeadlineExceeded, "quorum not reached: %v", err)
+			return 0, 0, status.Errorf(codes.DeadlineExceeded, "quorum not reached: %v", err)
 		}
 	}
 	if s.wal != nil {
@@ -498,18 +505,44 @@ func (s *Server) PublishAgent(ctx context.Context, req *goqueuev1.PublishAgentRe
 			Partition: int32(partition),
 			Payload:   encoded,
 		}); err != nil {
-			return nil, status.Errorf(codes.Internal, "wal append failed: %v", err)
+			return 0, 0, status.Errorf(codes.Internal, "wal append failed: %v", err)
 		}
 	}
 	offset, err := s.broker.PublishToPartition(topic, partition, encoded)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "publish failed: %v", err)
+		return 0, 0, status.Errorf(codes.Internal, "publish failed: %v", err)
 	}
 	if s.metrics != nil {
 		s.metrics.PublishedTotal.Inc()
 		s.metrics.ObserveAgentPayload(topic, encoded)
 	}
-	return &goqueuev1.PublishAgentResponse{Offset: offset, Partition: int32(partition)}, nil
+	return offset, int32(partition), nil
+}
+
+// PublishEnvelope appends a pre-built envelope durably to the given topic
+// through the same path as PublishAgent: shard routing and quorum wait in
+// cluster mode, main WAL, then the in-memory broker. The workflow
+// coordinator uses this to record execution state transitions; it
+// satisfies workflow.Publisher.
+func (s *Server) PublishEnvelope(ctx context.Context, topic string, env agentstream.Event) (int64, int32, error) {
+	encoded, err := env.Marshal()
+	if err != nil {
+		return 0, 0, status.Errorf(codes.InvalidArgument, "invalid envelope: %v", err)
+	}
+	var shardID uint32
+	if s.routeCheck != nil {
+		isLocal, sid, hint := s.routeCheck.RouteSession(env.Tenant, env.Project, env.SessionID)
+		if !isLocal {
+			st := status.New(codes.FailedPrecondition, "not the leader of this session's shard")
+			if withDetails, derr := st.WithDetails(&goqueuev1.NotLeaderError{LeaderAddr: hint}); derr == nil {
+				st = withDetails
+			}
+			return 0, 0, st.Err()
+		}
+		shardID = sid
+	}
+	key := agentstream.SessionKey(env.Tenant, env.Project, env.SessionID)
+	return s.appendDurable(ctx, topic, key, shardID, encoded)
 }
 
 func Register(grpcServer *grpc.Server, srv *Server) {
