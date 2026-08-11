@@ -10,7 +10,7 @@
 <br />
 
 <a href="https://github.com/khangpt2k6/AgentBus/releases">
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=3200&pause=900&color=6E48AA&center=true&vCenter=true&width=760&lines=Raft-replicated%2C+zero-data-loss+failover;Durable+workflow+execution+on+the+log;Group-commit+WAL+-+34x+append+throughput;Session-ordered+agent+event+streams;Prometheus+%2B+OpenTelemetry+built-in" alt="Typing tagline" />
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=3200&pause=900&color=6E48AA&center=true&vCenter=true&width=760&lines=Raft-replicated%2C+zero-data-loss+failover;Durable+workflow+execution+on+the+log;Group-commit+WAL+for+durable+writes;Session-ordered+agent+event+streams;Prometheus+%2B+OpenTelemetry+built-in" alt="Typing tagline" />
 </a>
 
 <p>
@@ -24,15 +24,15 @@
 </p>
 
 <p>
-  <a href="https://khangpt2k6.github.io/AgentBus/"><b>📖 Documentation</b></a> ·
+  <a href="#why-agentbus"><b>Why AgentBus</b></a> ·
   <a href="visualization/index.html"><b>🖥️ Interactive architecture</b></a> ·
   <a href="#quick-start"><b>Quick start</b></a> ·
-  <a href="#benchmarks"><b>Benchmarks</b></a>
+  <a href="https://khangpt2k6.github.io/AgentBus/"><b>📖 Documentation</b></a>
 </p>
 
 </div>
 
-A **distributed message broker and workflow execution runtime written from scratch in Go**, specialized for AI-agent event streams. It routes each `tenant/project/session` to a stable partition for in-order streaming, persists every write to a crash-safe WAL, runs as a Raft-replicated cluster with automatic failover, and schedules durable task execution (lease, heartbeat, retry, exactly-once completion) on top of the same log - all from a single binary, no Kafka-scale ops.
+A **distributed event log and workflow execution runtime for AI agents**, written from scratch in Go. Ordered per-session streams, durable task execution, and Raft-replicated failover, all in one binary.
 
 > Not a Kafka replacement. Focused on AI-native streaming where ordering, replay, and low operational overhead matter.
 
@@ -44,40 +44,44 @@ A **distributed message broker and workflow execution runtime written from scrat
 
 AI-agent traffic is a shape most brokers were not built for: many concurrent per-session streams that must stay in order, replay from any offset, and back a task (a tool call) that can run for minutes, retry, or need a heartbeat. Off-the-shelf options each cover half of that:
 
-- A log broker (Kafka, Kinesis) gives ordering and replay, but nothing for leasing a task to a worker, retrying it, or fencing a duplicate completion.
-- A job queue (Celery, SQS) gives task execution, but no ordered per-session log to replay or audit against.
+- A log broker (**Kafka**, Kinesis) gives ordering and replay, but nothing for leasing a task to a worker, retrying it, or fencing a duplicate completion.
+- A job queue (**Celery**, SQS) gives task execution, but no ordered per-session log to replay or audit against.
 - Both assume an ops team; a single agent pipeline usually gets neither and ends up gluing the two together by hand.
 
-AgentBus is both halves in one small Go binary: a partitioned, replayable event log for agent/session traffic, and a workflow runtime (submit, lease, heartbeat, retry, exactly-once completion) built directly on that log. The distributed internals - Raft metadata consensus, gossip membership, per-shard replication, group-commit WAL - are implemented directly rather than delegated to Kafka or etcd, so the whole failure-and-recovery path stays in one small repo instead of a stack of managed services.
+AgentBus is both halves in one small Go binary: a partitioned, replayable event log for agent/session traffic, and a **workflow runtime** (submit, lease, heartbeat, retry, exactly-once completion) built directly on that log. The distributed internals - **Raft** metadata consensus, **gossip** membership, per-shard replication, **group-commit WAL** - are implemented directly rather than delegated to Kafka or etcd, so the whole failure-and-recovery path stays in one small repo instead of a stack of managed services.
 
 ## Engineering highlights
 
-| | |
-|---|---|
-| **Raft consensus** | 5-node cluster, tolerates 2 node losses. Every shard is replicated to all 5 nodes; killing any node (leader or follower) loses **zero messages** - verified by a kill-the-leader test replaying 1,000 events on every survivor. |
-| **Durable workflow execution** | Submit / lease / heartbeat / retry / exactly-once completion, event-sourced on the replicated log. State is a pure fold over events, so crash recovery and debugging replay are **deterministic** - a restarted broker rebuilds byte-identical execution state. Sustains **2K+ concurrent executions and 45K+ workflow events/sec** under k6 (see benchmarks). |
-| **Group-commit WAL** | Append-only durability with full replay on restart. Group-commit fsync gives a **34× append-throughput** gain. |
-| **Distributed internals** | Gossip membership (SWIM), consistent-hash session routing, replication with per-follower cursors and idempotent catch-up. |
-| **Dual API** | gRPC + raw TCP wire protocols (plus a CLI). Transparent `NOT_LEADER` redirect follow in the SDK. |
-| **Agent-native** | Session-ordered envelopes, broker-side retry/DLQ, per-tenant rate limiting (noisy-agent isolation). |
-| **Observability** | Prometheus metrics + OpenTelemetry traces (session-grouped) + Grafana dashboards, out of the box. |
-
-🖥️ **See it live:** open [`visualization/index.html`](visualization/index.html) for an animated architecture walkthrough.
+- **Session-ordered event log** - every `tenant/project/session` routes to a stable partition, so a producer's events stay in order and can replay from any offset.
+- **Durable workflow execution** - submit, lease, heartbeat, retry, and exactly-once completion, event-sourced on that same log. A restarted broker replays back to the same state instead of trusting an in-memory snapshot.
+- **Group-commit WAL** - every write is fsynced before it's acknowledged, batched so durability doesn't come at the cost of one fsync per write.
+- **Raft + gossip cluster** - optional multi-node mode: **Raft** handles leader election and metadata, **SWIM gossip** tracks membership, and every shard replicates to all live nodes. A node can die without losing committed data or needing a human to step in.
+- **Agent-native isolation** - broker-side retry/DLQ past max attempts, plus per-tenant rate limits so one noisy agent can't starve another.
+- **Dual API** - gRPC and raw TCP, plus a CLI. Cluster-mode leader redirects are transparent to the SDK.
+- **Observability out of the box** - Prometheus metrics and OpenTelemetry traces, session-grouped, with ready-made Grafana dashboards.
 
 ## Architecture
 
-| Layer | Responsibility |
-|---|---|
-| **Client APIs** | gRPC, TCP, and CLI surfaces for producers and consumers |
-| **Session Router** | Picks a partition per `tenant/project/session` to keep ordering stable |
-| **Partitioned Topics** | Append-only ring buffers with offset + eviction tracking |
-| **Retry + DLQ** | Broker-native policy that auto-routes events past max-attempts |
-| **Workflow runtime** | Coordinator that leases tasks to workers (FIFO per task type, batched RPCs), sweeps expired leases into retries, and fences stale completions by attempt number; every transition is a durable log event |
-| **WAL** | Append-only durability with group-commit fsync and full replay |
-| **Cluster** | Raft metadata consensus, SWIM gossip membership, consistent-hash sharding, quorum replication |
-| **Observability** | Prometheus counters + OpenTelemetry traces via Grafana / Tempo |
+```mermaid
+flowchart TB
+    Agent(["Agent / Service"]) -->|"gRPC · TCP · CLI"| Router["Session Router"]
+    Router --> Log[("Partitioned WAL<br/>tenant / project / session")]
+    Log --> DLQ["Retry + DLQ"]
+    Log --> Workflow["Workflow Runtime<br/>lease · heartbeat · retry · exactly-once"]
 
-Full design notes in the [documentation](https://khangpt2k6.github.io/AgentBus/).
+    subgraph Cluster["Cluster (optional)"]
+        direction LR
+        Raft["Raft<br/>leader election"] --- Gossip["Gossip<br/>membership"] --- Repl["Replication<br/>per shard"]
+    end
+
+    Log <--> Cluster
+    Workflow <--> Cluster
+
+    Log --> Obs(["Prometheus + OpenTelemetry"])
+    Workflow --> Obs
+```
+
+Full design notes and an animated walkthrough live in the [documentation](https://khangpt2k6.github.io/AgentBus/) and [`visualization/index.html`](visualization/index.html).
 
 ## Quick start
 
@@ -106,50 +110,6 @@ Docker, Helm, the Go SDK, cluster mode, and session replay are all covered in th
 - **[Deploy](https://khangpt2k6.github.io/AgentBus/deploy/docker/)** · Docker, Kubernetes, systemd
 - **[Observability](https://khangpt2k6.github.io/AgentBus/observability/)** · metrics, traces, dashboards
 - **[CLI reference](https://khangpt2k6.github.io/AgentBus/reference/cli/)** · every command and flag
-
-## Benchmarks
-
-Reproducible from [bench/](bench/) - local developer machine, 256 B payload:
-
-| Path | Throughput |
-|---|---:|
-| In-process publish | **~4.3M** msgs/sec |
-| TCP localhost, end-to-end | **~45K** msgs/sec |
-
-```bash
-GOQUEUE_BENCH=1 go test ./bench -run TestThroughputReport -count=1 -v
-```
-
-**5-node Raft cluster** - reproducible from [internal/cluster](internal/cluster/), real Raft + gossip + full-mesh shard replication (every write acked by all 5 replicas), local loopback:
-
-| Metric | Measured |
-|---|---:|
-| Quorum-committed events/sec, 32 concurrent sessions | **499** |
-| Zero-data-loss failover: kill the leader, verify survivors | **1,000 / 1,000** events, byte-for-byte, on all 4 survivors |
-
-```bash
-GOQUEUE_BENCH=1 go test ./internal/cluster -tags cluster_integration \
-    -run 'TestClusterConcurrentThroughputReport|TestZeroDataLossOnLeaderKill' -count=1 -v -timeout 5m
-```
-
-**Workflow runtime under k6** - reproducible from [load/](load/), single broker, WAL fsync interval 250ms, k6 and broker sharing one laptop (Ryzen AI 7 350). Every submit / lease / heartbeat / complete / retry is an individual durable log event; rates measured server-side from `goqueue_wf_events_total`:
-
-| Metric | Measured |
-|---|---:|
-| Workflow events/sec, best 60s window | **50.8K** |
-| Workflow events/sec, avg over 134s run | **44.8K** |
-| Peak 10s window | **53.7K** |
-| Long-running executions held concurrently (leased + heartbeating, full run) | **2,500** |
-| Peak concurrently running executions | **38.5K** |
-| Peak in-flight tracked executions | **60.7K** |
-
-```bash
-# broker running locally, then:
-k6 run -e BATCH=32 -e SUBMIT_RATE=520 -e WORKER_VUS=288 -e HOLD_COUNT=2500 load/k6/workflow_load.js
-go run ./load/metricsampler   # server-side rates while it runs
-```
-
-> Local benchmark evidence, not production SLA claims.
 
 ---
 
