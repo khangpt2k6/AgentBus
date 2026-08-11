@@ -25,9 +25,22 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-func startCluster(t *testing.T) (clusters [3]*Cluster, cleanup func()) {
+// startCluster spins up the standard 3-node cluster used by the fast,
+// CI-gated correctness tests in this file (TestThreeNodeCluster_*). It is a
+// thin wrapper over startClusterN so those tests, and their exact-3
+// assertions, are unaffected by the larger clusters other report tests use.
+func startCluster(t *testing.T) (clusters []*Cluster, cleanup func()) {
 	t.Helper()
-	const N = 3
+	return startClusterN(t, 3)
+}
+
+// startClusterN spins up an N-node cluster (Raft metadata group + gossip +
+// full-mesh shard replication) for cluster_integration tests. Used directly
+// by the throughput/failover report tests so cluster size can be scaled
+// (e.g. to 5 nodes) independently of the fast 3-node correctness smoke test.
+func startClusterN(t *testing.T, n int) (clusters []*Cluster, cleanup func()) {
+	t.Helper()
+	N := n
 	raftPorts := make([]int, N)
 	gossipPorts := make([]int, N)
 	grpcPorts := make([]int, N)
@@ -47,8 +60,9 @@ func startCluster(t *testing.T) (clusters [3]*Cluster, cleanup func()) {
 		}
 	}
 
-	var servers [N]*grpc.Server
-	var listeners [N]net.Listener
+	clusters = make([]*Cluster, N)
+	servers := make([]*grpc.Server, N)
+	listeners := make([]net.Listener, N)
 
 	for i := 0; i < N; i++ {
 		cfg := Config{

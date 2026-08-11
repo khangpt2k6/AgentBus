@@ -27,7 +27,7 @@ func TestClusterConcurrentThroughputReport(t *testing.T) {
 		t.Skip("set GOQUEUE_BENCH=1 to run concurrent cluster throughput report")
 	}
 
-	clusters, cleanup := startCluster(t)
+	clusters, cleanup := startClusterN(t, 5)
 	defer cleanup()
 
 	if !waitFor(30*time.Second, func() bool {
@@ -113,7 +113,7 @@ func TestClusterConcurrentThroughputReport(t *testing.T) {
 	elapsed := time.Since(start)
 	rate := float64(total) / elapsed.Seconds()
 
-	t.Logf("3-node cluster, RF=3, %d concurrent sessions, 256B agent events:", len(targets))
+	t.Logf("%d-node cluster, RF=%d, %d concurrent sessions, 256B agent events:", len(clusters), len(clusters), len(targets))
 	t.Logf("  %d quorum-committed events in %s -> %.0f events/sec aggregate",
 		total, elapsed.Round(time.Millisecond), rate)
 }

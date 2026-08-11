@@ -22,7 +22,7 @@ import (
 )
 
 func TestZeroDataLossOnLeaderKill(t *testing.T) {
-	clusters, cleanup := startCluster(t)
+	clusters, cleanup := startClusterN(t, 5)
 	defer cleanup()
 
 	// Wait for shard assignment + all members registered.
@@ -131,8 +131,8 @@ func TestZeroDataLossOnLeaderKill(t *testing.T) {
 		}
 		t.Logf("survivor %s: all %d events intact and in order", c.cfg.NodeID, n)
 	}
-	if survivors < 2 {
-		t.Fatalf("expected 2 survivors, got %d", survivors)
+	if wantSurvivors := len(clusters) - 1; survivors < wantSurvivors {
+		t.Fatalf("expected %d survivors, got %d", wantSurvivors, survivors)
 	}
-	t.Logf("ZERO DATA LOSS verified: %d survivors each hold all %d quorum-committed events after leader kill", survivors, n)
+	t.Logf("ZERO DATA LOSS verified: %d-node cluster, %d survivors each hold all %d quorum-committed events after leader kill", len(clusters), survivors, n)
 }

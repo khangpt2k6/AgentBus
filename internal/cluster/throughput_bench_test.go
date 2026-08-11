@@ -2,13 +2,13 @@
 
 package cluster
 
-// Real 3-node cluster throughput report. Measures the replicated quorum write
+// Real 5-node cluster throughput report. Measures the replicated quorum write
 // path - append to the shard leader's WAL, then wait for the high-water-mark to
-// advance (quorum durability across replicas) - which is exactly what the
-// gRPC PublishAgent handler does.
+// advance (durability across all live replicas, full-mesh ISR) - which is
+// exactly what the gRPC PublishAgent handler does.
 //
 // This replaces the misleading habit of citing the single-node, single-conn
-// TCP loopback number as a "3-node cluster" figure. Two numbers are reported:
+// TCP loopback number as a "cluster" figure. Two numbers are reported:
 //
 //	synchronous - append + wait-for-quorum per event (per-publish durability;
 //	              this is the honest "quorum-committed events/sec")
@@ -33,7 +33,7 @@ func TestClusterThroughputReport(t *testing.T) {
 		t.Skip("set GOQUEUE_BENCH=1 to run cluster throughput report")
 	}
 
-	clusters, cleanup := startCluster(t)
+	clusters, cleanup := startClusterN(t, 5)
 	defer cleanup()
 
 	// Wait for shard topology + assignment AND all nodes registered with ClientAddr.
@@ -146,7 +146,7 @@ func TestClusterThroughputReport(t *testing.T) {
 		syncRate = float64(committed) / elapsedToLastCommit.Seconds()
 	}
 
-	t.Logf("3-node cluster, RF=3, shard %d, 256B agent events (quorum per event):", shardID)
+	t.Logf("%d-node cluster, RF=%d, shard %d, 256B agent events (quorum per event):", len(clusters), len(clusters), shardID)
 	t.Logf("  committed %d events in %s -> %.0f events/sec  p50=%s p99=%s",
 		committed, elapsedToLastCommit.Round(time.Millisecond), syncRate,
 		pctl(lats, 0.50).Round(time.Microsecond), pctl(lats, 0.99).Round(time.Microsecond))

@@ -1,4 +1,4 @@
-# 3-node AgentBus cluster for local demos.
+# 5-node AgentBus cluster for local demos.
 # Run from the repo root:
 #   docker compose -f deploy/cluster.yml up --build
 #
@@ -6,8 +6,14 @@
 #   goqueue cluster status --metrics-url=http://localhost:12112
 #   goqueue cluster status --metrics-url=http://localhost:12113
 #   goqueue cluster status --metrics-url=http://localhost:12114
+#   goqueue cluster status --metrics-url=http://localhost:12115
+#   goqueue cluster status --metrics-url=http://localhost:12116
 #
-# Exactly one of the three nodes should show Role: leader.
+# Exactly one of the five nodes should show Role: leader. A 5-node Raft
+# group tolerates 2 node losses (majority = 3 of 5) instead of the 1-node
+# tolerance a 3-node group gives you, and every shard is replicated to all
+# five nodes (full-mesh ISR), so killing any 2 nodes still loses zero
+# quorum-committed data.
 
 services:
   n1:
@@ -20,7 +26,7 @@ services:
       - --raft-bind=n1:7001
       - --gossip-bind=n1:8001
       - --raft-dir=/data/raft
-      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001,n4@n4:7001,n5@n5:7001
       - --tcp-addr=:9090
       - --grpc-addr=:9095
       - --metrics-addr=:2112
@@ -45,7 +51,7 @@ services:
       - --raft-bind=n2:7001
       - --gossip-bind=n2:8001
       - --raft-dir=/data/raft
-      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001,n4@n4:7001,n5@n5:7001
       - --tcp-addr=:9090
       - --grpc-addr=:9095
       - --metrics-addr=:2112
@@ -70,7 +76,7 @@ services:
       - --raft-bind=n3:7001
       - --gossip-bind=n3:8001
       - --raft-dir=/data/raft
-      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001,n4@n4:7001,n5@n5:7001
       - --tcp-addr=:9090
       - --grpc-addr=:9095
       - --metrics-addr=:2112
@@ -85,10 +91,62 @@ services:
     networks:
       - agentbus
 
+  n4:
+    build:
+      context: ..
+      dockerfile: docker/broker.Dockerfile
+    command:
+      - --cluster
+      - --node-id=n4
+      - --raft-bind=n4:7001
+      - --gossip-bind=n4:8001
+      - --raft-dir=/data/raft
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001,n4@n4:7001,n5@n5:7001
+      - --tcp-addr=:9090
+      - --grpc-addr=:9095
+      - --metrics-addr=:2112
+      - --wal-path=/data/wal
+      - --advertise-client-addr=n4:9095
+    ports:
+      - "49090:9090"
+      - "49095:9095"
+      - "12115:2112"
+    volumes:
+      - n4-data:/data
+    networks:
+      - agentbus
+
+  n5:
+    build:
+      context: ..
+      dockerfile: docker/broker.Dockerfile
+    command:
+      - --cluster
+      - --node-id=n5
+      - --raft-bind=n5:7001
+      - --gossip-bind=n5:8001
+      - --raft-dir=/data/raft
+      - --peers=n1@n1:7001,n2@n2:7001,n3@n3:7001,n4@n4:7001,n5@n5:7001
+      - --tcp-addr=:9090
+      - --grpc-addr=:9095
+      - --metrics-addr=:2112
+      - --wal-path=/data/wal
+      - --advertise-client-addr=n5:9095
+    ports:
+      - "59090:9090"
+      - "59095:9095"
+      - "12116:2112"
+    volumes:
+      - n5-data:/data
+    networks:
+      - agentbus
+
 volumes:
   n1-data: {}
   n2-data: {}
   n3-data: {}
+  n4-data: {}
+  n5-data: {}
 
 networks:
   agentbus:
