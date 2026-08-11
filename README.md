@@ -40,11 +40,21 @@ A **distributed message broker and workflow execution runtime written from scrat
 
 <img width="1414" height="910" alt="Adobe Express - Screen Recording 2026-06-25 130203" src="https://github.com/user-attachments/assets/65d495ff-cf27-4695-b453-290661069eae" />
 
+## Why AgentBus
+
+AI-agent traffic is a shape most brokers were not built for: many concurrent per-session streams that must stay in order, replay from any offset, and back a task (a tool call) that can run for minutes, retry, or need a heartbeat. Off-the-shelf options each cover half of that:
+
+- A log broker (Kafka, Kinesis) gives ordering and replay, but nothing for leasing a task to a worker, retrying it, or fencing a duplicate completion.
+- A job queue (Celery, SQS) gives task execution, but no ordered per-session log to replay or audit against.
+- Both assume an ops team; a single agent pipeline usually gets neither and ends up gluing the two together by hand.
+
+AgentBus is both halves in one small Go binary: a partitioned, replayable event log for agent/session traffic, and a workflow runtime (submit, lease, heartbeat, retry, exactly-once completion) built directly on that log. The distributed internals - Raft metadata consensus, gossip membership, per-shard replication, group-commit WAL - are implemented directly rather than delegated to Kafka or etcd, so the whole failure-and-recovery path stays in one small repo instead of a stack of managed services.
+
 ## Engineering highlights
 
 | | |
 |---|---|
-| **Raft consensus** | 3-node cluster, leader election, automatic failover. Killing any non-leader loses **zero messages** under quorum acks - verified by a kill-the-leader test. |
+| **Raft consensus** | 5-node cluster, tolerates 2 node losses. Every shard is replicated to all 5 nodes; killing any node (leader or follower) loses **zero messages** - verified by a kill-the-leader test replaying 1,000 events on every survivor. |
 | **Durable workflow execution** | Submit / lease / heartbeat / retry / exactly-once completion, event-sourced on the replicated log. State is a pure fold over events, so crash recovery and debugging replay are **deterministic** - a restarted broker rebuilds byte-identical execution state. Sustains **2K+ concurrent executions and 45K+ workflow events/sec** under k6 (see benchmarks). |
 | **Group-commit WAL** | Append-only durability with full replay on restart. Group-commit fsync gives a **34× append-throughput** gain. |
 | **Distributed internals** | Gossip membership (SWIM), consistent-hash session routing, replication with per-follower cursors and idempotent catch-up. |
@@ -108,6 +118,18 @@ Reproducible from [bench/](bench/) - local developer machine, 256 B payload:
 
 ```bash
 GOQUEUE_BENCH=1 go test ./bench -run TestThroughputReport -count=1 -v
+```
+
+**5-node Raft cluster** - reproducible from [internal/cluster](internal/cluster/), real Raft + gossip + full-mesh shard replication (every write acked by all 5 replicas), local loopback:
+
+| Metric | Measured |
+|---|---:|
+| Quorum-committed events/sec, 32 concurrent sessions | **499** |
+| Zero-data-loss failover: kill the leader, verify survivors | **1,000 / 1,000** events, byte-for-byte, on all 4 survivors |
+
+```bash
+GOQUEUE_BENCH=1 go test ./internal/cluster -tags cluster_integration \
+    -run 'TestClusterConcurrentThroughputReport|TestZeroDataLossOnLeaderKill' -count=1 -v -timeout 5m
 ```
 
 **Workflow runtime under k6** - reproducible from [load/](load/), single broker, WAL fsync interval 250ms, k6 and broker sharing one laptop (Ryzen AI 7 350). Every submit / lease / heartbeat / complete / retry is an individual durable log event; rates measured server-side from `goqueue_wf_events_total`:
