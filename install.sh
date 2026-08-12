@@ -110,5 +110,5 @@ next steps:
   goqueue publish --addr localhost:9090 --topic orders "hello"
   goqueue consume --addr localhost:9090 --topic orders --group demo
 
-docs: https://github.com/${REPO}#quick-start
+docs: https://khangpt2k6.github.io/EventBus/getting-started/
 EOF

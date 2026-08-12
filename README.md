@@ -17,7 +17,6 @@ A distributed event backbone for AI agents
 <p>
   <a href="#why-eventbus"><b>Why EventBus</b></a> ·
   <a href="visualization/index.html"><b>Interactive architecture</b></a> ·
-  <a href="#quick-start"><b>Quick start</b></a> ·
   <a href="https://khangpt2k6.github.io/EventBus/"><b>Documentation</b></a>
 </p>
 
@@ -73,34 +72,6 @@ flowchart TB
 ```
 
 Full design notes and an animated walkthrough live in the [documentation](https://khangpt2k6.github.io/EventBus/) and [`visualization/index.html`](visualization/index.html).
-
-## Quick start
-
-```bash
-# Install (Linux / macOS)
-curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh
-
-# Run the broker
-broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=data/eventbus.wal
-
-# Publish + consume
-goqueue publish --grpc --addr localhost:9095 --topic orders "hello"
-goqueue consume --grpc --addr localhost:9095 --topic orders --group payment-service --partition -1
-
-# Durable workflow execution
-goqueue workflow submit --tenant acme --project etl --id job-1 --task-type transform --input '{"rows":100}'
-goqueue workflow status --tenant acme --project etl --id job-1
-goqueue workflow history --tenant acme --project etl --id job-1   # deterministic replay of state transitions
-```
-
-Docker, Helm, the Go SDK, cluster mode, and session replay are all covered in the docs:
-
-- **[Installation](https://khangpt2k6.github.io/EventBus/getting-started/)** · binaries, Docker, Helm, source
-- **[Integrate the Go SDK](https://khangpt2k6.github.io/EventBus/integrate/)** · publish agent events from your app
-- **[Concepts](https://khangpt2k6.github.io/EventBus/concepts/sessions/)** · sessions & ordering, retry/DLQ, WAL & replay
-- **[Deploy](https://khangpt2k6.github.io/EventBus/deploy/docker/)** · Docker, Kubernetes, systemd
-- **[Observability](https://khangpt2k6.github.io/EventBus/observability/)** · metrics, traces, dashboards
-- **[CLI reference](https://khangpt2k6.github.io/EventBus/reference/cli/)** · every command and flag
 
 ---
 
