@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 // Default tuning for a freshly constructed control plane.
@@ -15,7 +15,7 @@ const (
 
 // Event types the control plane interprets. Every other type is treated as
 // generic activity (advances the run to running, bumps the step count). These
-// mirror the SDK conventions in agentbus/events.go but are kept local so the
+// mirror the SDK conventions in eventbus/events.go but are kept local so the
 // internal control plane does not depend on the public SDK package.
 const (
 	eventHandoff  = "handoff"

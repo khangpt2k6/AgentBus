@@ -15,7 +15,7 @@ type AgentStatus string
 
 const (
 	AgentIdle    AgentStatus = "idle"    // registered, no active session
-	AgentBusy    AgentStatus = "busy"    // currently producing events
+	EventBusy    AgentStatus = "busy"    // currently producing events
 	AgentOffline AgentStatus = "offline" // no heartbeat/activity within the TTL
 )
 
@@ -97,7 +97,7 @@ func (r *Registry) Touch(id, session string) {
 		a = &AgentInfo{ID: id}
 		r.agents[id] = a
 	}
-	a.Status = AgentBusy
+	a.Status = EventBusy
 	a.CurrentSession = session
 	a.LastSeen = r.now()
 }

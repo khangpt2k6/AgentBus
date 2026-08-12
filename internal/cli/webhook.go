@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
+	"github.com/khangpt2k6/EventBus/eventbus"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ func newWebhookCmd(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "webhook",
 		Short: "Subscribe to a topic and POST every event to a URL",
-		Long: `Run AgentBus as the producer side of an HTTP webhook pipeline. Useful for
+		Long: `Run EventBus as the producer side of an HTTP webhook pipeline. Useful for
 integrating non-Go consumers (Slack notifiers, serverless functions, third-party
 SaaS), without forcing them to speak gRPC.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,13 +55,13 @@ SaaS), without forcing them to speak gRPC.`,
 			}
 
 			ctx := cmd.Context()
-			client, err := agentbus.Connect(ctx, opts.addr)
+			client, err := eventbus.Connect(ctx, opts.addr)
 			if err != nil {
 				return err
 			}
 			defer client.Close()
 
-			sub, err := client.SubscribeWithOptions(ctx, topic, group, agentbus.SubscribeOptions{
+			sub, err := client.SubscribeWithOptions(ctx, topic, group, eventbus.SubscribeOptions{
 				Partition: int32(partition),
 			})
 			if err != nil {
@@ -75,7 +75,7 @@ SaaS), without forcing them to speak gRPC.`,
 			for {
 				msg, err := sub.Next(ctx)
 				if err != nil {
-					if errors.Is(err, agentbus.ErrSubscriptionClosed) || errors.Is(err, context.Canceled) {
+					if errors.Is(err, eventbus.ErrSubscriptionClosed) || errors.Is(err, context.Canceled) {
 						return nil
 					}
 					return err
@@ -124,7 +124,7 @@ func parseHeaders(raw []string) (http.Header, error) {
 	return h, nil
 }
 
-func deliver(ctx context.Context, hc *http.Client, url string, msg agentbus.Message, extra http.Header, maxAttempts int, base time.Duration) error {
+func deliver(ctx context.Context, hc *http.Client, url string, msg eventbus.Message, extra http.Header, maxAttempts int, base time.Duration) error {
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}
@@ -136,17 +136,17 @@ func deliver(ctx context.Context, hc *http.Client, url string, msg agentbus.Mess
 			return err
 		}
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Agentbus-Offset", strconv.FormatInt(msg.Offset, 10))
-		req.Header.Set("X-Agentbus-Partition", strconv.FormatInt(int64(msg.Partition), 10))
-		req.Header.Set("X-Agentbus-Timestamp", msg.Timestamp.UTC().Format(time.RFC3339Nano))
-		req.Header.Set("X-Agentbus-Attempt", strconv.Itoa(attempt))
+		req.Header.Set("X-Eventbus-Offset", strconv.FormatInt(msg.Offset, 10))
+		req.Header.Set("X-Eventbus-Partition", strconv.FormatInt(int64(msg.Partition), 10))
+		req.Header.Set("X-Eventbus-Timestamp", msg.Timestamp.UTC().Format(time.RFC3339Nano))
+		req.Header.Set("X-Eventbus-Attempt", strconv.Itoa(attempt))
 		// Tag with envelope fields if the payload is an agent event - lets
 		// the consumer route without re-parsing.
-		if ev, ok := agentbus.DecodeEvent(msg.Payload); ok {
-			req.Header.Set("X-Agentbus-Tenant", ev.Tenant)
-			req.Header.Set("X-Agentbus-Project", ev.Project)
-			req.Header.Set("X-Agentbus-Session", ev.SessionID)
-			req.Header.Set("X-Agentbus-Type", ev.Type)
+		if ev, ok := eventbus.DecodeEvent(msg.Payload); ok {
+			req.Header.Set("X-Eventbus-Tenant", ev.Tenant)
+			req.Header.Set("X-Eventbus-Project", ev.Project)
+			req.Header.Set("X-Eventbus-Session", ev.SessionID)
+			req.Header.Set("X-Eventbus-Type", ev.Type)
 		}
 		for k, vals := range extra {
 			for _, v := range vals {

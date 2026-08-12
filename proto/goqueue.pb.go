@@ -3342,7 +3342,7 @@ const file_goqueue_proto_rawDesc = "" +
 	"\bFailTask\x12\x1b.goqueue.v1.FailTaskRequest\x1a\x1c.goqueue.v1.FailTaskResponse\x12N\n" +
 	"\fGetExecution\x12\x1f.goqueue.v1.GetExecutionRequest\x1a\x1d.goqueue.v1.ExecutionStateMsg\x12\\\n" +
 	"\x13GetExecutionHistory\x12\x1f.goqueue.v1.GetExecutionRequest\x1a$.goqueue.v1.ExecutionHistoryResponse\x12W\n" +
-	"\x0eListExecutions\x12!.goqueue.v1.ListExecutionsRequest\x1a\".goqueue.v1.ListExecutionsResponseB0Z.github.com/khangpt2k6/AgentBus/proto;goqueuev1b\x06proto3"
+	"\x0eListExecutions\x12!.goqueue.v1.ListExecutionsRequest\x1a\".goqueue.v1.ListExecutionsResponseB0Z.github.com/khangpt2k6/EventBus/proto;goqueuev1b\x06proto3"
 
 var (
 	file_goqueue_proto_rawDescOnce sync.Once

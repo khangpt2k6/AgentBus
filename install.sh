@@ -1,10 +1,10 @@
 #!/usr/bin/env sh
-# GoQueue / Agent Bus installer
+# GoQueue / Event Bus installer
 #
 # Usage:
-#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
-#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh -s -- --version v0.1.0
-#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh -s -- --prefix $HOME/.local/bin
+#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh
+#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh -s -- --version v0.1.0
+#   curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh -s -- --prefix $HOME/.local/bin
 #
 # Env overrides:
 #   GOQUEUE_VERSION   release tag to install (default: latest)
@@ -12,7 +12,7 @@
 
 set -eu
 
-REPO="khangpt2k6/AgentBus"
+REPO="khangpt2k6/EventBus"
 VERSION="${GOQUEUE_VERSION:-latest}"
 PREFIX="${GOQUEUE_PREFIX:-}"
 
@@ -106,7 +106,7 @@ esac
 cat <<EOF
 
 next steps:
-  broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=./agentbus.wal
+  broker --tcp-addr=:9090 --grpc-addr=:9095 --metrics-addr=:2112 --wal-path=./eventbus.wal
   goqueue publish --addr localhost:9090 --topic orders "hello"
   goqueue consume --addr localhost:9090 --topic orders --group demo
 

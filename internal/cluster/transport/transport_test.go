@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/shardwal"
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/khangpt2k6/EventBus/internal/cluster/shardwal"
+	pb "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

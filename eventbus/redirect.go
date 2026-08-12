@@ -1,10 +1,10 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
 	"errors"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -36,7 +36,7 @@ func notLeaderHint(err error) (string, bool) {
 // target. The caller is responsible for closing it.
 func dialLeader(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	if addr == "" {
-		return nil, errors.New("agentbus: empty leader hint; cluster has no current leader for this shard")
+		return nil, errors.New("eventbus: empty leader hint; cluster has no current leader for this shard")
 	}
 	return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }

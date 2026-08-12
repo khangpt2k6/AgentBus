@@ -8,14 +8,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/assigner"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/membership"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/metadata"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/replicator"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/ring"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/router"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/shardwal"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/transport"
+	"github.com/khangpt2k6/EventBus/internal/cluster/assigner"
+	"github.com/khangpt2k6/EventBus/internal/cluster/membership"
+	"github.com/khangpt2k6/EventBus/internal/cluster/metadata"
+	"github.com/khangpt2k6/EventBus/internal/cluster/replicator"
+	"github.com/khangpt2k6/EventBus/internal/cluster/ring"
+	"github.com/khangpt2k6/EventBus/internal/cluster/router"
+	"github.com/khangpt2k6/EventBus/internal/cluster/shardwal"
+	"github.com/khangpt2k6/EventBus/internal/cluster/transport"
 )
 
 // Default shard count when the assigner first bootstraps a cluster.

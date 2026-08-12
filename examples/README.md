@@ -1,6 +1,6 @@
 # Examples
 
-Runnable programs that show how to use the AgentBus Go SDK from your own code.
+Runnable programs that show how to use the EventBus Go SDK from your own code.
 
 Each example needs a running broker. The simplest path:
 
@@ -26,7 +26,7 @@ go run ./examples/agent-events
 To use the SDK in your own module:
 
 ```bash
-go get github.com/khangpt2k6/AgentBus/agentbus@latest
+go get github.com/khangpt2k6/EventBus/eventbus@latest
 ```
 
 See [docs/integrate.md](../docs/integrate.md) for the integration guide.

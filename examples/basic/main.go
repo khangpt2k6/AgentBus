@@ -1,4 +1,4 @@
-// Basic publish + subscribe round-trip against a running AgentBus broker.
+// Basic publish + subscribe round-trip against a running EventBus broker.
 //
 // Run a broker first:
 //
@@ -16,14 +16,14 @@ import (
 	"log"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
+	"github.com/khangpt2k6/EventBus/eventbus"
 )
 
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := agentbus.Connect(ctx, "localhost:9095")
+	client, err := eventbus.Connect(ctx, "localhost:9095")
 	if err != nil {
 		log.Fatalf("connect: %v", err)
 	}
@@ -41,7 +41,7 @@ func main() {
 		for {
 			msg, err := sub.Next(ctx)
 			if err != nil {
-				if errors.Is(err, agentbus.ErrSubscriptionClosed) {
+				if errors.Is(err, eventbus.ErrSubscriptionClosed) {
 					return
 				}
 				log.Printf("recv: %v", err)

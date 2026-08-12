@@ -1,6 +1,6 @@
 # OpenTelemetry session traces
 
-AgentBus emits OTEL spans for every publish. Two integrations make these spans powerful for AI ops:
+EventBus emits OTEL spans for every publish. Two integrations make these spans powerful for AI ops:
 
 1. **Session attributes** on every span so you can find every event in a session with a single search.
 2. **Session-derived trace_id** so events from a session that started without an upstream trace context still get grouped into one Jaeger/Tempo trace.
@@ -41,7 +41,7 @@ This works **without modifying your agent code** - the broker introspects the en
 When a producer publishes an agent event **without** propagating an OTEL trace context (e.g. a script, a cron job, a serverless function that didn't set up tracing), the broker synthesizes a parent SpanContext using:
 
 ```
-trace_id = sha256("agentbus/session/" + tenant + "/" + project + "/" + session)[:16]
+trace_id = sha256("eventbus/session/" + tenant + "/" + project + "/" + session)[:16]
 ```
 
 This is deterministic: every event in `sess-42` always lands under the same `trace_id`. In Grafana / Tempo you can derive the trace_id from a session id, paste it into the trace search, and see the whole session as one trace.
@@ -83,7 +83,7 @@ Want to construct the URL `http://grafana:3000/explore?query=<trace_id>` in aler
 import hashlib
 
 def session_trace_id(tenant: str, project: str, session: str) -> str:
-    key = f"agentbus/session/{tenant.strip()}/{project.strip()}/{session.strip()}"
+    key = f"eventbus/session/{tenant.strip()}/{project.strip()}/{session.strip()}"
     return hashlib.sha256(key.encode()).hexdigest()[:32]
 
 print(session_trace_id("acme", "bot", "sess-42"))
@@ -93,8 +93,8 @@ print(session_trace_id("acme", "bot", "sess-42"))
 Or in Go from the SDK:
 
 ```go
-import "github.com/khangpt2k6/AgentBus/internal/agentstream"
-// (Note: agentstream is internal; expose this from the public agentbus
+import "github.com/khangpt2k6/EventBus/internal/agentstream"
+// (Note: agentstream is internal; expose this from the public eventbus
 // package in a future release if you need it.)
 ```
 

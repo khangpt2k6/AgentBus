@@ -3,8 +3,8 @@ package controlplane
 import (
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
-	"github.com/khangpt2k6/AgentBus/internal/broker"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/broker"
 )
 
 const (

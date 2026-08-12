@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/khangpt2k6/AgentBus/internal/broker"
-	"github.com/khangpt2k6/AgentBus/internal/consumer"
-	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/khangpt2k6/EventBus/internal/broker"
+	"github.com/khangpt2k6/EventBus/internal/consumer"
+	goqueuev1 "github.com/khangpt2k6/EventBus/proto"
 )
 
 func TestFetchRejectsEmptyTopic(t *testing.T) {

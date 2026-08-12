@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 )
 
 // Message is one delivered message.
@@ -41,7 +41,7 @@ func (c *Client) Subscribe(ctx context.Context, topic, group string) (*Subscript
 // partition.
 func (c *Client) SubscribeWithOptions(ctx context.Context, topic, group string, opts SubscribeOptions) (*Subscription, error) {
 	if topic == "" {
-		return nil, errors.New("agentbus: topic is required")
+		return nil, errors.New("eventbus: topic is required")
 	}
 	if group == "" {
 		group = "default"
@@ -54,7 +54,7 @@ func (c *Client) SubscribeWithOptions(ctx context.Context, topic, group string, 
 	})
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("agentbus: open consume stream: %w", err)
+		return nil, fmt.Errorf("eventbus: open consume stream: %w", err)
 	}
 	return &Subscription{stream: stream, cancel: cancel}, nil
 }

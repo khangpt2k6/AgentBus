@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"encoding/json"

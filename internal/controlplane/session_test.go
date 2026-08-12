@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 func ev(typ, agent, session string) agentstream.Event {

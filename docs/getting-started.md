@@ -1,13 +1,13 @@
 # Getting Started
 
-By the end of this page you'll have Agent Bus running locally and have sent your first session-ordered AI event through it.
+By the end of this page you'll have Event Bus running locally and have sent your first session-ordered AI event through it.
 
 ## 1. Install
 
 === "One-line installer (Linux/macOS)"
 
     ```bash
-    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
+    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh
     ```
 
     Pin a version: `... | sh -s -- --version v0.1.0`.
@@ -23,7 +23,7 @@ By the end of this page you'll have Agent Bus running locally and have sent your
 === "Build from source"
 
     ```bash
-    git clone https://github.com/khangpt2k6/AgentBus.git
+    git clone https://github.com/khangpt2k6/EventBus.git
     cd GoQueue
     go build -o bin/broker  ./cmd/broker
     go build -o bin/goqueue ./cmd/goqueue
@@ -43,7 +43,7 @@ broker \
   --tcp-addr=:9090 \
   --grpc-addr=:9095 \
   --metrics-addr=:2112 \
-  --wal-path=./data/agentbus.wal
+  --wal-path=./data/eventbus.wal
 ```
 
 You should see startup logs binding to those three ports. The WAL file is created on first write.

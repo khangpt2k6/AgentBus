@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
-	pbv1 "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
+	pbv1 "github.com/khangpt2k6/EventBus/proto"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"

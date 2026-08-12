@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 )
 
 // WorkflowSpec describes a durable workflow execution to submit.
@@ -50,7 +50,7 @@ func (c *Client) SubmitWorkflow(ctx context.Context, spec WorkflowSpec) (already
 		resp, err = pb.NewWorkflowServiceClient(conn).SubmitWorkflow(ctx, req)
 	}
 	if err != nil {
-		return false, fmt.Errorf("agentbus: submit workflow: %w", err)
+		return false, fmt.Errorf("eventbus: submit workflow: %w", err)
 	}
 	return resp.AlreadyExists, nil
 }
@@ -79,7 +79,7 @@ func (c *Client) GetExecution(ctx context.Context, tenant, project, workflowID s
 		Tenant: tenant, Project: project, WorkflowId: workflowID,
 	})
 	if err != nil {
-		return ExecutionState{}, false, fmt.Errorf("agentbus: get execution: %w", err)
+		return ExecutionState{}, false, fmt.Errorf("eventbus: get execution: %w", err)
 	}
 	if !resp.Found {
 		return ExecutionState{}, false, nil
@@ -121,7 +121,7 @@ func (c *Client) ExecutionHistory(ctx context.Context, tenant, project, workflow
 		Tenant: tenant, Project: project, WorkflowId: workflowID,
 	})
 	if err != nil {
-		return nil, false, fmt.Errorf("agentbus: execution history: %w", err)
+		return nil, false, fmt.Errorf("eventbus: execution history: %w", err)
 	}
 	if !resp.Found {
 		return nil, false, nil
@@ -156,7 +156,7 @@ type ExecutionSummary struct {
 func (c *Client) ListExecutions(ctx context.Context, status string, limit int) ([]ExecutionSummary, map[string]int64, error) {
 	resp, err := c.wf.ListExecutions(ctx, &pb.ListExecutionsRequest{Status: status, Limit: int32(limit)})
 	if err != nil {
-		return nil, nil, fmt.Errorf("agentbus: list executions: %w", err)
+		return nil, nil, fmt.Errorf("eventbus: list executions: %w", err)
 	}
 	out := make([]ExecutionSummary, 0, len(resp.Executions))
 	for _, x := range resp.Executions {
@@ -186,9 +186,9 @@ type Task struct {
 
 // ErrNonRetryable wraps handler errors that must not be retried; the
 // execution is declared failed immediately regardless of remaining
-// attempts. Use with fmt.Errorf("...: %w", agentbus.ErrNonRetryable) or
+// attempts. Use with fmt.Errorf("...: %w", eventbus.ErrNonRetryable) or
 // errors.Join.
-var ErrNonRetryable = errors.New("agentbus: non-retryable task failure")
+var ErrNonRetryable = errors.New("eventbus: non-retryable task failure")
 
 // TaskHandler executes one leased attempt. Returning nil error completes
 // the execution with the returned result bytes; returning an error fails

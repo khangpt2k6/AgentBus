@@ -11,12 +11,12 @@ hide:
 # A session-ordered event bus for AI agents
 
 <p class="ab-lede">
-AgentBus is an open-source event bus for multi-agent AI systems. It keeps every session in order, stores each event in a crash-safe write-ahead log, and lets you replay a full run at any time. OpenTelemetry traces and HTTP webhook fan-out are built in. Everything ships as a single Go binary.
+EventBus is an open-source event bus for multi-agent AI systems. It keeps every session in order, stores each event in a crash-safe write-ahead log, and lets you replay a full run at any time. OpenTelemetry traces and HTTP webhook fan-out are built in. Everything ships as a single Go binary.
 </p>
 
 <div class="ab-cta">
   <a href="getting-started/" class="primary">Get started in 60 seconds &nbsp;→</a>
-  <a href="https://github.com/khangpt2k6/AgentBus" class="ghost" target="_blank" rel="noopener">:fontawesome-brands-github: View on GitHub</a>
+  <a href="https://github.com/khangpt2k6/EventBus" class="ghost" target="_blank" rel="noopener">:fontawesome-brands-github: View on GitHub</a>
 </div>
 
 <ul class="ab-pills">
@@ -34,32 +34,32 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 
     ```bash
     # Linux / macOS
-    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
+    curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh
 
     # or Docker
     docker run -d -p 9095:9095 ghcr.io/khangpt2k6/goqueue:latest --grpc-addr=:9095
 
     # or Kubernetes (Helm)
-    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus
+    helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus
 
     # or in your Go module
-    go get github.com/khangpt2k6/AgentBus/agentbus@latest
+    go get github.com/khangpt2k6/EventBus/eventbus@latest
     ```
 
 === "2 · Publish a session event"
 
     ```go
-    import "github.com/khangpt2k6/AgentBus/agentbus"
+    import "github.com/khangpt2k6/EventBus/eventbus"
 
-    client, _ := agentbus.Connect(ctx, "localhost:9095")
+    client, _ := eventbus.Connect(ctx, "localhost:9095")
     defer client.Close()
 
-    client.PublishToolCall(ctx, agentbus.SessionRef{
+    client.PublishToolCall(ctx, eventbus.SessionRef{
         Tenant:    "acme",
         Project:   "support-bot",
         SessionID: "sess-42",
         AgentID:   "planner",
-    }, agentbus.ToolCall{
+    }, eventbus.ToolCall{
         Tool:      "search",
         Arguments: []byte(`{"query":"latest order"}`),
     })
@@ -76,7 +76,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 
 ---
 
-## What AgentBus gives you
+## What EventBus gives you
 
 <div class="grid cards" markdown>
 
@@ -84,7 +84,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 
     ---
 
-    AgentBus hashes the `tenant/project/session` key to choose a partition. The same session always lands on the same partition, so its events stay in order. No distributed locks or two-phase commit are required.
+    EventBus hashes the `tenant/project/session` key to choose a partition. The same session always lands on the same partition, so its events stay in order. No distributed locks or two-phase commit are required.
 
     [:octicons-arrow-right-24: Sessions and ordering](concepts/sessions.md)
 
@@ -92,7 +92,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 
     ---
 
-    Give AgentBus a session id and it returns the full trace. `goqueue session replay` and `client.ReplaySession` return every event in order. It is a self-hosted alternative to a hosted tracing product.
+    Give EventBus a session id and it returns the full trace. `goqueue session replay` and `client.ReplaySession` return every event in order. It is a self-hosted alternative to a hosted tracing product.
 
     [:octicons-arrow-right-24: WAL and replay](concepts/wal-replay.md)
 
@@ -116,7 +116,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 
     ---
 
-    `goqueue webhook --url ...` posts every event to any HTTPS endpoint with retries, backoff, and standard tagging headers. This connects AgentBus to Slack, PagerDuty, Lambda, and similar services.
+    `goqueue webhook --url ...` posts every event to any HTTPS endpoint with retries, backoff, and standard tagging headers. This connects EventBus to Slack, PagerDuty, Lambda, and similar services.
 
     [:octicons-arrow-right-24: Webhook subscriber](webhook.md)
 
@@ -124,7 +124,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 
     ---
 
-    AgentBus is a single Go binary. Docker Compose is optional and only needed for the observability stack. There is no consensus daemon to manage. Run it on a VM, in Kubernetes, or next to your app.
+    EventBus is a single Go binary. Docker Compose is optional and only needed for the observability stack. There is no consensus daemon to manage. Run it on a VM, in Kubernetes, or next to your app.
 
     [:octicons-arrow-right-24: Deploy on Docker](deploy/docker.md)
 
@@ -138,7 +138,7 @@ AgentBus is an open-source event bus for multi-agent AI systems. It keeps every 
 %%{init: {"theme": "neutral"}}%%
 flowchart TB
     P["Agent tools<br/>(producers)"] -->|TCP / gRPC / CLI| R
-    subgraph CORE["AgentBus core"]
+    subgraph CORE["EventBus core"]
         direction TB
         R["Session router"] --> T["Partitioned topics"]
         T --> RD["Retry and DLQ"]
@@ -170,7 +170,7 @@ flowchart TB
 
 !!! warning "Not a fit yet"
     - You need full distributed consensus across many nodes. Cluster mode is still in alpha and multi-node replication is maturing.
-    - Your workload is millions of messages per second on a single partition. AgentBus is fast, but it is not built for Kafka-scale throughput.
+    - Your workload is millions of messages per second on a single partition. EventBus is fast, but it is not built for Kafka-scale throughput.
     - You require strict exactly-once delivery across consumers.
 
 ---
@@ -185,18 +185,18 @@ flowchart TB
 
 -   [:material-code-tags: **Integrate the Go SDK**](integrate.md)
 
-    Add `agentbus.Connect` to your app, build typed agent events.
+    Add `eventbus.Connect` to your app, build typed agent events.
 
 -   [:material-bug: **Replay a session**](concepts/wal-replay.md)
 
     The core workflow: give it a session id, get the full trace back.
 
--   [:material-source-branch: **GitHub**](https://github.com/khangpt2k6/AgentBus)
+-   [:material-source-branch: **GitHub**](https://github.com/khangpt2k6/EventBus)
 
     Read the source, file issues, star if you like it.
 
 </div>
 
 <p style="text-align: center; color: var(--ab-text-muted); font-size: 0.78rem; margin-top: 3rem;">
-Built in Go &nbsp;·&nbsp; MIT licensed &nbsp;·&nbsp; <a href="https://github.com/khangpt2k6/AgentBus/releases" rel="noopener">Latest release</a>
+Built in Go &nbsp;·&nbsp; MIT licensed &nbsp;·&nbsp; <a href="https://github.com/khangpt2k6/EventBus/releases" rel="noopener">Latest release</a>
 </p>

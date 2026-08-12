@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
+	"github.com/khangpt2k6/EventBus/eventbus"
 	"github.com/spf13/cobra"
 )
 
@@ -22,8 +22,8 @@ func newWorkflowCmd(_ *options) *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&grpcAddr, "grpc-addr", "localhost:9095", "broker gRPC address")
 
-	connect := func(ctx context.Context) (*agentbus.Client, error) {
-		return agentbus.Connect(ctx, grpcAddr)
+	connect := func(ctx context.Context) (*eventbus.Client, error) {
+		return eventbus.Connect(ctx, grpcAddr)
 	}
 
 	var (
@@ -50,7 +50,7 @@ func newWorkflowCmd(_ *options) *cobra.Command {
 				return err
 			}
 			defer client.Close()
-			already, err := client.SubmitWorkflow(ctx, agentbus.WorkflowSpec{
+			already, err := client.SubmitWorkflow(ctx, eventbus.WorkflowSpec{
 				Tenant:      tenant,
 				Project:     project,
 				WorkflowID:  workflowID,

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AgentBus — Architecture</title>
-<meta name="description" content="A live architecture diagram of AgentBus: a Raft-replicated, write-ahead-logged message broker for AI-agent event streams." />
+<title>EventBus — Architecture</title>
+<meta name="description" content="A live architecture diagram of EventBus: a Raft-replicated, write-ahead-logged message broker for AI-agent event streams." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -165,7 +165,7 @@
   <!-- ============ DESKTOP SVG (continuous) ============ -->
   <div class="svg-scroll">
     <svg class="arch-svg" id="svg" viewBox="0 0 1160 720" role="img"
-      aria-label="Live architecture diagram of AgentBus. AI agents (planner, researcher, executor) stream events over gRPC and TCP into the Agent Bus Core: a session router feeds partitioned topics, which append to a durable write-ahead log and branch to a retry and dead-letter queue, then forward to consumer groups and webhook fan-out, with an observability tap. Below, a Raft consensus cluster continuously replicates the leader's log to two followers, reaching quorum three of three. Indigo packets flow along every connector; the write-ahead log and Raft replication pulse emerald.">
+      aria-label="Live architecture diagram of EventBus. AI agents (planner, researcher, executor) stream events over gRPC and TCP into the Event Bus Core: a session router feeds partitioned topics, which append to a durable write-ahead log and branch to a retry and dead-letter queue, then forward to consumer groups and webhook fan-out, with an observability tap. Below, a Raft consensus cluster continuously replicates the leader's log to two followers, reaching quorum three of three. Indigo packets flow along every connector; the write-ahead log and Raft replication pulse emerald.">
       <defs>
         <radialGradient id="pk" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stop-color="#c7d2fe"/>
@@ -231,7 +231,7 @@
   };
 
   var REGIONS = [
-    { x:278, y:118, w:472, h:254, label:"AGENT BUS CORE" },
+    { x:278, y:118, w:472, h:254, label:"EVENT BUS CORE" },
     { x:46,  y:438, w:1068, h:254, label:"RAFT CONSENSUS CLUSTER" }
   ];
 
@@ -512,7 +512,7 @@
   mHtml += '<div class="m-band">◇ Agents (producers)</div><div class="m-col">'
         + mNode("planner") + mNode("researcher") + mNode("executor") + '</div>';
   mHtml += '<div class="m-arrow">↓ fan-in · gRPC · TCP · CLI</div>';
-  mHtml += '<div class="m-band">Agent Bus Core</div><div class="m-col">'
+  mHtml += '<div class="m-band">Event Bus Core</div><div class="m-col">'
         + mNode("router","core") + mNode("topics","core") + mNode("wal","commit") + mNode("retry","core") + '</div>';
   mHtml += '<div class="m-arrow">↓</div>';
   mHtml += '<div class="m-band">Delivery</div><div class="m-col">'

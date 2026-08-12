@@ -14,8 +14,8 @@ package router
 import (
 	"strings"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/metadata"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/ring"
+	"github.com/khangpt2k6/EventBus/internal/cluster/metadata"
+	"github.com/khangpt2k6/EventBus/internal/cluster/ring"
 )
 
 // LivenessChecker is the minimum membership-like interface the router needs.

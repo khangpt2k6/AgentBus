@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 )
 
 // PublishResult describes a successful publish.
@@ -30,7 +30,7 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) (Pub
 // per-key ordering is preserved.
 func (c *Client) PublishWithKey(ctx context.Context, topic, key string, payload []byte) (PublishResult, error) {
 	if key == "" {
-		return PublishResult{}, errors.New("agentbus: PublishWithKey requires a non-empty key (use Publish for round-robin)")
+		return PublishResult{}, errors.New("eventbus: PublishWithKey requires a non-empty key (use Publish for round-robin)")
 	}
 	return c.publishRaw(ctx, topic, key, -1, payload)
 }
@@ -39,14 +39,14 @@ func (c *Client) PublishWithKey(ctx context.Context, topic, key string, payload 
 // you have a reason to override the broker's partition assignment.
 func (c *Client) PublishToPartition(ctx context.Context, topic string, partition int32, payload []byte) (PublishResult, error) {
 	if partition < 0 {
-		return PublishResult{}, fmt.Errorf("agentbus: partition must be >= 0, got %d", partition)
+		return PublishResult{}, fmt.Errorf("eventbus: partition must be >= 0, got %d", partition)
 	}
 	return c.publishRaw(ctx, topic, "", partition, payload)
 }
 
 func (c *Client) publishRaw(ctx context.Context, topic, key string, partition int32, payload []byte) (PublishResult, error) {
 	if topic == "" {
-		return PublishResult{}, errors.New("agentbus: topic is required")
+		return PublishResult{}, errors.New("eventbus: topic is required")
 	}
 	res, err := c.api.Publish(ctx, &pb.PublishRequest{
 		Topic:     topic,
@@ -150,19 +150,19 @@ func (c *Client) publishAgentOnce(ctx context.Context, qc pb.BrokerServiceClient
 
 func validateAgentEvent(ev AgentEvent) error {
 	if strings.TrimSpace(ev.Type) == "" {
-		return errors.New("agentbus: AgentEvent.Type is required")
+		return errors.New("eventbus: AgentEvent.Type is required")
 	}
 	if strings.TrimSpace(ev.Tenant) == "" {
-		return errors.New("agentbus: AgentEvent.Tenant is required")
+		return errors.New("eventbus: AgentEvent.Tenant is required")
 	}
 	if strings.TrimSpace(ev.Project) == "" {
-		return errors.New("agentbus: AgentEvent.Project is required")
+		return errors.New("eventbus: AgentEvent.Project is required")
 	}
 	if strings.TrimSpace(ev.SessionID) == "" {
-		return errors.New("agentbus: AgentEvent.SessionID is required")
+		return errors.New("eventbus: AgentEvent.SessionID is required")
 	}
 	if strings.TrimSpace(ev.AgentID) == "" {
-		return errors.New("agentbus: AgentEvent.AgentID is required")
+		return errors.New("eventbus: AgentEvent.AgentID is required")
 	}
 	return nil
 }
@@ -196,7 +196,7 @@ func encodeAgentEvent(ev AgentEvent) ([]byte, error) {
 		payload = []byte(`{}`)
 	}
 	if !json.Valid(payload) {
-		return nil, errors.New("agentbus: AgentEvent.Payload must be valid JSON")
+		return nil, errors.New("eventbus: AgentEvent.Payload must be valid JSON")
 	}
 	return json.Marshal(envelope{
 		Version:   version,

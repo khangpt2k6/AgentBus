@@ -1,6 +1,6 @@
 # WAL & Replay
 
-Agent Bus persists every accepted event to an append-only **Write-Ahead Log** before acknowledging the producer. When the broker restarts - planned or after a crash - it replays the WAL to rebuild its in-memory state.
+Event Bus persists every accepted event to an append-only **Write-Ahead Log** before acknowledging the producer. When the broker restarts - planned or after a crash - it replays the WAL to rebuild its in-memory state.
 
 ## Why this matters
 
@@ -42,7 +42,7 @@ Each WAL entry contains enough to reconstruct the event: topic, partition assign
 
 ```bash
 # 1. Start broker with a WAL path
-broker --tcp-addr=:9090 --wal-path=./data/agentbus.wal
+broker --tcp-addr=:9090 --wal-path=./data/eventbus.wal
 
 # 2. Publish some events
 goqueue publish --addr localhost:9090 --topic orders "msg-1"

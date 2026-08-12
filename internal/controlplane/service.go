@@ -3,7 +3,7 @@ package controlplane
 import (
 	"context"
 
-	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
+	goqueuev1 "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 )
 

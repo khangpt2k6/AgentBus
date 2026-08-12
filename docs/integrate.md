@@ -1,11 +1,11 @@
-# Integrate AgentBus into your Go project
+# Integrate EventBus into your Go project
 
-The `github.com/khangpt2k6/AgentBus/agentbus` package is the official Go SDK. Add it to your module, point it at a running broker, and you're publishing and consuming in a few lines.
+The `github.com/khangpt2k6/EventBus/eventbus` package is the official Go SDK. Add it to your module, point it at a running broker, and you're publishing and consuming in a few lines.
 
 ## Install
 
 ```bash
-go get github.com/khangpt2k6/AgentBus/agentbus@latest
+go get github.com/khangpt2k6/EventBus/eventbus@latest
 ```
 
 ## Minimal example
@@ -20,14 +20,14 @@ import (
     "log"
     "time"
 
-    "github.com/khangpt2k6/AgentBus/agentbus"
+    "github.com/khangpt2k6/EventBus/eventbus"
 )
 
 func main() {
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
 
-    client, err := agentbus.Connect(ctx, "localhost:9095")
+    client, err := eventbus.Connect(ctx, "localhost:9095")
     if err != nil { log.Fatal(err) }
     defer client.Close()
 
@@ -79,7 +79,7 @@ Use when you maintain partition assignment yourself.
 For multi-agent workflows where per-session ordering matters. The SDK builds the standard JSON envelope and routes by `tenant/project/session`.
 
 ```go
-res, err := client.PublishAgent(ctx, agentbus.AgentEvent{
+res, err := client.PublishAgent(ctx, eventbus.AgentEvent{
     Tenant:    "acme",
     Project:   "support-bot",
     SessionID: "sess-42",
@@ -106,7 +106,7 @@ defer sub.Close()
 
 for {
     msg, err := sub.Next(ctx)
-    if errors.Is(err, agentbus.ErrSubscriptionClosed) {
+    if errors.Is(err, eventbus.ErrSubscriptionClosed) {
         break
     }
     if err != nil {
@@ -122,7 +122,7 @@ Consumer groups: the broker tracks the last delivered offset per `(topic, group,
 ### Pin to a specific partition
 
 ```go
-sub, err := client.SubscribeWithOptions(ctx, "orders", "billing", agentbus.SubscribeOptions{
+sub, err := client.SubscribeWithOptions(ctx, "orders", "billing", eventbus.SubscribeOptions{
     Partition: 2,
 })
 ```
@@ -139,8 +139,8 @@ For production / cross-host deployments:
 import "google.golang.org/grpc/credentials"
 
 creds, _ := credentials.NewClientTLSFromFile("ca.pem", "")
-client, err := agentbus.Connect(ctx, "broker.example.com:9095",
-    agentbus.WithTLS(creds),
+client, err := eventbus.Connect(ctx, "broker.example.com:9095",
+    eventbus.WithTLS(creds),
 )
 ```
 
@@ -167,7 +167,7 @@ markProcessed(msg.Offset)
 ### Fan out to workers
 
 ```go
-work := make(chan agentbus.Message, 64)
+work := make(chan eventbus.Message, 64)
 for i := 0; i < runtime.NumCPU(); i++ {
     go worker(work)
 }
@@ -186,7 +186,7 @@ Single goroutine drives `Next`; workers process. Don't share a `Subscription` ac
 ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer cancel()
 
-client, _ := agentbus.Connect(ctx, addr)
+client, _ := eventbus.Connect(ctx, addr)
 defer client.Close()
 
 // ... publish / subscribe loops respect ctx ...
@@ -202,8 +202,8 @@ Subscription Next returns `ErrSubscriptionClosed` when ctx is canceled - drain i
 
 The repo ships two complete examples:
 
-- [`examples/basic/`](https://github.com/khangpt2k6/AgentBus/tree/main/examples/basic) - publish + subscribe round-trip
-- [`examples/agent-events/`](https://github.com/khangpt2k6/AgentBus/tree/main/examples/agent-events) - `PublishAgent` with envelope decoding
+- [`examples/basic/`](https://github.com/khangpt2k6/EventBus/tree/main/examples/basic) - publish + subscribe round-trip
+- [`examples/agent-events/`](https://github.com/khangpt2k6/EventBus/tree/main/examples/agent-events) - `PublishAgent` with envelope decoding
 
 Clone and run after starting a broker:
 

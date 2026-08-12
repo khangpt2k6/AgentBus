@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
-	"github.com/khangpt2k6/AgentBus/internal/broker"
-	"github.com/khangpt2k6/AgentBus/internal/consumer"
-	"github.com/khangpt2k6/AgentBus/internal/grpcapi"
-	"github.com/khangpt2k6/AgentBus/internal/wal"
+	"github.com/khangpt2k6/EventBus/eventbus"
+	"github.com/khangpt2k6/EventBus/internal/broker"
+	"github.com/khangpt2k6/EventBus/internal/consumer"
+	"github.com/khangpt2k6/EventBus/internal/grpcapi"
+	"github.com/khangpt2k6/EventBus/internal/wal"
 	"google.golang.org/grpc"
 )
 
@@ -99,13 +99,13 @@ func TestEndToEndWorkerCrashRetryAndRecovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := agentbus.Connect(ctx, tb.addr)
+	client, err := eventbus.Connect(ctx, tb.addr)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	defer client.Close()
 
-	already, err := client.SubmitWorkflow(ctx, agentbus.WorkflowSpec{
+	already, err := client.SubmitWorkflow(ctx, eventbus.WorkflowSpec{
 		Tenant: "acme", Project: "etl", WorkflowID: "job-1",
 		TaskType: "transform", Input: []byte(`{"rows":100}`),
 		MaxAttempts: 3, LeaseTTL: 5 * time.Second,
@@ -121,13 +121,13 @@ func TestEndToEndWorkerCrashRetryAndRecovery(t *testing.T) {
 	workerDone := make(chan struct{})
 	go func() {
 		defer close(workerDone)
-		w := agentbus.NewWorker(client, "transform", func(_ context.Context, task agentbus.Task) ([]byte, error) {
+		w := eventbus.NewWorker(client, "transform", func(_ context.Context, task eventbus.Task) ([]byte, error) {
 			n := attempts.Add(1)
 			if n == 1 {
 				return nil, errors.New("simulated crash")
 			}
 			return []byte(fmt.Sprintf(`{"attempt":%d}`, task.Attempt)), nil
-		}, agentbus.WithWorkerID("itest-worker"), agentbus.WithLeaseWait(500*time.Millisecond))
+		}, eventbus.WithWorkerID("itest-worker"), eventbus.WithLeaseWait(500*time.Millisecond))
 		_ = w.Run(workerCtx)
 	}()
 
@@ -195,13 +195,13 @@ func TestEndToEndLeaseExpiryReassignsToLiveWorker(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := agentbus.Connect(ctx, tb.addr)
+	client, err := eventbus.Connect(ctx, tb.addr)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	defer client.Close()
 
-	if _, err := client.SubmitWorkflow(ctx, agentbus.WorkflowSpec{
+	if _, err := client.SubmitWorkflow(ctx, eventbus.WorkflowSpec{
 		Tenant: "acme", Project: "etl", WorkflowID: "job-2",
 		TaskType: "transform", MaxAttempts: 2, LeaseTTL: 500 * time.Millisecond,
 	}); err != nil {

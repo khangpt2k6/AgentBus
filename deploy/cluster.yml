@@ -1,4 +1,4 @@
-# 5-node AgentBus cluster for local demos.
+# 5-node EventBus cluster for local demos.
 # Run from the repo root:
 #   docker compose -f deploy/cluster.yml up --build
 #
@@ -39,7 +39,7 @@ services:
     volumes:
       - n1-data:/data
     networks:
-      - agentbus
+      - eventbus
 
   n2:
     build:
@@ -64,7 +64,7 @@ services:
     volumes:
       - n2-data:/data
     networks:
-      - agentbus
+      - eventbus
 
   n3:
     build:
@@ -89,7 +89,7 @@ services:
     volumes:
       - n3-data:/data
     networks:
-      - agentbus
+      - eventbus
 
   n4:
     build:
@@ -114,7 +114,7 @@ services:
     volumes:
       - n4-data:/data
     networks:
-      - agentbus
+      - eventbus
 
   n5:
     build:
@@ -139,7 +139,7 @@ services:
     volumes:
       - n5-data:/data
     networks:
-      - agentbus
+      - eventbus
 
 volumes:
   n1-data: {}
@@ -149,5 +149,5 @@ volumes:
   n5-data: {}
 
 networks:
-  agentbus:
+  eventbus:
     driver: bridge

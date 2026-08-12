@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 // RunStatus is the workflow state of one agent session.

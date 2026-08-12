@@ -12,7 +12,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/metadata"
+	"github.com/khangpt2k6/EventBus/internal/cluster/metadata"
 )
 
 // Applier is the write-side interface the assigner needs. In production

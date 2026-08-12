@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agentbus.fullname" . }}
+  name: {{ include "eventbus.fullname" . }}
   labels:
-    {{- include "agentbus.labels" . | nindent 4 }}
+    {{- include "eventbus.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
@@ -13,11 +13,11 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "agentbus.selectorLabels" . | nindent 6 }}
+      {{- include "eventbus.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "agentbus.selectorLabels" . | nindent 8 }}
+        {{- include "eventbus.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -28,7 +28,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "agentbus.serviceAccountName" . }}
+      serviceAccountName: {{ include "eventbus.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
@@ -37,7 +37,7 @@ spec:
       {{- end }}
       containers:
         - name: broker
-          image: {{ include "agentbus.image" . | quote }}
+          image: {{ include "eventbus.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -94,7 +94,7 @@ spec:
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "agentbus.pvcName" . }}
+            claimName: {{ include "eventbus.pvcName" . }}
           {{- else }}
           emptyDir:
             sizeLimit: 1Gi

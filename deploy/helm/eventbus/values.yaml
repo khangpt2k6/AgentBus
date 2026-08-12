@@ -1,5 +1,5 @@
-# Default values for the AgentBus chart.
-# Override with --set or a values file: `helm install agentbus . -f my-values.yaml`
+# Default values for the EventBus chart.
+# Override with --set or a values file: `helm install eventbus . -f my-values.yaml`
 
 # -----------------------------------------------------------------------------
 # Image
@@ -16,7 +16,7 @@ imagePullSecrets: []
 # -----------------------------------------------------------------------------
 # Workload
 # -----------------------------------------------------------------------------
-# AgentBus is single-node today - replicas > 1 will not give you HA or shard
+# EventBus is single-node today - replicas > 1 will not give you HA or shard
 # the topics. It will give you two independent brokers sharing nothing. Keep
 # this at 1 unless you know what you want.
 replicaCount: 1
@@ -69,14 +69,14 @@ broker:
   grpcAddr: ":9095"
   metricsAddr: ":2112"
   # WAL location inside the container. Lives on the PVC when persistence.enabled.
-  walPath: "/data/agentbus.wal"
+  walPath: "/data/eventbus.wal"
   # Extra args appended to the broker command, e.g. ["--log-level=debug"].
   extraArgs: []
 
 # -----------------------------------------------------------------------------
 # Persistence (WAL + consumer offsets)
 # -----------------------------------------------------------------------------
-# When disabled, AgentBus uses an emptyDir - fast, but lose the pod, lose
+# When disabled, EventBus uses an emptyDir - fast, but lose the pod, lose
 # the WAL. For anything other than dev, enable persistence.
 persistence:
   enabled: true
@@ -105,7 +105,7 @@ ingress:
   className: ""
   annotations: {}
   hosts:
-    - host: agentbus.local
+    - host: eventbus.local
       paths:
         - path: /
           pathType: Prefix

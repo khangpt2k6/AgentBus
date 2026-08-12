@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 	"github.com/spf13/cobra"
 )
 

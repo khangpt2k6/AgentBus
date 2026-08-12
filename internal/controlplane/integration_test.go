@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/broker"
+	"github.com/khangpt2k6/EventBus/internal/broker"
 )
 
 // TestEndToEndMultiAgentRun drives a realistic multi-agent run through a real

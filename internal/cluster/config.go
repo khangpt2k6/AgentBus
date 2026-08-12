@@ -1,4 +1,4 @@
-// Package cluster contains the distributed-mode subsystems for AgentBus.
+// Package cluster contains the distributed-mode subsystems for EventBus.
 // It is opt-in: a broker that does not pass --cluster does not import or
 // initialize any code here.
 package cluster

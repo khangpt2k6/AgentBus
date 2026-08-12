@@ -1,18 +1,18 @@
 # Deploy with Docker
 
-The fastest way to run Agent Bus in production-shaped infrastructure.
+The fastest way to run Event Bus in production-shaped infrastructure.
 
 ## Just the broker
 
 ```bash
-docker run -d --name agentbus \
+docker run -d --name eventbus \
   -p 9090:9090 -p 9095:9095 -p 2112:2112 \
   -v $(pwd)/data:/data \
   ghcr.io/khangpt2k6/goqueue:latest \
   --tcp-addr=:9090 \
   --grpc-addr=:9095 \
   --metrics-addr=:2112 \
-  --wal-path=/data/agentbus.wal
+  --wal-path=/data/eventbus.wal
 ```
 
 Image tags:
@@ -28,7 +28,7 @@ Image tags:
 The repository ships a `docker-compose.yml` that runs the broker plus Grafana, Prometheus, and Tempo:
 
 ```bash
-git clone https://github.com/khangpt2k6/AgentBus.git
+git clone https://github.com/khangpt2k6/EventBus.git
 cd GoQueue
 docker compose up --build
 ```
@@ -63,15 +63,15 @@ services:
   broker:
     image: ghcr.io/khangpt2k6/goqueue:latest
     volumes:
-      - agentbus-data:/data
+      - eventbus-data:/data
     command:
       - --tcp-addr=:9090
       - --grpc-addr=:9095
       - --metrics-addr=:2112
-      - --wal-path=/data/agentbus.wal
+      - --wal-path=/data/eventbus.wal
 
 volumes:
-  agentbus-data:
+  eventbus-data:
 ```
 
 Lose the volume, lose the log. Plan backups accordingly until replicated WAL ships with cluster mode.

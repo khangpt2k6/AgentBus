@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
+	"github.com/khangpt2k6/EventBus/eventbus"
 	"github.com/spf13/cobra"
 )
 
@@ -52,8 +52,8 @@ func bindSessionFlags(cmd *cobra.Command, sf *sessionFlags) {
 	_ = cmd.MarkFlagRequired("session")
 }
 
-func sessionRef(sf *sessionFlags) agentbus.SessionRef {
-	return agentbus.SessionRef{
+func sessionRef(sf *sessionFlags) eventbus.SessionRef {
+	return eventbus.SessionRef{
 		Tenant:    sf.tenant,
 		Project:   sf.project,
 		SessionID: sf.session,
@@ -72,13 +72,13 @@ func newSessionReplayCmd(opts *options) *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 
-			client, err := agentbus.Connect(ctx, opts.addr)
+			client, err := eventbus.Connect(ctx, opts.addr)
 			if err != nil {
 				return err
 			}
 			defer client.Close()
 
-			events, err := client.ReplaySession(ctx, sessionRef(sf), agentbus.ReplayOptions{
+			events, err := client.ReplaySession(ctx, sessionRef(sf), eventbus.ReplayOptions{
 				Topic:          sf.topic,
 				PartitionCount: sf.partitions,
 				FromOffset:     sf.from,
@@ -110,13 +110,13 @@ func newSessionTailCmd(opts *options) *cobra.Command {
 			// No outer timeout - tail runs until SIGINT or stream close.
 			ctx := cmd.Context()
 
-			client, err := agentbus.Connect(ctx, opts.addr)
+			client, err := eventbus.Connect(ctx, opts.addr)
 			if err != nil {
 				return err
 			}
 			defer client.Close()
 
-			sub, err := client.TailSession(ctx, sessionRef(sf), agentbus.ReplayOptions{
+			sub, err := client.TailSession(ctx, sessionRef(sf), eventbus.ReplayOptions{
 				Topic:          sf.topic,
 				PartitionCount: sf.partitions,
 			})
@@ -129,12 +129,12 @@ func newSessionTailCmd(opts *options) *cobra.Command {
 			for {
 				ev, err := sub.Next(ctx)
 				if err != nil {
-					if errors.Is(err, agentbus.ErrSubscriptionClosed) || errors.Is(err, context.Canceled) {
+					if errors.Is(err, eventbus.ErrSubscriptionClosed) || errors.Is(err, context.Canceled) {
 						return nil
 					}
 					return err
 				}
-				renderEvents(os.Stdout, []agentbus.DecodedEvent{ev}, sf.format)
+				renderEvents(os.Stdout, []eventbus.DecodedEvent{ev}, sf.format)
 			}
 		},
 	}
@@ -142,7 +142,7 @@ func newSessionTailCmd(opts *options) *cobra.Command {
 	return cmd
 }
 
-func renderEvents(w io.Writer, events []agentbus.DecodedEvent, format string) {
+func renderEvents(w io.Writer, events []eventbus.DecodedEvent, format string) {
 	switch format {
 	case "jsonl":
 		enc := json.NewEncoder(w)
@@ -156,7 +156,7 @@ func renderEvents(w io.Writer, events []agentbus.DecodedEvent, format string) {
 	}
 }
 
-func renderPretty(w io.Writer, ev agentbus.DecodedEvent) {
+func renderPretty(w io.Writer, ev eventbus.DecodedEvent) {
 	ts := ev.Timestamp
 	if ts.IsZero() {
 		ts = ev.CreatedAt

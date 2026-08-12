@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 // Status is an execution's lifecycle state.

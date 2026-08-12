@@ -1,4 +1,4 @@
-module github.com/khangpt2k6/AgentBus
+module github.com/khangpt2k6/EventBus
 
 go 1.26.1
 

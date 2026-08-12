@@ -1,6 +1,6 @@
 # Retry & DLQ
 
-Agent Bus has a **broker-native** retry policy. You don't need a sidecar, a CLI operator, or a separate worker - the broker itself decides whether a failed event gets re-published with `attempt+1` or routed to a dead-letter topic.
+Event Bus has a **broker-native** retry policy. You don't need a sidecar, a CLI operator, or a separate worker - the broker itself decides whether a failed event gets re-published with `attempt+1` or routed to a dead-letter topic.
 
 ## The rule
 

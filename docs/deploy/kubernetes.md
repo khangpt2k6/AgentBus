@@ -1,15 +1,15 @@
 # Deploy on Kubernetes
 
-AgentBus ships an official Helm chart. One command and you have a broker pod, a Service exposing TCP/gRPC/metrics, a PVC for the WAL, and (optionally) a Prometheus Operator `ServiceMonitor`.
+EventBus ships an official Helm chart. One command and you have a broker pod, a Service exposing TCP/gRPC/metrics, a PVC for the WAL, and (optionally) a Prometheus Operator `ServiceMonitor`.
 
 ## TL;DR
 
 ```bash
 # Install latest chart from GHCR
-helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus
+helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus
 
 # Or pin a version
-helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus --version 0.4.0
+helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus --version 0.4.0
 ```
 
 That's it. Pod comes up, WAL goes on an 8 GiB persistent volume, broker listens on `:9090` (TCP), `:9095` (gRPC), `:2112` (metrics).
@@ -17,18 +17,18 @@ That's it. Pod comes up, WAL goes on an 8 GiB persistent volume, broker listens 
 ## Verify
 
 ```bash
-kubectl get pods -l app.kubernetes.io/name=agentbus
-kubectl get svc agentbus
-kubectl logs -l app.kubernetes.io/name=agentbus -f
+kubectl get pods -l app.kubernetes.io/name=eventbus
+kubectl get svc eventbus
+kubectl logs -l app.kubernetes.io/name=eventbus -f
 ```
 
 Port-forward to test from your laptop:
 
 ```bash
-kubectl port-forward svc/agentbus 9095:9095
+kubectl port-forward svc/eventbus 9095:9095
 
 # In another terminal:
-go install github.com/khangpt2k6/AgentBus/cmd/goqueue@latest
+go install github.com/khangpt2k6/EventBus/cmd/goqueue@latest
 goqueue publish --grpc --addr localhost:9095 --topic smoke "hello k8s"
 goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partition 0
 ```
@@ -38,7 +38,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 === "Bigger WAL"
 
     ```bash
-    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus \
+    helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus \
       --set persistence.size=50Gi \
       --set persistence.storageClass=gp3
     ```
@@ -48,7 +48,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
     Requires `kube-prometheus-stack` installed.
 
     ```bash
-    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus \
+    helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus \
       --set serviceMonitor.enabled=true \
       --set serviceMonitor.labels.release=prometheus
     ```
@@ -59,7 +59,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 === "OTEL collector"
 
     ```bash
-    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus \
+    helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus \
       --set otel.enabled=true \
       --set otel.endpoint=otel-collector.observability.svc.cluster.local:4317 \
       --set otel.resourceAttributes='deployment.environment=prod,team=ai-platform'
@@ -70,7 +70,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 === "Custom image tag"
 
     ```bash
-    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus \
+    helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus \
       --set image.tag=v0.4.0
     ```
 
@@ -95,7 +95,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
     ```
 
     ```bash
-    helm install agentbus oci://ghcr.io/khangpt2k6/charts/agentbus -f values.yaml
+    helm install eventbus oci://ghcr.io/khangpt2k6/charts/eventbus -f values.yaml
     ```
 
 ## Architecture notes
@@ -113,7 +113,7 @@ goqueue consume --grpc --addr localhost:9095 --topic smoke --group demo --partit
 ## Upgrade
 
 ```bash
-helm upgrade agentbus oci://ghcr.io/khangpt2k6/charts/agentbus --version 0.5.0
+helm upgrade eventbus oci://ghcr.io/khangpt2k6/charts/eventbus --version 0.5.0
 ```
 
 WAL format is forward-compatible within a major version. Cross-major upgrades will be called out in release notes.
@@ -121,15 +121,15 @@ WAL format is forward-compatible within a major version. Cross-major upgrades wi
 ## Uninstall
 
 ```bash
-helm uninstall agentbus
+helm uninstall eventbus
 ```
 
 **Note**: this does NOT delete the PVC. WAL data persists across reinstalls of the same release name. To wipe data:
 
 ```bash
-kubectl delete pvc agentbus-data
+kubectl delete pvc eventbus-data
 ```
 
 ## Full values reference
 
-See [`deploy/helm/agentbus/values.yaml`](https://github.com/khangpt2k6/AgentBus/blob/main/deploy/helm/agentbus/values.yaml) - it's documented inline.
+See [`deploy/helm/eventbus/values.yaml`](https://github.com/khangpt2k6/EventBus/blob/main/deploy/helm/eventbus/values.yaml) - it's documented inline.

@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Standard AgentEvent.Type values. AgentBus does not enforce these - any
+// Standard AgentEvent.Type values. EventBus does not enforce these - any
 // string works - but using the constants keeps producers and consumers in
 // sync, and makes session-replay tooling readable.
 const (

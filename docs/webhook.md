@@ -1,6 +1,6 @@
 # Webhook subscriber
 
-Integrate non-Go consumers (or anything that speaks HTTP) by having AgentBus POST each event to a URL. Bridge between AgentBus and Slack, PagerDuty, AWS Lambda URLs, n8n, Zapier - whatever consumes JSON over HTTPS.
+Integrate non-Go consumers (or anything that speaks HTTP) by having EventBus POST each event to a URL. Bridge between EventBus and Slack, PagerDuty, AWS Lambda URLs, n8n, Zapier - whatever consumes JSON over HTTPS.
 
 ## Run it
 
@@ -26,18 +26,18 @@ Headers added on every request:
 
 | Header | Meaning |
 |---|---|
-| `X-Agentbus-Offset` | broker offset on the partition |
-| `X-Agentbus-Partition` | partition number |
-| `X-Agentbus-Timestamp` | RFC3339Nano UTC |
-| `X-Agentbus-Attempt` | delivery attempt (1 on first try) |
-| `X-Agentbus-Tenant` / `Project` / `Session` / `Type` | extracted from the envelope if present |
+| `X-Eventbus-Offset` | broker offset on the partition |
+| `X-Eventbus-Partition` | partition number |
+| `X-Eventbus-Timestamp` | RFC3339Nano UTC |
+| `X-Eventbus-Attempt` | delivery attempt (1 on first try) |
+| `X-Eventbus-Tenant` / `Project` / `Session` / `Type` | extracted from the envelope if present |
 
 Extra headers via `--header 'Key: Value'` (repeatable) - useful for auth:
 
 ```bash
-goqueue webhook --url https://api.example.com/hooks/agentbus \
+goqueue webhook --url https://api.example.com/hooks/eventbus \
   --header 'Authorization: Bearer s3cr3t' \
-  --header 'X-Source: agentbus-prod'
+  --header 'X-Source: eventbus-prod'
 ```
 
 ## Retry semantics
@@ -56,7 +56,7 @@ Backoff doubles each attempt, starting at `--backoff` (default 500ms), capped at
 
 ### Idempotent consumers
 
-Retries happen. The consumer endpoint should treat `(X-Agentbus-Partition, X-Agentbus-Offset)` as a deduplication key.
+Retries happen. The consumer endpoint should treat `(X-Eventbus-Partition, X-Eventbus-Offset)` as a deduplication key.
 
 ### Fan out to many endpoints
 
@@ -74,9 +74,9 @@ The broker doesn't filter by `Type` server-side (yet). Receive everything and di
 
 ```python
 # Flask example
-@app.post("/agentbus")
+@app.post("/eventbus")
 def on_event():
-    if request.headers.get("X-Agentbus-Type") != "tool.result":
+    if request.headers.get("X-Eventbus-Type") != "tool.result":
         return "skip", 200  # ack, but no-op
     process(request.json)
     return "ok", 200

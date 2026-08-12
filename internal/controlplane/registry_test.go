@@ -51,8 +51,8 @@ func TestRegistryTouch(t *testing.T) {
 	r.Touch("planner", "acme/bot/sess-1")
 
 	got, _ := r.Get("planner")
-	if got.Status != AgentBusy {
-		t.Errorf("status after Touch = %q, want %q", got.Status, AgentBusy)
+	if got.Status != EventBusy {
+		t.Errorf("status after Touch = %q, want %q", got.Status, EventBusy)
 	}
 	if got.CurrentSession != "acme/bot/sess-1" {
 		t.Errorf("current session = %q", got.CurrentSession)

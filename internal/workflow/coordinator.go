@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 // Defaults for a freshly constructed coordinator.

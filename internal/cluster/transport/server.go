@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/shardwal"
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/khangpt2k6/EventBus/internal/cluster/shardwal"
+	pb "github.com/khangpt2k6/EventBus/proto"
 )
 
 // Server is the inter-node RPC handler. Receives entries from shard

@@ -3,7 +3,7 @@ package assigner
 import (
 	"testing"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/metadata"
+	"github.com/khangpt2k6/EventBus/internal/cluster/metadata"
 )
 
 type fakeApplier struct {

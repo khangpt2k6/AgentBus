@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/khangpt2k6/AgentBus/internal/cli"
+	"github.com/khangpt2k6/EventBus/internal/cli"
 )
 
 func main() {

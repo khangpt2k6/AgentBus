@@ -3,7 +3,7 @@
 Two binaries: **`broker`** (the server) and **`goqueue`** (the client).
 
 !!! note
-    The CLI binary is still named `goqueue` in code. A package rename to `agentbus` is planned in a separate pass.
+    The CLI binary is still named `goqueue` in code. A package rename to `eventbus` is planned in a separate pass.
 
 ---
 
@@ -16,7 +16,7 @@ Run the server. Authoritative reference is `broker --help`.
 | `--tcp-addr` | TCP listen address | `:9090` |
 | `--grpc-addr` | gRPC listen address | `:9095` |
 | `--metrics-addr` | Prometheus + readiness listen address | `:2112` |
-| `--wal-path` | Path to the WAL file | `data/agentbus.wal` |
+| `--wal-path` | Path to the WAL file | `data/eventbus.wal` |
 
 Example:
 
@@ -25,7 +25,7 @@ broker \
   --tcp-addr=:9090 \
   --grpc-addr=:9095 \
   --metrics-addr=:2112 \
-  --wal-path=/var/lib/agentbus/agentbus.wal
+  --wal-path=/var/lib/eventbus/eventbus.wal
 ```
 
 ---

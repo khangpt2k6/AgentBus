@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/khangpt2k6/AgentBus/internal/broker"
-	"github.com/khangpt2k6/AgentBus/internal/consumer"
-	"github.com/khangpt2k6/AgentBus/internal/ratelimit"
-	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/khangpt2k6/EventBus/internal/broker"
+	"github.com/khangpt2k6/EventBus/internal/consumer"
+	"github.com/khangpt2k6/EventBus/internal/ratelimit"
+	goqueuev1 "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

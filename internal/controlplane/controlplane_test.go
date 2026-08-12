@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 type fakeMetrics struct {
@@ -34,7 +34,7 @@ func TestIngestUpdatesRegistryAndSession(t *testing.T) {
 	cp.Ingest(ev("tool.call", "planner", "s1"))
 
 	a, ok := cp.reg.Get("planner")
-	if !ok || a.Status != AgentBusy {
+	if !ok || a.Status != EventBusy {
 		t.Errorf("planner not marked busy after ingest: %+v ok=%v", a, ok)
 	}
 	rs, ok := cp.GetSession("acme", "bot", "s1")

@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"path/filepath"
 
-	_ "github.com/khangpt2k6/AgentBus/web" // registers all routes via init()
+	_ "github.com/khangpt2k6/EventBus/web" // registers all routes via init()
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 )
 

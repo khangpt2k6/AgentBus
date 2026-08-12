@@ -3,8 +3,8 @@ package router
 import (
 	"testing"
 
-	"github.com/khangpt2k6/AgentBus/internal/cluster/metadata"
-	"github.com/khangpt2k6/AgentBus/internal/cluster/ring"
+	"github.com/khangpt2k6/EventBus/internal/cluster/metadata"
+	"github.com/khangpt2k6/EventBus/internal/cluster/ring"
 )
 
 // fakeMembership lets tests assert which nodes the router considers alive

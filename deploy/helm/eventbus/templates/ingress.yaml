@@ -2,9 +2,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "agentbus.fullname" . }}
+  name: {{ include "eventbus.fullname" . }}
   labels:
-    {{- include "agentbus.labels" . | nindent 4 }}
+    {{- include "eventbus.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -27,7 +27,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "agentbus.fullname" $ }}
+                name: {{ include "eventbus.fullname" $ }}
                 port:
                   name: grpc
           {{- end }}

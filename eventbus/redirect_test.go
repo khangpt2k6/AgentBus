@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

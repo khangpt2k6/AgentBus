@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/khangpt2k6/AgentBus/internal/protocol"
+	"github.com/khangpt2k6/EventBus/internal/protocol"
 	"github.com/spf13/cobra"
 )
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 // logPublisher records every appended envelope in order, standing in for

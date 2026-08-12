@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/api"
+	"github.com/khangpt2k6/EventBus/internal/api"
 	"github.com/maxence-charriere/go-app/v10/pkg/app"
 )
 

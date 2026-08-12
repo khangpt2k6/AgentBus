@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package goqueue.v1;
 
-option go_package = "github.com/khangpt2k6/AgentBus/proto;goqueuev1";
+option go_package = "github.com/khangpt2k6/EventBus/proto;goqueuev1";
 
 service BrokerService {
   rpc Publish(PublishRequest) returns (PublishResponse);
@@ -111,7 +111,7 @@ message NotLeaderError {
 
 // ---- Cluster (inter-node) RPCs -------------------------------------------
 //
-// Used by AgentBus broker nodes to replicate per-shard logs to each other.
+// Used by EventBus broker nodes to replicate per-shard logs to each other.
 // Not intended for client use; clients talk to BrokerService.
 
 service ClusterService {

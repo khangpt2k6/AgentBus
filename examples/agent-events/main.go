@@ -18,21 +18,21 @@ import (
 	"log"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
+	"github.com/khangpt2k6/EventBus/eventbus"
 )
 
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	client, err := agentbus.Connect(ctx, "localhost:9095")
+	client, err := eventbus.Connect(ctx, "localhost:9095")
 	if err != nil {
 		log.Fatalf("connect: %v", err)
 	}
 	defer client.Close()
 
 	// Subscribe to the canonical agent-events topic.
-	sub, err := client.Subscribe(ctx, agentbus.DefaultAgentTopic, "billing-service")
+	sub, err := client.Subscribe(ctx, eventbus.DefaultAgentTopic, "billing-service")
 	if err != nil {
 		log.Fatalf("subscribe: %v", err)
 	}
@@ -43,7 +43,7 @@ func main() {
 		for {
 			msg, err := sub.Next(ctx)
 			if err != nil {
-				if errors.Is(err, agentbus.ErrSubscriptionClosed) {
+				if errors.Is(err, eventbus.ErrSubscriptionClosed) {
 					return
 				}
 				log.Printf("recv: %v", err)
@@ -71,7 +71,7 @@ func main() {
 		{"tool.result", "send-email", `{"sent":true}`},
 	}
 	for i, s := range steps {
-		res, err := client.PublishAgent(ctx, agentbus.AgentEvent{
+		res, err := client.PublishAgent(ctx, eventbus.AgentEvent{
 			Tenant:    "acme",
 			Project:   "support-bot",
 			SessionID: "sess-42",

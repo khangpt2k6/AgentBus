@@ -21,20 +21,20 @@ import (
 	"log"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/agentbus"
+	"github.com/khangpt2k6/EventBus/eventbus"
 )
 
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	client, err := agentbus.Connect(ctx, "localhost:9095")
+	client, err := eventbus.Connect(ctx, "localhost:9095")
 	if err != nil {
 		log.Fatalf("connect: %v", err)
 	}
 	defer client.Close()
 
-	sess := agentbus.SessionRef{
+	sess := eventbus.SessionRef{
 		Tenant:    "acme",
 		Project:   "support-bot",
 		SessionID: "sess-42",
@@ -46,7 +46,7 @@ func main() {
 
 	// 2) Now replay it - this is what ops would do post-mortem.
 	fmt.Println("---- session replay ----")
-	events, err := client.ReplaySession(ctx, sess, agentbus.ReplayOptions{})
+	events, err := client.ReplaySession(ctx, sess, eventbus.ReplayOptions{})
 	if err != nil {
 		log.Fatalf("replay: %v", err)
 	}
@@ -58,30 +58,30 @@ func main() {
 	fmt.Printf("\nTotal: %d events replayed for session %s\n", len(events), sess.SessionID)
 }
 
-func produceAgentRun(ctx context.Context, client *agentbus.Client, sess agentbus.SessionRef) {
+func produceAgentRun(ctx context.Context, client *eventbus.Client, sess eventbus.SessionRef) {
 	// First attempt - succeeds returning empty.
-	must(client.PublishToolCall(ctx, sess, agentbus.ToolCall{
+	must(client.PublishToolCall(ctx, sess, eventbus.ToolCall{
 		Tool: "search", CallID: "c1",
 		Arguments: json.RawMessage(`{"query":"latest order"}`),
 	}))
-	must(client.PublishToolResult(ctx, sess, agentbus.ToolResult{
+	must(client.PublishToolResult(ctx, sess, eventbus.ToolResult{
 		CallID: "c1", Tool: "search",
 		Output:  json.RawMessage(`{"results":[]}`),
 		Latency: 417 * time.Millisecond,
 	}))
 
 	// Second attempt - different query, timeout.
-	must(client.PublishToolCall(ctx, sess, agentbus.ToolCall{
+	must(client.PublishToolCall(ctx, sess, eventbus.ToolCall{
 		Tool: "search", CallID: "c2",
 		Arguments: json.RawMessage(`{"query":"order acme-1042"}`),
 	}))
-	must(client.PublishToolResult(ctx, sess, agentbus.ToolResult{
+	must(client.PublishToolResult(ctx, sess, eventbus.ToolResult{
 		CallID: "c2", Tool: "search",
 		Error: "timeout",
 	}))
 
 	// Handoff to a different agent.
-	must(client.PublishHandoff(ctx, sess, agentbus.Handoff{
+	must(client.PublishHandoff(ctx, sess, eventbus.Handoff{
 		FromAgent: "planner", ToAgent: "escalator",
 		Reason: "2 failed search attempts",
 	}))
@@ -90,7 +90,7 @@ func produceAgentRun(ctx context.Context, client *agentbus.Client, sess agentbus
 	time.Sleep(100 * time.Millisecond)
 }
 
-func must(_ agentbus.PublishResult, err error) {
+func must(_ eventbus.PublishResult, err error) {
 	if err != nil {
 		log.Fatalf("publish: %v", err)
 	}

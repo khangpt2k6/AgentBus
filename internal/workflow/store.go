@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/agentstream"
+	"github.com/khangpt2k6/EventBus/internal/agentstream"
 )
 
 // Store holds every tracked execution plus the derived scheduling indexes:

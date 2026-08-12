@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// OTEL semantic conventions used by AgentBus. Adopted in spans on the broker
+// OTEL semantic conventions used by EventBus. Adopted in spans on the broker
 // (and recommended for SDK callers' own spans) so a single trace search like
 // `agent.session.id = sess-42` returns every event in a session.
 const (
@@ -73,7 +73,7 @@ func SessionTraceID(tenant, project, session string) trace.TraceID {
 	if key == "//" {
 		return trace.TraceID{}
 	}
-	sum := sha256.Sum256([]byte("agentbus/session/" + key))
+	sum := sha256.Sum256([]byte("eventbus/session/" + key))
 	var id trace.TraceID
 	// TraceID is 16 bytes. OTEL rejects all-zero IDs; SHA256 of a non-empty
 	// input is effectively never zero, but be defensive.

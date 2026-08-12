@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// Client is a gRPC client to an AgentBus broker. Safe for concurrent use.
+// Client is a gRPC client to an EventBus broker. Safe for concurrent use.
 //
 // A single Client multiplexes all requests over one HTTP/2 connection; you
 // rarely need to create more than one per process.
@@ -51,7 +51,7 @@ func WithDialOption(o grpc.DialOption) Option {
 	return func(c *config) { c.dialOpts = append(c.dialOpts, o) }
 }
 
-// Connect dials an AgentBus broker at addr (host:port) and returns a ready
+// Connect dials an EventBus broker at addr (host:port) and returns a ready
 // Client. Defaults to plaintext gRPC with a 5-second dial timeout; pass
 // WithTLS for production.
 func Connect(ctx context.Context, addr string, opts ...Option) (*Client, error) {
@@ -72,7 +72,7 @@ func Connect(ctx context.Context, addr string, opts ...Option) (*Client, error) 
 	)
 	conn, err := grpc.DialContext(dialCtx, addr, dialOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("agentbus: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("eventbus: dial %s: %w", addr, err)
 	}
 	return &Client{
 		conn: conn,
@@ -94,4 +94,4 @@ func (c *Client) Close() error {
 
 // ErrSubscriptionClosed is returned by Subscription.Next when the stream
 // has been canceled or closed cleanly by either side.
-var ErrSubscriptionClosed = errors.New("agentbus: subscription closed")
+var ErrSubscriptionClosed = errors.New("eventbus: subscription closed")

@@ -17,7 +17,7 @@ permissions:
   packages: write
 
 env:
-  CHART_PATH: deploy/helm/agentbus
+  CHART_PATH: deploy/helm/eventbus
   REGISTRY: ghcr.io
 
 jobs:
@@ -32,10 +32,10 @@ jobs:
       - name: helm lint
         run: helm lint ${{ env.CHART_PATH }} --strict
       - name: helm template (default values)
-        run: helm template agentbus ${{ env.CHART_PATH }} > /tmp/manifests-default.yaml
+        run: helm template eventbus ${{ env.CHART_PATH }} > /tmp/manifests-default.yaml
       - name: helm template (persistence enabled, serviceMonitor on)
         run: |
-          helm template agentbus ${{ env.CHART_PATH }} \
+          helm template eventbus ${{ env.CHART_PATH }} \
             --set persistence.enabled=true \
             --set persistence.size=50Gi \
             --set serviceMonitor.enabled=true \
@@ -76,4 +76,4 @@ jobs:
             -d dist
       - name: Push chart to GHCR
         run: |
-          helm push dist/agentbus-${{ steps.ver.outputs.version }}.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+          helm push dist/eventbus-${{ steps.ver.outputs.version }}.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts

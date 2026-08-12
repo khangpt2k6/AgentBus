@@ -21,7 +21,7 @@ type clusterStatusResponse struct {
 func newClusterCmd(_ *options) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "cluster",
-		Short: "Inspect AgentBus cluster state",
+		Short: "Inspect EventBus cluster state",
 	}
 	c.AddCommand(newClusterStatusCmd())
 	c.AddCommand(newClusterRouteCmd())

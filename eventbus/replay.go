@@ -1,4 +1,4 @@
-package agentbus
+package eventbus
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/khangpt2k6/AgentBus/proto"
+	pb "github.com/khangpt2k6/EventBus/proto"
 )
 
-// DecodedEvent is one envelope read back from the bus, with the AgentBus
+// DecodedEvent is one envelope read back from the bus, with the EventBus
 // metadata parsed out of the JSON wrapper. Payload remains as raw JSON so
 // the caller can decode into their own typed struct.
 type DecodedEvent struct {
@@ -123,7 +123,7 @@ func (c *Client) ReplaySession(ctx context.Context, sess SessionRef, opts Replay
 			SessionFilter: filter,
 		})
 		if err != nil {
-			return out, fmt.Errorf("agentbus: replay fetch: %w", err)
+			return out, fmt.Errorf("eventbus: replay fetch: %w", err)
 		}
 		if len(page.Messages) == 0 {
 			// Either no more matches OR broker hit its scan budget without
@@ -213,7 +213,7 @@ func (f *FilteredSubscription) Close() error { return f.inner.Close() }
 // don't have to query for it.
 func (c *Client) resolveSessionRouting(sess SessionRef, topic string, partitionCount int) (string, int32, error) {
 	if sess.Tenant == "" || sess.Project == "" || sess.SessionID == "" {
-		return "", 0, errors.New("agentbus: SessionRef.Tenant/Project/SessionID are required")
+		return "", 0, errors.New("eventbus: SessionRef.Tenant/Project/SessionID are required")
 	}
 	if topic == "" {
 		topic = DefaultAgentTopic

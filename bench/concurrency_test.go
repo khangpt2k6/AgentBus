@@ -28,9 +28,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/khangpt2k6/AgentBus/internal/protocol"
-	"github.com/khangpt2k6/AgentBus/internal/wal"
-	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
+	"github.com/khangpt2k6/EventBus/internal/protocol"
+	"github.com/khangpt2k6/EventBus/internal/wal"
+	goqueuev1 "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

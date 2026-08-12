@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	goqueuev1 "github.com/khangpt2k6/AgentBus/proto"
+	goqueuev1 "github.com/khangpt2k6/EventBus/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

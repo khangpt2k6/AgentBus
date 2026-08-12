@@ -5,7 +5,7 @@ For when you want the broker running on a Linux VM without Docker.
 ## 1. Install the binary
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sh
 which broker
 # /usr/local/bin/broker
 ```
@@ -13,29 +13,29 @@ which broker
 ## 2. Create a service user and data dir
 
 ```bash
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin agentbus
-sudo mkdir -p /var/lib/agentbus
-sudo chown agentbus:agentbus /var/lib/agentbus
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin eventbus
+sudo mkdir -p /var/lib/eventbus
+sudo chown eventbus:eventbus /var/lib/eventbus
 ```
 
 ## 3. Install the unit file
 
 ```bash
-sudo tee /etc/systemd/system/agentbus.service >/dev/null <<'EOF'
+sudo tee /etc/systemd/system/eventbus.service >/dev/null <<'EOF'
 [Unit]
-Description=Agent Bus broker
+Description=Event Bus broker
 After=network.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=agentbus
-Group=agentbus
+User=eventbus
+Group=eventbus
 ExecStart=/usr/local/bin/broker \
   --tcp-addr=:9090 \
   --grpc-addr=:9095 \
   --metrics-addr=:2112 \
-  --wal-path=/var/lib/agentbus/agentbus.wal
+  --wal-path=/var/lib/eventbus/eventbus.wal
 Restart=on-failure
 RestartSec=2
 LimitNOFILE=65535
@@ -46,7 +46,7 @@ ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
-ReadWritePaths=/var/lib/agentbus
+ReadWritePaths=/var/lib/eventbus
 
 [Install]
 WantedBy=multi-user.target
@@ -57,9 +57,9 @@ EOF
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now agentbus
-sudo systemctl status agentbus
-journalctl -u agentbus -f
+sudo systemctl enable --now eventbus
+sudo systemctl status eventbus
+journalctl -u eventbus -f
 ```
 
 ## 5. Verify
@@ -73,9 +73,9 @@ goqueue consume --addr localhost:9090 --topic smoke --group test
 ## Upgrading
 
 ```bash
-sudo systemctl stop agentbus
-curl -sSfL https://raw.githubusercontent.com/khangpt2k6/AgentBus/main/install.sh | sudo sh -s -- --version v0.2.0
-sudo systemctl start agentbus
+sudo systemctl stop eventbus
+curl -sSfL https://raw.githubusercontent.com/khangpt2k6/EventBus/main/install.sh | sudo sh -s -- --version v0.2.0
+sudo systemctl start eventbus
 ```
 
 The WAL format is forward-compatible within a major version; cross-major upgrades will be called out in release notes.

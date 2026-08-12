@@ -1,5 +1,5 @@
 // Package membership wraps hashicorp/memberlist so the rest of the
-// cluster code talks to a small AgentBus-specific surface instead of
+// cluster code talks to a small EventBus-specific surface instead of
 // directly to memberlist's broader API.
 package membership
 

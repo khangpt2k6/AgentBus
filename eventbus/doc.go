@@ -1,9 +1,9 @@
-// Package agentbus is the official Go client for AgentBus, a session-ordered
+// Package eventbus is the official Go client for EventBus, a session-ordered
 // event bus for AI agents.
 //
 // Quick start:
 //
-//	client, err := agentbus.Connect(ctx, "localhost:9095")
+//	client, err := eventbus.Connect(ctx, "localhost:9095")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -13,7 +13,7 @@
 //	_, err = client.Publish(ctx, "orders", []byte("hello"))
 //
 //	// Publish an agent event (per-session ordering).
-//	_, err = client.PublishAgent(ctx, agentbus.AgentEvent{
+//	_, err = client.PublishAgent(ctx, eventbus.AgentEvent{
 //		Tenant:    "acme",
 //		Project:   "support-bot",
 //		SessionID: "sess-42",
@@ -26,9 +26,9 @@
 //	sub, err := client.Subscribe(ctx, "agent-events", "billing")
 //	for {
 //		msg, err := sub.Next(ctx)
-//		if errors.Is(err, agentbus.ErrSubscriptionClosed) {
+//		if errors.Is(err, eventbus.ErrSubscriptionClosed) {
 //			break
 //		}
 //		fmt.Printf("offset=%d payload=%s\n", msg.Offset, msg.Payload)
 //	}
-package agentbus
+package eventbus
